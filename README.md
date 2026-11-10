@@ -63,14 +63,16 @@ npm run test:all       # усе разом
 ### Piper — локально й безкоштовно
 
 ```bash
-brew install ffmpeg                       # або apt install ffmpeg
-pip install piper-tts                     # Python 3.9+
-mkdir -p ~/piper && cd ~/piper
-curl -LO https://huggingface.co/rhasspy/piper-voices/resolve/main/uk/uk_UA/ukrainian_tts/medium/uk_UA-ukrainian_tts-medium.onnx
-curl -LO https://huggingface.co/rhasspy/piper-voices/resolve/main/uk/uk_UA/ukrainian_tts/medium/uk_UA-ukrainian_tts-medium.onnx.json
-cd -
-npm run audio -- --model ~/piper/uk_UA-ukrainian_tts-medium.onnx
+pip install --user piper-tts                                   # Python 3.9+
+mkdir -p ~/piper && cd ~/piper && python3 -m piper.download_voices uk_UA-ukrainian_tts-medium && cd -
+npm run audio -- --model ~/piper/uk_UA-ukrainian_tts-medium.onnx --speaker 2
 ```
+
+ffmpeg не потрібен: WAV від Piper кодується в MP3 прямо в Node (lamejs). Якщо `piper` не в `PATH`, вкажи шлях: `PIPER_BIN=~/Library/Python/3.9/bin/piper npm run audio -- …`.
+
+У моделі три голоси: `--speaker 0` (Лада), `1` (Микита), `2` (Тетяна — зараз у грі). Щоб перезаписати іншим: додай `--force`.
+
+Українська модель читає текст посимвольно й знає лише малі літери, тож скрипт сам переводить текст у малі літери, числа — у слова («10 секунд» → «десять секунд»), прибирає лапки й невідомі моделі символи.
 
 ### Azure F0 — безкоштовний рівень
 
@@ -86,7 +88,7 @@ AZURE_SPEECH_VOICE=uk-UA-PolinaNeural
 npm run audio -- --engine azure
 ```
 
-Інше: `--list` (що буде озвучено), `--force` (перегенерувати все), `--only gs-01,gs-02`. Файли — моно MP3 32–48 кбіт/с, ~25 КБ на питання.
+Інше: `--list` (що буде озвучено), `--force` (перегенерувати все), `--only gs-01,gs-02`. Файли — моно MP3 32 кбіт/с (Piper) чи 48 кбіт/с (Azure), 12–25 КБ на питання. Після нових питань просто запусти ще раз — готові файли пропускаються.
 
 Якщо записаної озвучки немає, у налаштуваннях можна ввімкнути **голос браузера** — він доступний, лише якщо на телефоні є український голос.
 
@@ -101,13 +103,18 @@ npm run audio -- --engine azure
 
 ## Публікація
 
-Хостинг — **Cloudflare Pages**, підключений до репозиторію: кожен push у `main` збирає й публікує гру.
+Гра: **https://whoiswho.evgeniy-donev.workers.dev**
 
-| Налаштування | Значення |
+Хостинг — **Cloudflare Workers (Static Assets)**, підключений до репозиторію: кожен push у `main` збирає й публікує гру. Результат видно як перевірку «Workers Builds» біля коміту на GitHub (GitHub Actions не використовуються). Налаштування — у `wrangler.jsonc`:
+
+| Що | Значення |
 |---|---|
-| Build command | `npm run build` |
-| Build output directory | `dist` |
+| Build command | `npm run build` (або порожньо — збірку запускає `build.command` у `wrangler.jsonc`) |
+| Deploy command | `npx wrangler deploy` |
+| Папка гри | `dist` |
 | Node | з `.node-version` (22) |
+
+Перевірити опубліковану версію тими самими e2e: `E2E_BASE_URL=https://whoiswho.evgeniy-donev.workers.dev npm run test:e2e`.
 
 ## Приватність
 
