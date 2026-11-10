@@ -109,18 +109,19 @@ npm run audio -- --engine azure
 
 ## Публікація
 
-Гра: **https://whoiswho.evgeniy-donev.workers.dev**
+Гра: **https://whoiswho-akj.pages.dev**
 
-Хостинг — **Cloudflare Workers (Static Assets)**, підключений до репозиторію: кожен push у `main` збирає й публікує гру. Результат видно як перевірку «Workers Builds» біля коміту на GitHub (GitHub Actions не використовуються). Налаштування — у `wrangler.jsonc`:
+Хостинг — **Cloudflare Pages**, проєкт `whoiswho` (адреса `whoiswho-akj.pages.dev`: назва `whoiswho` на pages.dev уже зайнята, Cloudflare дописав суфікс), підключений до репозиторію: кожен push у `main` збирає й публікує гру, кожна гілка отримує свою превʼю-адресу. Результат видно як перевірку «Cloudflare Pages» біля коміту на GitHub.
 
 | Що | Значення |
 |---|---|
-| Build command | `npm run build` (або порожньо — збірку запускає `build.command` у `wrangler.jsonc`) |
-| Deploy command | `npx wrangler deploy` |
-| Папка гри | `dist` |
+| Build command | `npm run build` |
+| Build output directory | `dist` |
 | Node | з `.node-version` (22) |
 
-Перевірити опубліковану версію тими самими e2e: `E2E_BASE_URL=https://whoiswho.evgeniy-donev.workers.dev npm run test:e2e`.
+Тести на GitHub Actions (`.github/workflows/ci.yml`): юніт-тести з порогом 100%, збірка, e2e у Chromium і WebKit — на кожен push і pull request.
+
+Перевірити опубліковану версію тими самими e2e: `E2E_BASE_URL=https://whoiswho-akj.pages.dev npm run test:e2e`.
 
 ## Приватність
 
