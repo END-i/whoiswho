@@ -43,6 +43,8 @@ test('валідатор ловить типові помилки', () => {
     [(d) => { const q = d.questions.find((x) => x.category === 'guess'); q.about = 'answerer'; q.text = 'Що ти любиш?'; }, /мають бути різними/],
     [(d) => { const q = d.questions.find((x) => x.category === 'guess'); q.text += ' {about}'; }, /імена не підставляються/],
     [(d) => { d.meta.scoringCategories.push('ghost'); }, /scoringCategories/],
+    [(d) => { d.questions[0].about = 'opposite'; }, /невідомий about/],
+    [(d) => { d.questions.find((x) => x.category === 'aboutme').answerer = 'opposite'; }, /невідомий answerer/],
     [(d) => { delete d.meta; }, /meta/],
   ];
   for (const [mutate, re] of cases) {
@@ -60,4 +62,53 @@ test("у текстах і підказках немає форм на кшта�
 test('load кидає помилку зі списком', () => {
   const d = clone(); d.questions.find((q) => q.id === 'op-02').type = 'x';
   assert.throws(() => load(d), (e) => Array.isArray(e.errors) && e.errors.length === 1);
+});
+
+test("у текстах немає «навпроти» — такої ролі немає", () => {
+  assert.deepEqual(raw.questions.filter((q) => /навпроти/i.test(q.text)).map((q) => q.id), []);
+});
+
+test("guess-питання про іншого називають його роль словами", () => {
+  const { questions } = load(raw);
+  const words = { left: /ліворуч/, right: /праворуч/, pick: /вибери будь-кого|на твій вибір/i, self: /той, чия черга/ };
+  for (const q of questions.filter((x) => x.type === 'guess')) {
+    const target = q.about === 'answerer' ? q.answerer : q.about;
+    assert.match(q.text, words[target], `${q.id}: «${q.text}» не каже, про кого (${target})`);
+  }
+});
+
+test('валідатор: структура файлу і категорії', () => {
+  const cases = [
+    [() => null, /порожній/],
+    [() => 'text', /порожній/],
+    [(d) => { d.meta.title = ''; }, /meta.title/],
+    [(d) => { d.meta.rules = []; }, /meta.rules/],
+    [(d) => { d.meta.scoringCategories = 'guess'; }, /scoringCategories має бути списком/],
+    [(d) => { d.categories = []; }, /categories має бути/],
+    [(d) => { d.questions = []; }, /questions має бути/],
+    [(d) => { delete d.categories[0].id; }, /немає id/],
+    [(d) => { d.categories[1].id = d.categories[0].id; }, /id повторюється/],
+    [(d) => { d.categories[0].emoji = ''; }, /порожнє поле emoji/],
+    [(d) => { delete d.questions[0].id; }, /Питання #1: немає id/],
+    [(d) => { d.questions[0].text = ''; }, /порожній текст/],
+    [(d) => { d.questions[0].audience = 'teens'; }, /невідомий audience/],
+    [(d) => { d.questions.find((x) => x.category === 'open').type = 'guess'; }, /мають бути різними/],
+  ];
+  for (const [mutate, re] of cases) {
+    let d = clone(); const r = mutate(d); if (r !== undefined) d = r;
+    const errs = validate(d);
+    assert.ok(errs.some((e) => re.test(e)), `очікував ${re}, отримав: ${errs.join(' | ')}`);
+  }
+});
+
+test('валідатор: fieldDefaults можуть бути відсутні — беруться вбудовані', () => {
+  const d = clone(); delete d.meta.fieldDefaults;
+  // без fieldDefaults guess-питання мають явний type, а решта — open/all/self/answerer
+  assert.deepEqual(validate(d), []);
+  const q = load(d).questions.find((x) => x.id === 'op-02');
+  assert.deepEqual([q.type, q.audience, q.answerer, q.about], ['open', 'all', 'self', 'answerer']);
+});
+
+test('load: помилка без списку errors теж читабельна', () => {
+  assert.throws(() => load(null), /порожній/);
 });

@@ -1,39 +1,54 @@
 <script>
-  import { remaining } from '../lib/state.js';
+  import { remaining, total } from '../lib/state.js';
+  import { categoryColor } from '../lib/theme.js';
 
   let { categories, game, onpick } = $props();
   // Категорії без питань після фільтра аудиторії не показуємо.
-  const visible = $derived(categories.filter((c) => game.deck[c.id]?.length));
+  const visible = $derived(categories.filter((c) => total(game, c.id)));
 </script>
 
-<p class="lead">Вибери категорію</p>
+<h1 class="lead">Вибери категорію</h1>
 
 <div class="grid">
-  {#each visible as c (c.id)}
+  {#each visible as c, k (c.id)}
     {@const left = remaining(game, c.id)}
-    <button class="cat" class:done={!left} disabled={!left} onclick={() => onpick(c.id)}>
+    {@const all = total(game, c.id)}
+    {@const [c1, c2] = categoryColor(c.id, categories.indexOf(c))}
+    <button class="cat" class:done={!left} disabled={!left} onclick={() => onpick(c.id)}
+      style="--c1:{c1}; --c2:{c2}; animation-delay:{k * 40}ms" aria-label="{c.title}. {left ? `Залишилось ${left}` : 'Пройдено'}">
       <span class="emoji" aria-hidden="true">{c.emoji}</span>
       <span class="title">{c.title}</span>
       <span class="desc">{c.description}</span>
-      <span class="left">{left ? `залишилось ${left}` : 'пройдено ✓'}</span>
+      <span class="meter" aria-hidden="true"><i style="width:{(left / all) * 100}%"></i></span>
+      <span class="left">{left ? `${left} з ${all}` : 'пройдено ✓'}</span>
     </button>
   {/each}
 </div>
 
 <style>
-  .lead { margin: 0 0 10px; font-weight: 700; color: var(--dim); }
-  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .lead { margin: 0 0 12px 4px; font-size: 24px; font-weight: 900; }
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
   .cat {
-    display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left;
-    background: var(--card); border: 2px solid var(--line); border-radius: var(--radius);
-    padding: 14px 12px; min-height: 150px; transition: transform .1s;
+    position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left;
+    border: none; border-radius: 26px; padding: 14px 14px 12px; min-height: 176px; color: #fff;
+    background:
+      radial-gradient(circle at 110% -10%, rgba(255, 255, 255, .35) 0 60px, transparent 61px),
+      radial-gradient(circle at -20% 120%, rgba(0, 0, 0, .12) 0 70px, transparent 71px),
+      linear-gradient(160deg, var(--c1), var(--c2));
+    box-shadow: 0 6px 0 color-mix(in srgb, var(--c2) 70%, #000), 0 12px 24px color-mix(in srgb, var(--c2) 35%, transparent);
+    animation: rise .4s cubic-bezier(.2, 1.4, .4, 1) both; transition: transform .08s;
   }
-  .cat:active { transform: scale(.97); }
-  .emoji { font-size: 34px; line-height: 1; }
-  .title { font-weight: 800; font-size: 17px; line-height: 1.2; }
-  .desc { font-size: 13px; color: var(--dim); line-height: 1.3; flex: 1; }
-  .left { font-size: 12px; font-weight: 700; color: var(--accent); background: var(--soft); padding: 3px 8px; border-radius: 10px; }
-  .done { opacity: .5; }
-  .done .left { color: var(--dim); }
+  .cat:active:not(:disabled) { transform: translateY(4px) scale(.98); }
+  @keyframes rise { from { transform: translateY(16px) scale(.94); opacity: 0; } }
+  .emoji {
+    font-size: 30px; line-height: 1; width: 54px; height: 54px; display: grid; place-items: center;
+    background: rgba(255, 255, 255, .95); border-radius: 18px; box-shadow: 0 4px 0 rgba(0, 0, 0, .12); margin-bottom: 6px;
+  }
+  .title { font-weight: 900; font-size: 18px; line-height: 1.15; text-shadow: 0 1px 0 rgba(0, 0, 0, .15); }
+  .desc { font-size: 13px; line-height: 1.3; opacity: .92; flex: 1; font-weight: 700; }
+  .meter { width: 100%; height: 8px; background: rgba(0, 0, 0, .18); border-radius: 6px; overflow: hidden; margin-top: 6px; }
+  .meter i { display: block; height: 100%; background: #fff; border-radius: 6px; }
+  .left { font-size: 12px; font-weight: 900; opacity: .95; }
+  .done { filter: grayscale(.85); opacity: .55; box-shadow: none; }
   @media (max-width: 340px) { .grid { grid-template-columns: 1fr; } .cat { min-height: 0; } }
 </style>

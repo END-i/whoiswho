@@ -1,7 +1,8 @@
 <script>
   import raw from './data/questions.json';
   import { load, byAudience } from './lib/questions.js';
-  import { newGame, finishCard, remaining } from './lib/state.js';
+  import { newGame, finishCard, remaining, allDone, updatePlayers, restoreGame } from './lib/state.js';
+  import { loadAll, saveAll, newId } from './lib/storage.js';
   import Setup from './screens/Setup.svelte';
   import Rules from './screens/Rules.svelte';
   import Categories from './screens/Categories.svelte';
@@ -10,6 +11,7 @@
   import TopBar from './components/TopBar.svelte';
   import Sheet from './components/Sheet.svelte';
   import Avatar from './components/Avatar.svelte';
+  import Confetti from './components/Confetti.svelte';
 
   // Питання читаються один раз під час старту; реактивність тут не потрібна.
   const { data, errors } = (() => {
@@ -18,40 +20,78 @@
   })();
   const byId = new Map(data ? data.questions.map((q) => [q.id, q]) : []);
 
-  // Прототип: стан живе в пам'яті. Збереження в localStorage — крок 3, фото в IndexedDB — крок 6.
-  let players = $state(['Оля', 'Тарас', 'Мама', 'Тато'].map((name) => ({ name, photo: null, template: null })));
-  let settings = $state({ audience: 'family', scoring: false });
-  let game = $state(null);
-  let screen = $state('setup');          // setup | rules | categories | grid | summary
-  let rulesSeen = $state(false);
-  let rulesFrom = $state(null);           // куди повернутися з правил, відкритих із меню
-  let catId = $state(null);
-  let selected = $state(null);
-  let sheet = $state(null);               // null | 'menu' | 'scores'
+  // ---------- відновлення після перезавантаження ----------
+  const saved = loadAll() || {};
+  const cleanPlayers = (list) => {
+    const ok = Array.isArray(list) ? list.filter((p) => p && typeof p.id === 'string' && typeof p.name === 'string') : [];
+    return ok.length >= 2 ? ok.map((p) => ({ id: p.id, name: p.name, photo: p.photo || null, template: p.template || null })) : null;
+  };
+  const SCREENS = ['setup', 'rules', 'categories', 'grid', 'summary'];
+
+  // Усе відновлення — звичайними змінними, один раз; далі стан живе в $state.
+  const init = (() => {
+    const players = cleanPlayers(saved.players) || [
+      { id: newId(), name: '', photo: null, template: null },
+      { id: newId(), name: '', photo: null, template: null },
+    ];
+    const game = data ? restoreGame(saved.game, data.questions.map((q) => q.id), players) : null;
+    const ui = saved.ui || {};
+    let screen = game && SCREENS.includes(ui.screen) ? ui.screen : 'setup';
+    const catId = game && data.categories.some((c) => c.id === ui.catId) ? ui.catId : null;
+    const selected = game && catId && Number.isInteger(ui.selected) && remaining(game, catId) && !game.used[catId]?.includes(ui.selected) ? ui.selected : null;
+    if (screen === 'grid' && !catId) screen = 'categories';
+    return { players, game, screen, catId, selected };
+  })();
+
+  let players = $state(init.players);
+  let settings = $state({ audience: saved.settings?.audience === 'kids' ? 'kids' : 'family', scoring: !!saved.settings?.scoring });
+  let rulesSeen = $state(!!saved.rulesSeen);
+  let lastDeck = $state(saved.lastDeck || null); // колода минулої гри — щоб номери не повторювались
+  let names = $state(saved.names || {});          // id → ім'я всіх, хто будь-коли грав
+  let game = $state(init.game);
+  let screen = $state(init.screen);
+  let catId = $state(init.catId);
+  let selected = $state(init.selected);
+  let rulesFrom = $state(null);
+  let sheet = $state(null); // null | 'menu' | 'scores'
   let toast = $state(null);
+  let party = $state(0);    // лічильник для конфеті
   let toastTimer;
   const category = $derived(data?.categories.find((c) => c.id === catId));
+  const orderPlayers = $derived(game ? game.order.map((id) => players.find((p) => p.id === id)).filter(Boolean) : players);
 
+  $effect(() => {
+    saveAll({
+      players: $state.snapshot(players), settings: $state.snapshot(settings), rulesSeen, lastDeck,
+      names: $state.snapshot(names), game: $state.snapshot(game), ui: { screen, catId, selected },
+    });
+  });
+
+  // ---------- дії ----------
   function start() {
+    for (const p of players) names[p.id] = p.name.trim();
     if (!game) {
       game = newGame({
-        players: players.map((p) => p.name.trim()), audience: settings.audience, scoring: settings.scoring,
-        questions: byAudience(data.questions, settings.audience),
+        players: players.map((p) => ({ id: p.id, name: p.name.trim() })), audience: settings.audience, scoring: settings.scoring,
+        questions: byAudience(data.questions, settings.audience), prevDeck: lastDeck,
       });
+      lastDeck = game.deck;
       screen = rulesSeen ? 'categories' : 'rules';
     } else {
-      game = { ...game, players: players.map((p) => p.name.trim()), scoring: settings.scoring };
+      game = { ...updatePlayers(game, players, names), scoring: settings.scoring };
       screen = catId ? 'grid' : 'categories';
     }
   }
   function finish(num, outcome, answerer) {
     game = finishCard(game, catId, num, outcome, answerer);
+    selected = null;
     if (outcome === 'correct') {
-      toast = `+1 бал — ${players[answerer].name}`;
-      clearTimeout(toastTimer); toastTimer = setTimeout(() => (toast = null), 1800);
+      toast = `+1 бал — ${orderPlayers[answerer]?.name}`;
+      party++;
+      clearTimeout(toastTimer); toastTimer = setTimeout(() => (toast = null), 2000);
     }
-    if (!remaining(game, catId)) catId = null, screen = 'categories';
-    if (data.categories.every((c) => !remaining(game, c.id))) screen = 'summary';
+    if (!remaining(game, catId)) { catId = null; screen = 'categories'; }
+    if (allDone(game)) screen = 'summary';
   }
   function newGameAsk() {
     if (game && !confirm('Почати нову гру? Поточні бали й використані картки скинуться.')) return;
@@ -76,13 +116,14 @@
     <Rules rules={data.meta.rules} again={!!rulesFrom}
       onok={() => { rulesSeen = true; screen = rulesFrom || 'categories'; rulesFrom = null; }} />
   {:else if screen === 'summary'}
-    <Summary {game} {players} onnew={newGameAsk}
-      onback={data.categories.some((c) => remaining(game, c.id)) ? () => (screen = catId ? 'grid' : 'categories') : null} />
+    <Summary {game} {players} {names} onnew={newGameAsk}
+      onback={allDone(game) ? null : () => (screen = catId ? 'grid' : 'categories')} />
   {:else}
-    <TopBar {players} {game} onmenu={() => (sheet = 'menu')} onscores={() => (sheet = 'scores')}
-      back={screen === 'grid' ? { onclick: () => { catId = null; screen = 'categories'; }, disabled: !!selected } : null} />
+    <TopBar players={orderPlayers} {game} onmenu={() => (sheet = 'menu')} onscores={() => (sheet = 'scores')}
+      back={screen === 'grid' ? () => { catId = null; screen = 'categories'; } : null} />
     {#if screen === 'grid' && category}
-      <Grid {category} {game} {players} {byId} scoringCategories={data.meta.scoringCategories} bind:selected onfinish={finish} />
+      <Grid {category} index={data.categories.indexOf(category)} {game} players={orderPlayers} {byId}
+        scoringCategories={data.meta.scoringCategories} bind:selected onfinish={finish} />
     {:else}
       <Categories categories={data.categories} {game} onpick={(id) => { catId = id; screen = 'grid'; }} />
     {/if}
@@ -90,63 +131,95 @@
 </main>
 
 {#if toast}<div class="toast" role="status">🎉 {toast}</div>{/if}
+{#key party}{#if party}<Confetti />{/if}{/key}
 
 {#if sheet === 'menu'}
   <Sheet title="Меню" onclose={() => (sheet = null)}>
     <nav class="menu">
-      <button onclick={() => { rulesFrom = screen; go('rules'); }}>📜 Правила</button>
-      <button onclick={() => go('setup')} disabled={!!selected}>👥 Гравці й налаштування</button>
-      <button onclick={endAsk}>🏁 Завершити гру</button>
-      <button class="danger" onclick={newGameAsk}>🔄 Нова гра</button>
+      <button onclick={() => { rulesFrom = screen; go('rules'); }}><span>📜</span>Правила</button>
+      <button onclick={() => go('setup')}><span>👥</span>Гравці й налаштування</button>
+      <button onclick={endAsk}><span>🏁</span>Завершити гру</button>
+      <button class="danger" onclick={newGameAsk}><span>🔄</span>Нова гра</button>
     </nav>
-    {#if selected}<p class="note">Спершу закрий відкриту картку.</p>{/if}
   </Sheet>
 {:else if sheet === 'scores'}
   <Sheet title="Бали" onclose={() => (sheet = null)}>
     <ol class="scores">
-      {#each players.map((p, i) => ({ p, s: game.scores[i] })).sort((a, b) => b.s - a.s) as row}
-        <li><Avatar player={row.p} size={36} /><span>{row.p.name}</span><b>{row.s}</b></li>
+      {#each orderPlayers.map((p) => ({ p, s: game.scores[p.id] || 0 })).sort((a, b) => b.s - a.s) as row}
+        <li><Avatar player={row.p} size={40} /><span>{row.p.name}</span><b>{row.s}</b></li>
       {/each}
     </ol>
   </Sheet>
 {/if}
 
 <style>
+  @font-face { font-family: 'Nunito'; src: url('/fonts/nunito-cyrillic.woff2') format('woff2'); font-weight: 200 1000; font-display: swap;
+    unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+  @font-face { font-family: 'Nunito'; src: url('/fonts/nunito-latin.woff2') format('woff2'); font-weight: 200 1000; font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+
   :global(:root) {
-    --bg: #fff8ef; --card: #ffffff; --ink: #3b2a1e; --dim: #8a7565; --line: #f0dcc6;
-    --accent: #ff8a3d; --accent-ink: #fff; --soft: #ffe9d4; --ok: #3fae6a; --no: #e25b5b; --used: #efe4d8;
-    --radius: 18px;
+    --bg: #FFF5EA; --card: #FFFFFF; --ink: #2D1B3D; --dim: #8B7792; --line: #F2E1D2;
+    --accent: #FF7A1A; --accent2: #E85D00; --ok: #2FB86A; --ok2: #1E8E4E; --no: #F0505A; --no2: #C2323C;
+    --soft: #FFEBDC; --shadow: 0 10px 30px rgba(120, 60, 20, .14); --radius: 22px;
     color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
     :global(:root) {
-      --bg: #1d1714; --card: #2a211c; --ink: #f7ece2; --dim: #b39f90; --line: #3d3029;
-      --accent: #ff9a52; --accent-ink: #1d1714; --soft: #3a2a20; --used: #241d19;
+      --bg: #1A1224; --card: #2A1F38; --ink: #F8F0FF; --dim: #B7A6C6; --line: #3B2D4D;
+      --soft: #36284A; --shadow: 0 10px 30px rgba(0, 0, 0, .4);
       color-scheme: dark;
     }
   }
   :global(*) { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  :global(html) { background: var(--bg); }
   :global(body) {
-    margin: 0; background: var(--bg); color: var(--ink);
-    font: 17px/1.4 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    margin: 0; min-height: 100vh; color: var(--ink);
+    font: 600 17px/1.35 Nunito, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    background:
+      radial-gradient(circle at 12% 8%, rgba(255, 122, 26, .16) 0 90px, transparent 91px),
+      radial-gradient(circle at 92% 22%, rgba(139, 108, 255, .14) 0 70px, transparent 71px),
+      radial-gradient(circle at 80% 92%, rgba(54, 209, 196, .14) 0 110px, transparent 111px),
+      radial-gradient(rgba(127, 90, 150, .09) 1.5px, transparent 1.6px) 0 0 / 22px 22px,
+      var(--bg);
+    background-attachment: fixed;
   }
   :global(button) { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
   :global(button:disabled) { cursor: default; }
+  :global(:focus-visible) { outline: 3px solid var(--accent); outline-offset: 2px; }
+  /* Об'ємна «ігрова» кнопка: --c — колір, --c2 — тінь */
+  :global(.chunky) {
+    --c: var(--accent); --c2: var(--accent2);
+    border: none; border-radius: 18px; background: var(--c); color: #fff; font-weight: 900; font-size: 18px;
+    min-height: 58px; padding: 0 20px; box-shadow: 0 5px 0 var(--c2), 0 10px 20px rgba(0, 0, 0, .12);
+    transition: transform .08s, box-shadow .08s; text-shadow: 0 1px 0 rgba(0, 0, 0, .15);
+  }
+  :global(.chunky:active:not(:disabled)) { transform: translateY(4px); box-shadow: 0 1px 0 var(--c2), 0 4px 10px rgba(0, 0, 0, .1); }
+  :global(.chunky:disabled) { filter: grayscale(.6); opacity: .5; }
+  :global(.chunky.light) { --c: var(--card); --c2: var(--line); color: var(--ink); text-shadow: none; }
+  @media (prefers-reduced-motion: reduce) { :global(*) { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
   main {
     max-width: 560px; margin: 0 auto;
-    padding: calc(env(safe-area-inset-top, 0px) + 14px) 14px calc(env(safe-area-inset-bottom, 0px) + 24px);
+    padding: calc(env(safe-area-inset-top, 0px) + 14px) 16px calc(env(safe-area-inset-bottom, 0px) + 28px);
   }
-  .toast { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 14px); transform: translateX(-50%); z-index: 20; background: var(--ok); color: #fff; font-weight: 800; padding: 10px 18px; border-radius: 20px; box-shadow: 0 6px 20px rgba(0,0,0,.2); animation: drop .3s ease-out; white-space: nowrap; }
-  @keyframes drop { from { transform: translate(-50%, -30px); opacity: 0; } }
-  .menu { display: flex; flex-direction: column; gap: 8px; }
-  .menu button { min-height: 56px; border-radius: 16px; border: 2px solid var(--line); background: var(--card); font-weight: 700; font-size: 17px; text-align: left; padding: 0 16px; }
-  .menu button:disabled { opacity: .45; }
+  .toast {
+    position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 22px); transform: translateX(-50%); z-index: 40;
+    background: var(--ok); color: #fff; font-weight: 900; padding: 12px 20px; border-radius: 22px;
+    box-shadow: 0 5px 0 var(--ok2), var(--shadow); animation: drop .35s cubic-bezier(.2, 1.6, .4, 1); white-space: nowrap;
+  }
+  @keyframes drop { from { transform: translate(-50%, 40px) scale(.8); opacity: 0; } }
+  .menu { display: flex; flex-direction: column; gap: 10px; }
+  .menu button {
+    display: flex; align-items: center; gap: 14px; min-height: 60px; border-radius: 18px; border: 2px solid var(--line);
+    background: var(--card); font-weight: 800; font-size: 18px; text-align: left; padding: 0 16px; box-shadow: 0 3px 0 var(--line);
+  }
+  .menu button span { font-size: 24px; }
   .menu .danger { color: var(--no); }
-  .note { font-size: 13px; color: var(--dim); margin: 10px 0 0; }
-  .scores { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
-  .scores li { display: flex; align-items: center; gap: 10px; background: var(--card); border-radius: 14px; padding: 8px 12px; }
-  .scores span { flex: 1; font-weight: 700; }
-  .scores b { font-size: 20px; }
-  .errors { background: var(--card); border: 2px solid var(--no); border-radius: var(--radius); padding: 16px; }
+  .scores { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+  .scores li { display: flex; align-items: center; gap: 12px; background: var(--card); border-radius: 16px; padding: 8px 14px; border: 2px solid var(--line); }
+  .scores span { flex: 1; font-weight: 800; }
+  .scores b { font-size: 24px; font-weight: 900; }
+  .errors { background: var(--card); border: 3px solid var(--no); border-radius: var(--radius); padding: 16px; }
   .errors h1 { font-size: 20px; margin: 0 0 8px; }
 </style>

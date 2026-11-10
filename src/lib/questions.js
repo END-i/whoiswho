@@ -3,7 +3,7 @@
 
 export const TYPES = ['open', 'choice', 'activity', 'guess', 'who'];
 export const AUDIENCES = ['all', 'kids'];
-export const ROLES = ['self', 'left', 'right', 'opposite', 'pick'];
+export const ROLES = ['self', 'left', 'right', 'pick'];
 export const ABOUT = [...ROLES, 'answerer'];
 
 const defaultsOf = (meta) => ({
