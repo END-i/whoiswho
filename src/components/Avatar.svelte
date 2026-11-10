@@ -1,5 +1,5 @@
 <script>
-  import { templateById } from '../lib/templates.js';
+  import { templateById, tplTransform } from '../lib/templates.js';
   import { playerColor, initial } from '../lib/theme.js';
 
   let { player, size = 44, ring = false } = $props();
@@ -12,7 +12,7 @@
   {:else}
     <span class="letter">{initial(player?.name)}</span>
   {/if}
-  {#if tpl}<svg viewBox="0 0 100 100">{@html tpl.svg}</svg>{/if}
+  {#if tpl}<svg viewBox="0 0 100 100" style="transform:{tplTransform(player.tplPos)}">{@html tpl.svg}</svg>{/if}
 </span>
 
 <style>

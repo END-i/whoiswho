@@ -46,3 +46,31 @@ export const TEMPLATES = [
 ];
 
 export const templateById = (id) => TEMPLATES.find((t) => t.id === id);
+
+// ---------- положення шаблону на фото ----------
+// x, y — зсув у відсотках розміру аватарки (−40…40), s — масштаб (0.6…1.6).
+export const TPL_DEFAULT = Object.freeze({ x: 0, y: 0, s: 1 });
+const clampNum = (v, a, b, d) => (Number.isFinite(v) ? Math.min(b, Math.max(a, v)) : d);
+
+/** Безпечне положення шаблону: заповнює відсутнє й обмежує межами. */
+export function clampTpl(pos) {
+  const p = pos && typeof pos === 'object' ? pos : {};
+  return {
+    x: Math.round(clampNum(p.x, -40, 40, 0) * 10) / 10,
+    y: Math.round(clampNum(p.y, -40, 40, 0) * 10) / 10,
+    s: Math.round(clampNum(p.s, 0.6, 1.6, 1) * 100) / 100,
+  };
+}
+
+/** Зсув після перетягування пальцем: dxPx, dyPx — пікселі, size — розмір прев'ю в пікселях. */
+export function dragTpl(pos, dxPx, dyPx, size) {
+  const p = clampTpl(pos);
+  if (!size) return p;
+  return clampTpl({ ...p, x: p.x + (dxPx / size) * 100, y: p.y + (dyPx / size) * 100 });
+}
+
+/** CSS-трансформація для шару шаблону. */
+export const tplTransform = (pos) => {
+  const p = clampTpl(pos);
+  return `translate(${p.x}%, ${p.y}%) scale(${p.s})`;
+};

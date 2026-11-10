@@ -5,7 +5,7 @@
   import { newId } from '../lib/storage.js';
 
   // players — масив { id, name, photo, template } ($state у App, змінюється на місці)
-  let { players = $bindable(), settings = $bindable(), inGame, onstart } = $props();
+  let { players = $bindable(), settings = $bindable(), inGame, onstart, voiceAvailable = false, audioCount = 0, wakeLock = true } = $props();
   let photoFor = $state(null);
 
   const MIN = 2, MAX = 8;
@@ -16,7 +16,7 @@
 
   function add() {
     if (players.length >= MAX) return;
-    players.push({ id: newId(), name: '', photo: null, template: null });
+    players.push({ id: newId(), name: '', photo: null, template: null, tplPos: { x: 0, y: 0, s: 1 } });
     requestAnimationFrame(() => document.querySelectorAll('.players input')[players.length - 1]?.focus());
   }
   function remove(i) {
@@ -24,6 +24,10 @@
     const who = players[i].name.trim() || `гравця ${i + 1}`;
     if (inGame && !confirm(`Прибрати ${who} з гри? Його бали лишаться в підсумку.`)) return;
     players.splice(i, 1);
+  }
+  function clearPhotos() {
+    if (!confirm('Видалити фото й шаблони всіх гравців? Їх буде стерто з цього телефона.')) return;
+    for (const p of players) { p.photo = null; p.template = null; p.tplPos = { x: 0, y: 0, s: 1 }; }
   }
   function move(i, d) {
     const j = i + d; if (j < 0 || j >= players.length) return;
@@ -70,6 +74,9 @@
     {/each}
   </ol>
   {#if players.length < MAX}<button class="add" onclick={add}>＋ Додати гравця <small>({players.length} з {MAX})</small></button>{/if}
+  {#if players.some((p) => p.photo)}
+    <button class="clearph" onclick={clearPhotos}>🗑️ Видалити всі фото</button>
+  {/if}
   {#if dups.length}<p class="warn">⚠️ Однакові імена: {dups.join(', ')}. Можна й так, але буде легко сплутати.</p>{/if}
 </section>
 
@@ -86,10 +93,13 @@
     <span><span class="lbl">⭐ Режим з балами</span><small>Бал за правильну відповідь у «Вгадай» і «Що про тебе знають»</small></span>
     <input type="checkbox" role="switch" bind:checked={settings.scoring} />
   </label>
-  <label class="opt sw off">
-    <span><span class="lbl">🔈 Голос браузера</span><small>Читати питання вголос, якщо немає озвучки (крок 8)</small></span>
-    <input type="checkbox" role="switch" disabled />
+  <label class="opt sw" class:off={!voiceAvailable}>
+    <span><span class="lbl">🔈 Голос браузера</span><small>{voiceAvailable
+      ? `Читати питання вголос там, де немає записаної озвучки${audioCount ? ` (записано: ${audioCount})` : ''}`
+      : 'На цьому телефоні немає українського голосу — кнопка недоступна'}</small></span>
+    <input type="checkbox" role="switch" bind:checked={settings.voice} disabled={!voiceAvailable} aria-label="Голос браузера" />
   </label>
+  {#if !wakeLock}<p class="note">💡 Телефон може гаснути під час гри. Вимкни автоблокування в налаштуваннях телефона на час гри.</p>{/if}
 </section>
 
 <button class="chunky start" disabled={!canStart} onclick={onstart}>{inGame ? '▶ Повернутися до гри' : '🎲 Почати гру'}</button>
@@ -139,6 +149,7 @@
   .del:disabled { opacity: .3; }
   .add { width: 100%; min-height: 54px; border-radius: 18px; border: 2px dashed var(--line); background: transparent; color: var(--ink); font-weight: 900; }
   .add small { color: var(--dim); font-weight: 700; }
+  .clearph { width: 100%; min-height: 44px; margin-top: 8px; border: none; background: none; color: var(--no); font-weight: 800; }
   .warn { font-size: 13px; color: #b7791f; margin: 8px 0 0; font-weight: 700; }
   .opts { display: flex; flex-direction: column; gap: 10px; }
   .opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
