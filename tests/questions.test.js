@@ -39,10 +39,9 @@ test('валідатор ловить типові помилки', () => {
     [(d) => { d.questions[0].category = 'nope'; }, /немає категорії/],
     [(d) => { d.questions[0].type = 'quiz'; }, /невідомий type/],
     [(d) => { d.questions[0].audience = 'adults'; }, /adults.*сімейна/],
-    [(d) => { d.questions[0].about = 'left'; d.questions[0].text = 'Без імені?'; }, /немає \{about\}/],
     [(d) => { const q = d.questions.find((x) => x.type === 'who'); q.about = 'left'; }, /Хто з нас/],
     [(d) => { const q = d.questions.find((x) => x.category === 'guess'); q.about = 'answerer'; q.text = 'Що ти любиш?'; }, /мають бути різними/],
-    [(d) => { const q = d.questions.find((x) => x.category === 'guess'); q.text += ' {name}'; }, /невідома підстановка/],
+    [(d) => { const q = d.questions.find((x) => x.category === 'guess'); q.text += ' {about}'; }, /імена не підставляються/],
     [(d) => { d.meta.scoringCategories.push('ghost'); }, /scoringCategories/],
     [(d) => { delete d.meta; }, /meta/],
   ];
@@ -51,6 +50,11 @@ test('валідатор ловить типові помилки', () => {
     const errs = validate(d);
     assert.ok(errs.some((e) => re.test(e)), `очікував ${re}, отримав: ${errs.join(' | ')}`);
   }
+});
+
+test("у текстах і підказках немає форм на кшталт «з'їв(ла)»", () => {
+  const bad = raw.questions.filter((q) => /\((ла|ою|а|лася|ну|ним|нею)\)/.test(q.text + (q.tip || '')));
+  assert.deepEqual(bad.map((q) => q.id), []);
 });
 
 test('load кидає помилку зі списком', () => {

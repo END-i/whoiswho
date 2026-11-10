@@ -5,7 +5,6 @@ export const TYPES = ['open', 'choice', 'activity', 'guess', 'who'];
 export const AUDIENCES = ['all', 'kids'];
 export const ROLES = ['self', 'left', 'right', 'opposite', 'pick'];
 export const ABOUT = [...ROLES, 'answerer'];
-const PLACEHOLDERS = ['{about}', '{answerer}'];
 
 const defaultsOf = (meta) => ({
   type: 'open', audience: 'all', answerer: 'self', about: 'answerer',
@@ -17,7 +16,7 @@ export function withDefaults(q, meta) {
   return { ...defaultsOf(meta), ...q };
 }
 
-/** Чи про іншу людину, ніж та, що відповідає (тоді в тексті має бути {about}). */
+/** Чи про іншу людину, ніж та, що відповідає. */
 export function isAboutOther(q) {
   return !(q.about === 'answerer' || q.about === q.answerer);
 }
@@ -64,10 +63,8 @@ export function validate(raw) {
     if (q.type === 'who' && (raw0.answerer || raw0.about)) errors.push(`${where}: у «Хто з нас» не задають answerer чи about`);
     if (q.type === 'guess' && !isAboutOther(q)) errors.push(`${where}: у guess той, хто відповідає, і той, про кого питання, мають бути різними`);
     if (meta.scoringCategories.includes(q.category) && q.type !== 'guess') errors.push(`${where}: у категорії з балами можуть бути лише guess`);
-    const other = isAboutOther(q);
-    if (other && !q.text.includes('{about}')) errors.push(`${where}: питання про іншого, але в тексті немає {about}`);
-    if (!other && q.text.includes('{about}')) errors.push(`${where}: є {about}, але питання не про іншого`);
-    for (const ph of q.text.match(/\{[^}]*\}/g) || []) if (!PLACEHOLDERS.includes(ph)) errors.push(`${where}: невідома підстановка ${ph}`);
+    // Імен у тексті немає: роль пишемо словами («гравець ліворуч»), тож фігурних дужок бути не може.
+    if (/[{}]/.test(q.text)) errors.push(`${where}: у тексті є «{…}» — імена не підставляються, пиши роль словами`);
   });
   return errors;
 }

@@ -36,11 +36,16 @@ export const remaining = (game, cat) => (game.deck[cat]?.length || 0) - (game.us
 export const isUsed = (game, cat, num) => !!game.used[cat]?.includes(num);
 export const questionAt = (game, cat, num) => game.deck[cat]?.[num - 1];
 
-/** Позначає номер використаним і передає хід далі. Повертає новий стан (старий не змінюється). */
-export function finishCard(game, cat, num, outcome) {
+/**
+ * Позначає номер використаним і передає хід далі. Повертає новий стан (старий не змінюється).
+ * outcome: 'answered' | 'skipped' | 'correct' | 'wrong'. За 'correct' бал отримує answerer.
+ */
+export function finishCard(game, cat, num, outcome, answerer = null) {
   if (isUsed(game, cat, num)) return game;
+  const scores = outcome === 'correct' && answerer !== null
+    ? game.scores.map((s, k) => (k === answerer ? s + 1 : s)) : game.scores;
   return {
-    ...game,
+    ...game, scores,
     used: { ...game.used, [cat]: [...(game.used[cat] || []), num] },
     turn: (game.turn + 1) % game.players.length,
     stats: {
@@ -70,11 +75,4 @@ export function roles(q, i, n) {
   const answerer = seat(q.answerer, i, n);
   const about = q.about === 'answerer' ? answerer : seat(q.about, i, n);
   return { answerer, about };
-}
-
-/** Текст з іменами. Невідомі (ще не вибрані) імена лишаються як «…». */
-export function fillText(text, names) {
-  return text
-    .replaceAll('{about}', names.about ?? '…')
-    .replaceAll('{answerer}', names.answerer ?? '…');
 }

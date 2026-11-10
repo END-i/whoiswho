@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { seat, roles, fillText, newGame, finishCard, remaining, isUsed } from '../src/lib/state.js';
+import { seat, roles, newGame, finishCard, remaining, isUsed } from '../src/lib/state.js';
 
 test('місця: ліворуч наступний, праворуч попередній, по колу', () => {
   assert.equal(seat('left', 3, 4), 0);
@@ -26,11 +26,6 @@ test('ролі картки: about=answerer — про того, хто відп
   assert.deepEqual(roles({ answerer: 'pick', about: 'answerer' }, 0, 4), { answerer: null, about: null });
 });
 
-test('підстановка імен', () => {
-  assert.equal(fillText('Що {about} любить?', { about: 'Оля' }), 'Що Оля любить?');
-  assert.equal(fillText('Що {about} любить?', {}), 'Що … любить?');
-});
-
 test('картка: використаний номер не повторюється, хід переходить по колу', () => {
   const qs = [{ id: 'a', category: 'c' }, { id: 'b', category: 'c' }];
   let g = newGame({ players: ['A', 'B', 'C'], questions: qs });
@@ -42,4 +37,14 @@ test('картка: використаний номер не повторюєт�
   g = finishCard(g, 'c', 2, 'skipped');
   assert.deepEqual(g.stats, { answered: 1, skipped: 1 });
   assert.equal(g.turn, 2);
+});
+
+test('бал за «Правильно» отримує той, хто відповідав; за «Неправильно» — ніхто', () => {
+  const qs = [{ id: 'a', category: 'c' }, { id: 'b', category: 'c' }];
+  let g = newGame({ players: ['A', 'B', 'C'], questions: qs, scoring: true });
+  g = finishCard(g, 'c', 1, 'correct', 2);
+  assert.deepEqual(g.scores, [0, 0, 1]);
+  g = finishCard(g, 'c', 2, 'wrong', 0);
+  assert.deepEqual(g.scores, [0, 0, 1]);
+  assert.deepEqual(g.stats, { answered: 2, skipped: 0 });
 });
