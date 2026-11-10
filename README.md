@@ -60,19 +60,25 @@ npm run test:all       # усе разом
 
 Без озвучки гра працює як звичайно: питання читає хтось із гравців. Якщо для питання є файл `public/audio/{id}.mp3`, на картці з'являється кнопка «🔊». Генерація одноразова й пропускає готові файли.
 
-### Piper — локально й безкоштовно
+### edge-tts — нейронний голос, безкоштовно, без ключа (у грі зараз)
 
 ```bash
-pip install --user piper-tts                                   # Python 3.9+
-mkdir -p ~/piper && cd ~/piper && python3 -m piper.download_voices uk_UA-ukrainian_tts-medium && cd -
-npm run audio -- --model ~/piper/uk_UA-ukrainian_tts-medium.onnx --speaker 2
+pip install --user edge-tts
+npm run audio                                  # голос Поліна (uk-UA-PolinaNeural)
+npm run audio -- --voice uk-UA-OstapNeural     # чоловічий голос Остап
 ```
 
-ffmpeg не потрібен: WAV від Piper кодується в MP3 прямо в Node (lamejs). Якщо `piper` не в `PATH`, вкажи шлях: `PIPER_BIN=~/Library/Python/3.9/bin/piper npm run audio -- …`.
+Це ті самі нейронні голоси Microsoft, що читають уголос у браузері Edge: звучать природно, з правильними наголосами. Спосіб неофіційний (без ключа й договору), тож якщо колись перестане працювати — перейди на Azure F0 нижче: голоси ті самі. Якщо `edge-tts` не в `PATH`: `EDGE_TTS_BIN=~/Library/Python/3.9/bin/edge-tts npm run audio`.
 
-У моделі три голоси: `--speaker 0` (Лада), `1` (Микита), `2` (Тетяна — зараз у грі). Щоб перезаписати іншим: додай `--force`.
+### Piper — локально, але якість для української слабка
 
-Українська модель читає текст посимвольно й знає лише малі літери, тож скрипт сам переводить текст у малі літери, числа — у слова («10 секунд» → «десять секунд»), прибирає лапки й невідомі моделі символи.
+```bash
+pip install --user piper-tts
+mkdir -p ~/piper && cd ~/piper && python3 -m piper.download_voices uk_UA-ukrainian_tts-medium && cd -
+npm run audio -- --engine piper --model ~/piper/uk_UA-ukrainian_tts-medium.onnx --speaker 2
+```
+
+Модель читає посимвольно й знає лише малі літери, тож скрипт сам готує текст (малі літери, числа словами, без лапок). WAV кодується в MP3 у Node (lamejs), ffmpeg не потрібен.
 
 ### Azure F0 — безкоштовний рівень
 
@@ -88,7 +94,7 @@ AZURE_SPEECH_VOICE=uk-UA-PolinaNeural
 npm run audio -- --engine azure
 ```
 
-Інше: `--list` (що буде озвучено), `--force` (перегенерувати все), `--only gs-01,gs-02`. Файли — моно MP3 32 кбіт/с (Piper) чи 48 кбіт/с (Azure), 12–25 КБ на питання. Після нових питань просто запусти ще раз — готові файли пропускаються.
+Інше: `--list` (що буде озвучено), `--force` (перезаписати все, напр. іншим голосом), `--only gs-01,gs-02`. Файли — моно MP3 48 кбіт/с (edge-tts, Azure) чи 32 кбіт/с (Piper), ~20–35 КБ на питання. Після нових питань просто запусти ще раз — готові файли пропускаються.
 
 Якщо записаної озвучки немає, у налаштуваннях можна ввімкнути **голос браузера** — він доступний, лише якщо на телефоні є український голос.
 
