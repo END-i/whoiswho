@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // Одноразова генерація озвучки: public/audio/{id}.mp3 для кожного питання. Готові файли пропускає.
 //
-//   node scripts/generate-audio.mjs --model ~/piper/uk_UA-ukrainian_tts-medium.onnx   # Piper, локально
+//   node scripts/generate-audio.mjs --model ~/piper/uk_UA-ukrainian_tts-medium.onnx   # Piper, локально (--speaker 0|1|2)
 //   node scripts/generate-audio.mjs --engine azure                                    # Azure F0, ключі в .env
 //   node scripts/generate-audio.mjs --list                                            # що буде озвучено
 //   ... --force (перегенерувати все), --only gs-01,gs-02
+// Шлях до piper можна задати змінною PIPER_BIN. ffmpeg не потрібен: MP3 кодує lamejs.
 //
 // Уся логіка — у scripts/audio-lib.mjs (покрита тестами); тут лише файли й процеси.
 import { spawn } from 'node:child_process';
@@ -38,7 +39,12 @@ function run(cmd, args, stdin) {
 const env = { ...parseEnv(fs.existsSync(path.join(root, '.env')) ? fs.readFileSync(path.join(root, '.env'), 'utf8') : ''), ...process.env };
 const engine = opts.engine === 'azure'
   ? azureEngine({ key: env.AZURE_SPEECH_KEY, region: env.AZURE_SPEECH_REGION, voice: env.AZURE_SPEECH_VOICE, fetch, writeFile: fs.writeFileSync })
-  : piperEngine({ model: opts.model, run, tmpWav: (id) => path.join(os.tmpdir(), `whoiswho-${id}.wav`) });
+  : piperEngine({
+    model: opts.model, run, fs, speaker: opts.speaker, bin: env.PIPER_BIN || 'piper',
+    tmpWav: (id) => path.join(os.tmpdir(), `whoiswho-${id}.wav`),
+    // символи, які знає модель (з її .onnx.json) — щоб текст не губив літер
+    symbols: (() => { try { return new Set(Object.keys(JSON.parse(fs.readFileSync(opts.model + '.json', 'utf8')).phoneme_id_map)); } catch { return null; } })(),
+  });
 
 fs.mkdirSync(outDir, { recursive: true });
 console.log(`Озвучую ${jobs.length} питань (${opts.engine})…`);

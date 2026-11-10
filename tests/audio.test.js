@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { speechText, audioUrl, pickUkVoice, listenMode, playQuestion } from '../src/lib/speech.js';
-import { listAudioIds, planJobs, ssml, piperEngine, azureEngine, runJobs, parseArgs, parseEnv, MP3_ARGS } from '../scripts/audio-lib.mjs';
+import { listAudioIds, planJobs, ssml, piperEngine, azureEngine, runJobs, parseArgs, parseEnv, piperText, numberWords, parseWav, wavToMp3 } from '../scripts/audio-lib.mjs';
 import { audioIdsPlugin, VIRTUAL_ID } from '../scripts/vite-audio-plugin.mjs';
 import { mkdtempSync, writeFileSync as wf, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -56,15 +56,80 @@ test('ssml: екранування й голос', () => {
 
 // ---------- рушії ----------
 
-test('piperEngine: piper отримує текст у stdin, ffmpeg робить моно MP3 32 кбіт/с', async () => {
-  const calls = [];
-  const eng = piperEngine({ model: 'm.onnx', run: async (...a) => calls.push(a), tmpWav: (id) => `/tmp/${id}.wav` });
-  const tmp = await eng({ id: 'q1', text: 'Привіт' }, '/out/q1.mp3');
+// WAV PCM16 з синусоїдою — для тестів кодування
+function makeWav({ seconds = 0.2, rate = 22050, channels = 1, extraChunk = false } = {}) {
+  const n = Math.round(seconds * rate) * channels, data = Buffer.alloc(n * 2);
+  for (let i = 0; i < n; i++) data.writeInt16LE(Math.round(Math.sin(i / 8) * 12000), i * 2);
+  const fmt = Buffer.alloc(16);
+  fmt.writeUInt16LE(1, 0); fmt.writeUInt16LE(channels, 2); fmt.writeUInt32LE(rate, 4);
+  fmt.writeUInt32LE(rate * channels * 2, 8); fmt.writeUInt16LE(channels * 2, 12); fmt.writeUInt16LE(16, 14);
+  const chunk = (id, body) => Buffer.concat([Buffer.from(id, 'ascii'), Buffer.from(Uint32Array.of(body.length).buffer), body, body.length % 2 ? Buffer.alloc(1) : Buffer.alloc(0)]);
+  const parts = [chunk('fmt ', fmt), ...(extraChunk ? [chunk('LIST', Buffer.from('abc'))] : []), chunk('data', data)];
+  const body = Buffer.concat([Buffer.from('WAVE', 'ascii'), ...parts]);
+  return Buffer.concat([Buffer.from('RIFF', 'ascii'), Buffer.from(Uint32Array.of(body.length).buffer), body]);
+}
+
+test('numberWords: 0–999 словами, більші — по цифрі', () => {
+  assert.equal(numberWords(0), 'нуль'); assert.equal(numberWords(7), 'сім');
+  assert.equal(numberWords(10), 'десять'); assert.equal(numberWords(15), "п'ятнадцять");
+  assert.equal(numberWords(40), 'сорок'); assert.equal(numberWords(42), 'сорок два');
+  assert.equal(numberWords(200), 'двісті'); assert.equal(numberWords(305), "триста п'ять");
+  assert.equal(numberWords(2026), 'два нуль два шість');
+  assert.throws(() => numberWords(-1)); assert.throws(() => numberWords(1.5));
+});
+
+test('piperText: малі літери, числа словами, без лапок, лише символи моделі', () => {
+  assert.equal(piperText('Протанцюй 10 секунд!'), 'протанцюй десять секунд!');
+  assert.equal(piperText('Скажи «я тебе люблю» — тричі…'), 'скажи я тебе люблю — тричі...');
+  assert.equal(piperText('Чого він не з’їв(ла) б?'), "чого він не з'їв б?");
+  const symbols = new Set([...'абвгдеєжзиіїйклмнопрстуфхцчшщьюяґ\' ?']);
+  assert.equal(piperText('Що це? #тег 😀', symbols), 'що це? тег');
+});
+
+test('piperText: усі 200 питань перетворюються на символи української моделі', () => {
+  const symbols = new Set([...' !$\',-.:;?^_́̆̈абвгдежзийклмнопрстуфхцчшщьюяєіїґ—']); // з uk_UA-ukrainian_tts-medium.onnx.json
+  for (const q of raw.questions) {
+    const t = piperText(q.text);
+    assert.deepEqual([...t].filter((ch) => !symbols.has(ch)), [], `${q.id}: «${t}»`);
+    assert.ok(t.length > 5, q.id);
+  }
+});
+
+test('parseWav: моно й стерео, пропускає зайві блоки; не WAV — помилка', () => {
+  const m = parseWav(makeWav({ extraChunk: true }));
+  assert.equal(m.sampleRate, 22050); assert.equal(m.channels, 1); assert.equal(m.samples.length, 4410);
+  assert.equal(parseWav(makeWav({ channels: 2 })).channels, 2);
+  assert.throws(() => parseWav(Buffer.from('hello world, not a wav')), /не WAV/);
+  const noData = makeWav().subarray(0, 12 + 8 + 16);
+  const fixed = Buffer.from(noData); fixed.writeUInt32LE(fixed.length - 8, 4);
+  assert.throws(() => parseWav(fixed), /fmt або data/);
+  const float = makeWav(); float.writeUInt16LE(3, 20); // формат 3 = float
+  assert.throws(() => parseWav(float), /PCM 16/);
+  assert.equal(parseWav(new Uint8Array(makeWav())).channels, 1, 'приймає й Uint8Array');
+});
+
+test('wavToMp3: справжній MP3 потрібного розміру, стерео зводиться в моно', () => {
+  const mp3 = wavToMp3(makeWav({ seconds: 2 }));
+  assert.ok(mp3[0] === 0xff && (mp3[1] & 0xe0) === 0xe0, 'починається з MP3-кадру');
+  assert.ok(mp3.length > 5000 && mp3.length < 12000, `32 кбіт/с × 2 с ≈ 8 КБ, вийшло ${mp3.length}`);
+  const st = wavToMp3(makeWav({ seconds: 1, channels: 2 }));
+  assert.ok(st.length > 2000 && st.length < 7000);
+  assert.ok(wavToMp3(makeWav({ seconds: 1 }), 64).length > wavToMp3(makeWav({ seconds: 1 }), 32).length, 'бітрейт має значення');
+});
+
+test('piperEngine: нормалізований текст у stdin, голос, WAV → MP3 без ffmpeg', async () => {
+  const calls = [], files = {};
+  const fs = { readFileSync: () => makeWav({ seconds: 0.5 }), writeFileSync: (f, b) => (files[f] = b) };
+  const eng = piperEngine({ model: 'm.onnx', run: async (...a) => calls.push(a), tmpWav: (id) => `/tmp/${id}.wav`, fs, speaker: 2, bin: '/x/piper' });
+  const tmp = await eng({ id: 'q1', text: 'Протанцюй 10 секунд' }, '/out/q1.mp3');
   assert.equal(tmp, '/tmp/q1.wav');
-  assert.deepEqual(calls[0], ['piper', ['--model', 'm.onnx', '--output_file', '/tmp/q1.wav'], 'Привіт']);
-  assert.equal(calls[1][0], 'ffmpeg');
-  assert.deepEqual(calls[1][1].slice(-MP3_ARGS.length - 1), [...MP3_ARGS, '/out/q1.mp3']);
-  assert.throws(() => piperEngine({ run() {}, tmpWav() {} }), /модель Piper/);
+  assert.deepEqual(calls[0], ['/x/piper', ['--model', 'm.onnx', '--output_file', '/tmp/q1.wav', '--speaker', '2'], 'протанцюй десять секунд']);
+  assert.equal(calls.length, 1, 'ffmpeg більше не потрібен');
+  assert.equal(files['/out/q1.mp3'][0], 0xff);
+  const eng2 = piperEngine({ model: 'm.onnx', run: async (...a) => calls.push(a), tmpWav: (id) => id, fs });
+  await eng2({ id: 'q2', text: 'так' }, '/o');
+  assert.deepEqual(calls[1], ['piper', ['--model', 'm.onnx', '--output_file', 'q2'], 'так']);
+  assert.throws(() => piperEngine({ run() {}, tmpWav() {}, fs }), /модель Piper/);
 });
 
 test('azureEngine: правильний запит і запис файлу; помилка сервера — зрозуміла', async () => {
@@ -99,9 +164,10 @@ test('runJobs: помилка одного не зупиняє решту, ти�
 // ---------- аргументи й .env ----------
 
 test('parseArgs', () => {
-  assert.deepEqual(parseArgs([]), { engine: 'piper', model: null, force: false, only: null, list: false });
-  assert.deepEqual(parseArgs(['--engine', 'azure', '--force', '--only', 'a,b', '--list']),
-    { engine: 'azure', model: null, force: true, only: ['a', 'b'], list: true });
+  assert.deepEqual(parseArgs([]), { engine: 'piper', model: null, speaker: null, force: false, only: null, list: false });
+  assert.deepEqual(parseArgs(['--engine', 'azure', '--force', '--only', 'a,b', '--list', '--speaker', '1']),
+    { engine: 'azure', model: null, speaker: 1, force: true, only: ['a', 'b'], list: true });
+  assert.throws(() => parseArgs(['--speaker', 'x']), /номер голосу/);
   assert.equal(parseArgs(['--model', 'x.onnx']).model, 'x.onnx');
   assert.deepEqual(parseArgs(['--only']).only, []);
   assert.throws(() => parseArgs(['--engine', 'gtts']), /Невідомий рушій/);
