@@ -17,6 +17,17 @@
   <button class="icon" onclick={onmenu} aria-label="Меню">☰</button>
 </div>
 
+{#if game.scoring}
+  <button class="board" onclick={onscores} aria-label="Бали: {players.map((x) => `${x.name} ${game.scores[x.id] || 0}`).join(', ')}">
+    {#each players as x, k (x.id)}
+      <span class="pl" class:now={k === game.turn}>
+        <Avatar player={x} size={30} />
+        {#key game.scores[x.id]}<b class="pts">{game.scores[x.id] || 0}</b>{/key}
+      </span>
+    {/each}
+  </button>
+{/if}
+
 <style>
   .bar {
     display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 8px;
@@ -33,4 +44,13 @@
     font-size: 21px; font-weight: 900; box-shadow: 0 3px 0 var(--line);
   }
   .icon:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--line); }
+  .board {
+    display: flex; gap: 6px; width: 100%; overflow-x: auto; margin: -6px 0 14px; padding: 6px 8px;
+    border: 2px solid var(--line); border-radius: 18px; background: var(--card); box-shadow: 0 3px 0 var(--line);
+    scrollbar-width: none;
+  }
+  .pl { display: flex; align-items: center; gap: 5px; padding: 3px 8px 3px 3px; border-radius: 14px; flex: none; }
+  .pl.now { background: var(--soft); box-shadow: inset 0 0 0 2px var(--accent); }
+  .pts { font-size: 17px; font-weight: 900; min-width: 14px; animation: bump .5s cubic-bezier(.2, 1.8, .4, 1); }
+  @keyframes bump { from { transform: scale(1.8); color: var(--ok); } }
 </style>

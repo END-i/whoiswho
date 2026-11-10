@@ -53,7 +53,7 @@ test('кнопки «Правильно» і «Ні» кольорові, тек
     const cs = getComputedStyle(el), rgb = (c) => c.match(/\d+/g).slice(0, 3).map(Number);
     return { bg: rgb(cs.backgroundColor), fg: rgb(cs.color) };
   });
-  const ok = await look(/Правильно/), no = await look('❌ Ні');
+  const ok = await look(/Правильно/), no = await look('❌ Неправильно');
   expect(ok.bg[1]).toBeGreaterThan(ok.bg[0]); // зелена
   expect(no.bg[0]).toBeGreaterThan(no.bg[1] + 80); // червона
   for (const b of [ok, no]) expect(b.fg).toEqual([255, 255, 255]); // білий текст

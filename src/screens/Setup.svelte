@@ -90,7 +90,7 @@
   </div>
   {#if inGame}<p class="note">Аудиторію можна змінити лише в новій грі.</p>{/if}
   <label class="opt sw">
-    <span><span class="lbl">⭐ Режим з балами</span><small>Бал за правильну відповідь у «Вгадай» і «Що про тебе знають»</small></span>
+    <span><span class="lbl">⭐ Режим з балами</span><small>Після кожної картки — «правильно чи ні», за «правильно» бал. Можна ввімкнути й посеред гри</small></span>
     <input type="checkbox" role="switch" bind:checked={settings.scoring} />
   </label>
   <label class="opt sw" class:off={!voiceAvailable}>

@@ -50,7 +50,7 @@
   })();
 
   let players = $state(init.players);
-  let settings = $state({ audience: saved.settings?.audience === 'kids' ? 'kids' : 'family', scoring: !!saved.settings?.scoring, voice: !!saved.settings?.voice });
+  let settings = $state({ audience: saved.settings?.audience === 'kids' ? 'kids' : 'family', scoring: saved.settings?.scoring ?? true, voice: !!saved.settings?.voice });
   let rulesSeen = $state(!!saved.rulesSeen);
   let lastDeck = $state(saved.lastDeck || null); // колода минулої гри — щоб номери не повторювались
   let names = $state(saved.names || {});          // id → ім'я всіх, хто будь-коли грав

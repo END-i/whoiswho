@@ -28,6 +28,9 @@
   const need = $derived(question.type === 'who' ? null
     : answerer === null ? 'answerer' : about === null ? 'about' : null);
   const isGuess = $derived(question.type === 'guess' && answerer !== about);
+  const isWho = $derived(question.type === 'who');
+  // «Хто з нас?»: після того як показали пальцем, вибираємо, на кого показала більшість
+  let voting = $state(false);
   const showAbout = $derived(question.type !== 'who' && about !== null && about !== answerer);
   let tipOpen = $state(false);
 
@@ -49,7 +52,7 @@
     <div class="body">
       <div class="badges">
         <span class="badge">{TYPE[question.type]}</span>
-        {#if scoring && isGuess}<span class="badge pts">⭐ +1 бал</span>{/if}
+        {#if scoring}<span class="badge pts">⭐ +1 бал</span>{/if}
         {#if mode}<button class="listen" class:playing onclick={listen} aria-label="Прослухати питання">🔊</button>{/if}
       </div>
 
@@ -87,18 +90,31 @@
           {#if tipOpen}<p class="tiptext">{question.tip}</p>{/if}
         {/if}
 
-        {#if scoring && isGuess}
-          <p class="check">Перевіряє <b>{players[about].name}</b>: вгадали?</p>
-          <div class="row">
-            <button class="chunky ok" onclick={() => onfinish('correct', answerer)}>✅ Правильно</button>
-            <button class="chunky no" onclick={() => onfinish('wrong', answerer)}>❌ Ні</button>
-          </div>
+        {#if !scoring}
+          <button class="chunky ok wide" onclick={() => onfinish('answered', answerer)}>✅ Далі</button>
+        {:else if isWho}
+          {#if !voting}
+            <button class="chunky ok wide" onclick={() => (voting = true)}>👆 Показали — хто переміг?</button>
+          {:else}
+            <p class="check">На кого показала більшість? Йому чи їй — <b>+1 бал</b></p>
+            <div class="chips">
+              {#each players as p, k}
+                <button class="chip" onclick={() => onfinish('correct', k)}><Avatar player={p} size={40} /><span>{p.name}</span></button>
+              {/each}
+            </div>
+            <button class="chunky light wide" onclick={() => onfinish('wrong', null)}>🤝 Нічия — без балів</button>
+          {/if}
         {:else}
-          <button class="chunky ok wide" onclick={() => onfinish('answered', answerer)}>
-            {question.type === 'activity' ? '🎉 Готово!' : question.type === 'who' ? '👆 Показали!' : '✅ Відповів(ла)'}
-          </button>
+          <p class="check">
+            {#if isGuess}Перевіряє <b>{players[about].name}</b>: вгадали?
+            {:else}Усі разом: зарахувати відповідь <b>{players[answerer].name}</b>?{/if}
+          </p>
+          <div class="row">
+            <button class="chunky ok" onclick={() => onfinish('correct', answerer)}>✅ {isGuess ? 'Правильно' : 'Зараховано'}</button>
+            <button class="chunky no" onclick={() => onfinish('wrong', answerer)}>❌ {isGuess ? 'Неправильно' : 'Ні'}</button>
+          </div>
         {/if}
-        <button class="skip" onclick={() => onfinish('skipped', answerer)}>Пропустити</button>
+        <button class="skip" onclick={() => onfinish('skipped', null)}>Пропустити — без відповіді</button>
       {/if}
     </div>
   </article>
@@ -159,7 +175,9 @@
   .tiptext { margin: 8px 0 0; padding: 12px 14px; border-radius: 14px; background: var(--soft); font-size: 15px; font-weight: 700; }
   .check { font-weight: 800; color: var(--dim); margin: 16px 0 10px; }
   .check b { color: var(--ink); }
-  .row { display: grid; grid-template-columns: 1.4fr 1fr; gap: 10px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row .chunky { padding: 0 10px; }
+  .chips + .wide { margin-top: 12px; }
   .chunky.ok { --c: var(--ok); --c2: var(--ok2); }
   .chunky.no { --c: var(--no); --c2: var(--no2); }
   .wide { width: 100%; margin-top: 16px; }

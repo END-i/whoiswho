@@ -62,7 +62,6 @@ export function validate(raw) {
     if (!ABOUT.includes(q.about)) errors.push(`${where}: невідомий about «${q.about}»`);
     if (q.type === 'who' && (raw0.answerer || raw0.about)) errors.push(`${where}: у «Хто з нас» не задають answerer чи about`);
     if (q.type === 'guess' && !isAboutOther(q)) errors.push(`${where}: у guess той, хто відповідає, і той, про кого питання, мають бути різними`);
-    if (meta.scoringCategories.includes(q.category) && q.type !== 'guess') errors.push(`${where}: у категорії з балами можуть бути лише guess`);
     // Імен у тексті немає: роль пишемо словами («гравець ліворуч»), тож фігурних дужок бути не може.
     if (/[{}]/.test(q.text)) errors.push(`${where}: у тексті є «{…}» — імена не підставляються, пиши роль словами`);
   });

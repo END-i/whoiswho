@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { startGame, category, openCard, openQuestion, numberOf, saved, turnName, QUESTIONS, byId } from './helpers.js';
+import { startGame, category, openCard, openQuestion, numberOf, saved, turnName, fresh, QUESTIONS, byId } from './helpers.js';
 
 const count = (cat, kids = false) => QUESTIONS.questions.filter((q) => q.category === cat && (kids || (q.audience ?? 'all') === 'all')).length;
 
@@ -14,13 +14,13 @@ test('фільтр «Лише діти» додає дитячі питання'
   await expect(category(page, 'Якби…')).toContainText(`${count('ifwhat', true)} з ${count('ifwhat', true)}`);
 });
 
-test('карта: відкривається, після «Відповів» затемнюється, хід переходить далі, лічильник зменшується', async ({ page }) => {
+test('карта: відкривається, після «Далі» затемнюється, хід переходить далі, лічильник зменшується', async ({ page }) => {
   await startGame(page);
   const all = count('open');
   // конкретне питання без вибору гравця — номер карти щоразу інший через перемішування
   const n = await openQuestion(page, 'Відкрийся', 'open', 'op-04');
   await expect(page.locator('.q')).toHaveText(byId.get('op-04').text);
-  await page.getByRole('button', { name: /Відповів/ }).click();
+  await page.getByRole('button', { name: /Далі/ }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('button', { name: `Карта ${n}, вже була` })).toBeDisabled();
   expect(await turnName(page)).toBe('Тарас');
@@ -83,12 +83,12 @@ test('удвох вибору немає — другий гравець під�
   await expect(page.getByRole('dialog').locator('.who').nth(1)).toContainText('Тарас');
 });
 
-test('«Хто з нас?»: без ролей, кнопка «Показали!»', async ({ page }) => {
+test('«Хто з нас?» без балів: без ролей, кнопка «Далі»', async ({ page }) => {
   await startGame(page);
   await openQuestion(page, 'Хто з нас?', 'who', 'wh-02');
   await expect(page.getByText(/Усі разом/)).toBeVisible();
   await expect(page.getByRole('dialog').locator('.who')).toHaveCount(0);
-  await page.getByRole('button', { name: /Показали/ }).click();
+  await page.getByRole('button', { name: /Далі/ }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
@@ -110,8 +110,8 @@ test('бали: «Правильно» дає бал тому, хто відпо
   expect((await saved(page)).game.scores[(await saved(page)).game.order[0]]).toBe(1);
   // Тарас вгадує й помиляється
   await openCard(page, await numberOf(page, 'guess', 'gs-04'));
-  await page.getByRole('button', { name: '❌ Ні' }).click();
-  await page.getByRole('button', { name: 'Бали' }).click();
+  await page.getByRole('button', { name: '❌ Неправильно' }).click();
+  await page.getByRole('button', { name: 'Бали', exact: true }).click();
   await expect(page.locator('.scores li').first()).toContainText('Оля');
   await expect(page.locator('.scores li').first()).toContainText('1');
   await page.getByRole('button', { name: 'Закрити' }).click();
@@ -126,7 +126,8 @@ test('без режиму балів кнопок «Правильно» нем�
   await startGame(page);
   await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
   await expect(page.getByRole('button', { name: /Правильно/ })).toHaveCount(0);
-  await page.getByRole('button', { name: /Відповів/ }).click();
+  await expect(page.locator('.board')).toHaveCount(0);
+  await page.getByRole('button', { name: /Далі/ }).click();
   await page.getByRole('button', { name: 'Меню' }).click();
   await page.getByRole('button', { name: /Завершити гру/ }).click();
   await expect(page.getByText('Тут немає переможців')).toBeVisible();
@@ -150,4 +151,60 @@ test('вичерпана категорія стає «пройдено» і н�
   await page.getByRole('button', { name: 'Пропустити' }).click();
   await expect(category(page, 'Покажи!')).toBeDisabled();
   await expect(category(page, 'Покажи!')).toContainText('пройдено');
+});
+
+test('режим з балами увімкнений за замовчуванням', async ({ page }) => {
+  await fresh(page);
+  await expect(page.getByRole('switch').first()).toBeChecked();
+});
+
+const board = (page) => page.locator('.board');
+const pts = (page, k) => board(page).locator('.pl').nth(k).locator('.pts');
+
+test('таблиця балів видна під час гри й оновлюється одразу; тап відкриває повну', async ({ page }) => {
+  await startGame(page, ['Оля', 'Тарас', 'Мама'], { scoring: true });
+  await expect(board(page).locator('.pl')).toHaveCount(3);
+  await expect(board(page).locator('.pl.now')).toHaveCount(1);
+  await openQuestion(page, 'Відкрийся', 'open', 'op-02');
+  await expect(page.getByText(/зарахувати відповідь/)).toBeVisible();
+  await page.getByRole('button', { name: /Зараховано/ }).click();
+  await expect(pts(page, 0)).toHaveText('1');
+  await expect(board(page).locator('.pl').nth(1)).toHaveClass(/now/);
+  await board(page).click();
+  await expect(page.getByRole('dialog', { name: 'Бали' })).toBeVisible();
+  await expect(page.locator('.scores li').first()).toContainText('Оля');
+});
+
+test('«Відкрийся» з балами: «Ні» — без бала, хід далі', async ({ page }) => {
+  await startGame(page, ['Оля', 'Тарас'], { scoring: true });
+  await openQuestion(page, 'Відкрийся', 'open', 'op-02');
+  await page.getByRole('button', { name: '❌ Ні' }).click();
+  await expect(pts(page, 0)).toHaveText('0');
+  expect(await turnName(page)).toBe('Тарас');
+});
+
+test('«Хто з нас?» з балами: бал тому, на кого показала більшість; нічия — нікому', async ({ page }) => {
+  await startGame(page, ['Оля', 'Тарас', 'Мама'], { scoring: true });
+  await openQuestion(page, 'Хто з нас?', 'who', 'wh-01');
+  await page.getByRole('button', { name: /хто переміг/ }).click();
+  await page.locator('.chip', { hasText: 'Мама' }).click();
+  await expect(pts(page, 2)).toHaveText('1');
+  await expect(pts(page, 0)).toHaveText('0');
+  await page.getByRole('button', { name: 'До категорій' }).click();
+  await openQuestion(page, 'Хто з нас?', 'who', 'wh-02');
+  await page.getByRole('button', { name: /хто переміг/ }).click();
+  await page.getByRole('button', { name: /Нічия/ }).click();
+  const s = await saved(page);
+  expect(Object.values(s.game.scores).reduce((a, b) => a + b, 0)).toBe(1);
+  expect(s.game.stats.answered).toBe(2);
+});
+
+test('режим з балами можна ввімкнути посеред гри', async ({ page }) => {
+  await startGame(page, ['Оля', 'Тарас'], { scoring: false });
+  await expect(board(page)).toHaveCount(0);
+  await page.getByRole('button', { name: 'Меню' }).click();
+  await page.getByRole('button', { name: /Гравці й налаштування/ }).click();
+  await page.getByRole('switch').first().check();
+  await page.getByRole('button', { name: /Повернутися до гри/ }).click();
+  await expect(board(page)).toBeVisible();
 });
