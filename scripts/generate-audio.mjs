@@ -14,12 +14,12 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { listAudioIds, planJobs, piperEngine, azureEngine, edgeEngine, runJobs, parseArgs, parseEnv } from './audio-lib.mjs';
+import { listAudioIds, planJobs, piperEngine, azureEngine, edgeEngine, geminiEngine, runJobs, parseArgs, parseEnv } from './audio-lib.mjs';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const outDir = path.join(root, 'public/audio');
 const data = JSON.parse(fs.readFileSync(path.join(root, 'src/data/questions.json'), 'utf8'));
 const opts = parseArgs(process.argv.slice(2));
+const outDir = opts.out ? path.resolve(opts.out) : path.join(root, 'public/audio');
 
 const jobs = planJobs(data.questions, new Set(listAudioIds(outDir, fs)), opts);
 if (opts.list || !jobs.length) {
@@ -39,7 +39,9 @@ function run(cmd, args, stdin) {
 }
 
 const env = { ...parseEnv(fs.existsSync(path.join(root, '.env')) ? fs.readFileSync(path.join(root, '.env'), 'utf8') : ''), ...process.env };
-const engine = opts.engine === 'edge'
+const engine = opts.engine === 'gemini'
+  ? geminiEngine({ key: env.GEMINI_API_KEY, voice: opts.voice || undefined, fetch, writeFile: fs.writeFileSync, log: (m) => console.log(m) })
+  : opts.engine === 'edge'
   ? edgeEngine({ run, voice: opts.voice || undefined, bin: env.EDGE_TTS_BIN || 'edge-tts' })
   : opts.engine === 'azure'
   ? azureEngine({ key: env.AZURE_SPEECH_KEY, region: env.AZURE_SPEECH_REGION, voice: opts.voice || env.AZURE_SPEECH_VOICE, fetch, writeFile: fs.writeFileSync })

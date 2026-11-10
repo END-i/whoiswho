@@ -63,6 +63,17 @@ export function wavToMp3(wav, kbps = MP3_KBPS) {
     mono = new Int16Array(Math.floor(samples.length / channels));
     for (let i = 0; i < mono.length; i++) { let sum = 0; for (let c = 0; c < channels; c++) sum += samples[i * channels + c]; mono[i] = Math.round(sum / channels); }
   }
+  return encodeMono(mono, sampleRate, kbps);
+}
+
+/** Сирий PCM 16 біт моно → MP3 (так повертає звук Gemini). */
+export function pcmToMp3(pcm, sampleRate = 24000, kbps = 48) {
+  const b = Buffer.isBuffer(pcm) ? pcm : Buffer.from(pcm);
+  const samples = new Int16Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.length - (b.length % 2)));
+  return encodeMono(samples, sampleRate, kbps);
+}
+
+function encodeMono(mono, sampleRate, kbps) {
   const enc = new Mp3Encoder(1, sampleRate, kbps), out = [];
   for (let i = 0; i < mono.length; i += 1152) { const chunk = enc.encodeBuffer(mono.subarray(i, i + 1152)); if (chunk.length) out.push(Buffer.from(chunk)); }
   const end = enc.flush(); if (end.length) out.push(Buffer.from(end));
@@ -123,6 +134,57 @@ export function edgeEngine({ run, voice = 'uk-UA-PolinaNeural', rate = '-5%', bi
   };
 }
 
+// ---------- Gemini TTS ----------
+export const GEMINI_STYLE = 'Прочитай українською тепло й весело, як ведучий сімейної гри для дітей, чітко й не поспішаючи';
+export const GEMINI_MODEL = 'gemini-2.5-flash-preview-tts';
+
+/** Чи вичерпано денний ліміт (тоді чекати марно — до кінця доби). */
+export function isDailyQuota(errorBody) {
+  return (errorBody?.error?.details || []).some((d) => (d.violations || []).some((v) => /PerDay/i.test(v.quotaId || '')));
+}
+
+/** Скільки чекати після 429: з RetryInfo у відповіді (напр. "37s") або експоненційно. */
+export function retryDelay(errorBody, attempt) {
+  const d = errorBody?.error?.details?.find?.((x) => String(x['@type'] || '').includes('RetryInfo'))?.retryDelay;
+  const s = d ? parseFloat(d) : NaN;
+  return Number.isFinite(s) ? Math.ceil(s * 1000) + 500 : Math.min(60000, 2000 * 2 ** attempt);
+}
+
+/**
+ * Google Gemini TTS: текст + опис стилю → PCM 24 кГц → MP3.
+ * fetch, writeFile, sleep передаються параметрами. 429 — чекаємо й повторюємо (до retries разів).
+ */
+export function geminiEngine({ key, fetch, writeFile, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), voice = 'Leda', style = GEMINI_STYLE, model = GEMINI_MODEL, retries = 6, maxWait = 120000, log = () => {} }) {
+  if (!key) throw new Error('Для Gemini потрібен GEMINI_API_KEY у .env (aistudio.google.com → Get API key)');
+  return async (job, outFile) => {
+    for (let attempt = 0; ; attempt++) {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: `${style}: ${job.text}` }] }],
+          generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } },
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.status === 429 && isDailyQuota(body)) {
+        throw new Error('Вичерпано денний ліміт Gemini (безкоштовний рівень — 10 запитів на день). Продовж завтра або ввімкни оплату в AI Studio');
+      }
+      if (res.status === 429 && attempt < retries) {
+        const ms = retryDelay(body, attempt);
+        if (ms > maxWait) throw new Error(`Gemini просить зачекати ${Math.round(ms / 60000)} хв — зупиняюсь, спробуй пізніше`);
+        log(`… ліміт запитів, чекаю ${Math.round(ms / 1000)} с`); await sleep(ms); continue;
+      }
+      if (!res.ok) throw new Error(`Gemini відповів ${res.status}: ${String(body?.error?.message || '').slice(0, 200)}`);
+      const part = body?.candidates?.[0]?.content?.parts?.find?.((p) => p.inlineData)?.inlineData;
+      if (!part?.data) throw new Error('Gemini не повернув звуку');
+      const rate = Number((part.mimeType || '').match(/rate=(\d+)/)?.[1]) || 24000;
+      writeFile(outFile, pcmToMp3(Buffer.from(part.data, 'base64'), rate));
+      return null;
+    }
+  };
+}
+
 /** Azure Speech REST. fetch і запис файлу передаються параметрами. */
 export function azureEngine({ key, region, voice, fetch, writeFile }) {
   if (!key || !region) throw new Error('Для Azure потрібні AZURE_SPEECH_KEY і AZURE_SPEECH_REGION у .env');
@@ -160,21 +222,22 @@ export async function runJobs(jobs, engine, { outFile, cleanup = () => {}, log =
   return { done, failed };
 }
 
-/** Аргументи: --engine edge|azure|piper --voice назва --model шлях --speaker N --force --only a,b --list */
+/** Аргументи: --engine edge|gemini|azure|piper --voice назва --model шлях --speaker N --force --only a,b --list --out тека */
 export function parseArgs(argv) {
-  const o = { engine: 'edge', voice: null, model: null, speaker: null, force: false, only: null, list: false };
+  const o = { engine: 'edge', voice: null, model: null, speaker: null, force: false, only: null, list: false, out: null };
   for (let k = 0; k < argv.length; k++) {
     const a = argv[k];
     if (a === '--engine') o.engine = argv[++k];
     else if (a === '--model') o.model = argv[++k];
     else if (a === '--voice') o.voice = argv[++k];
+    else if (a === '--out') o.out = argv[++k];
     else if (a === '--speaker') { o.speaker = Number(argv[++k]); if (!Number.isInteger(o.speaker) || o.speaker < 0) throw new Error('--speaker — номер голосу: 0, 1, 2…'); }
     else if (a === '--force') o.force = true;
     else if (a === '--list') o.list = true;
     else if (a === '--only') o.only = String(argv[++k] || '').split(',').filter(Boolean);
     else throw new Error(`Невідомий аргумент: ${a}`);
   }
-  if (!['edge', 'azure', 'piper'].includes(o.engine)) throw new Error(`Невідомий рушій: ${o.engine} (є edge, azure і piper)`);
+  if (!['edge', 'gemini', 'azure', 'piper'].includes(o.engine)) throw new Error(`Невідомий рушій: ${o.engine} (є edge, gemini, azure і piper)`);
   return o;
 }
 

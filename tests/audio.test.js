@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { speechText, audioUrl, pickUkVoice, listenMode, playQuestion } from '../src/lib/speech.js';
-import { listAudioIds, planJobs, ssml, piperEngine, azureEngine, edgeEngine, runJobs, parseArgs, parseEnv, piperText, numberWords, parseWav, wavToMp3 } from '../scripts/audio-lib.mjs';
+import { listAudioIds, planJobs, ssml, piperEngine, azureEngine, edgeEngine, geminiEngine, pcmToMp3, retryDelay, isDailyQuota, GEMINI_STYLE, runJobs, parseArgs, parseEnv, piperText, numberWords, parseWav, wavToMp3 } from '../scripts/audio-lib.mjs';
 import { audioIdsPlugin, VIRTUAL_ID } from '../scripts/vite-audio-plugin.mjs';
 import { mkdtempSync, writeFileSync as wf, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -141,6 +141,79 @@ test('edgeEngine: голос, темп і текст як є (нейронний
   assert.deepEqual(calls[1], ['/b/edge-tts', ['--voice', 'uk-UA-OstapNeural', '--rate=+0%', '--text', 'Так', '--write-media', '/o']]);
 });
 
+// ---------- Gemini ----------
+const pcm = (seconds = 0.5, rate = 24000) => { const b = Buffer.alloc(Math.round(seconds * rate) * 2); for (let i = 0; i < b.length / 2; i++) b.writeInt16LE(Math.round(Math.sin(i / 6) * 9000), i * 2); return b; };
+const okBody = (rate = 24000) => ({ candidates: [{ content: { parts: [{ inlineData: { mimeType: `audio/L16;codec=pcm;rate=${rate}`, data: pcm(0.5, rate).toString('base64') } }] } }] });
+const reply = (status, body) => ({ ok: status < 300, status, json: async () => body });
+
+test('pcmToMp3: сирий PCM → MP3; непарний байт не ламає', () => {
+  const mp3 = pcmToMp3(pcm(1));
+  assert.equal(mp3[0], 0xff);
+  assert.ok(mp3.length > 3000 && mp3.length < 9000, String(mp3.length));
+  assert.equal(pcmToMp3(new Uint8Array(Buffer.concat([pcm(0.2), Buffer.from([1])])))[0], 0xff);
+});
+
+test('retryDelay: береться з RetryInfo, інакше експоненційно з межею', () => {
+  assert.equal(retryDelay({ error: { details: [{ '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: '37s' }] } }, 0), 37500);
+  assert.equal(retryDelay({}, 0), 2000);
+  assert.equal(retryDelay(null, 3), 16000);
+  assert.equal(retryDelay({ error: { details: [{ '@type': 'x' }] } }, 10), 60000);
+  assert.equal(retryDelay({ error: { details: [{ retryDelay: '5s' }] } }, 1), 4000, 'деталь без @type — не RetryInfo');
+});
+
+test('geminiEngine: правильний запит (голос, стиль, ключ у заголовку) і MP3 з потрібною частотою', async () => {
+  let req, file;
+  const eng = geminiEngine({ key: 'K', voice: 'Puck', fetch: async (url, init) => { req = { url, init }; return reply(200, okBody(22050)); }, writeFile: (f, b) => (file = { f, b }) });
+  assert.equal(await eng({ id: 'q', text: 'Привіт!' }, '/o/q.mp3'), null);
+  assert.match(req.url, /models\/gemini-2\.5-flash-preview-tts:generateContent$/);
+  assert.equal(req.init.headers['x-goog-api-key'], 'K');
+  assert.ok(!req.url.includes('K'), 'ключ не в адресі');
+  const body = JSON.parse(req.init.body);
+  assert.equal(body.contents[0].parts[0].text, `${GEMINI_STYLE}: Привіт!`);
+  assert.deepEqual(body.generationConfig.responseModalities, ['AUDIO']);
+  assert.equal(body.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName, 'Puck');
+  assert.equal(file.f, '/o/q.mp3'); assert.equal(file.b[0], 0xff);
+});
+
+test('geminiEngine: 429 — чекає й повторює; вичерпав спроби чи інша помилка — зрозуміле повідомлення', async () => {
+  const waits = [], logs = [];
+  let n = 0;
+  const eng = geminiEngine({ key: 'K', retries: 2, sleep: async (ms) => waits.push(ms), log: (m) => logs.push(m), writeFile() {},
+    fetch: async () => (++n < 3 ? reply(429, { error: { details: [{ '@type': 'RetryInfo', retryDelay: '2s' }] } }) : reply(200, okBody())) });
+  await eng({ id: 'q', text: 'x' }, '/o');
+  assert.deepEqual(waits, [2500, 2500]); assert.equal(logs.length, 2);
+  const always429 = geminiEngine({ key: 'K', retries: 1, sleep: async () => {}, writeFile() {}, fetch: async () => reply(429, { error: { message: 'Quota exceeded' } }) });
+  await assert.rejects(always429({ id: 'q', text: 'x' }, '/o'), /429: Quota exceeded/);
+  const bad = geminiEngine({ key: 'K', writeFile() {}, fetch: async () => ({ ok: false, status: 500, json: async () => { throw new Error('not json'); } }) });
+  await assert.rejects(bad({ id: 'q', text: 'x' }, '/o'), /500/);
+  const silent = geminiEngine({ key: 'K', writeFile() {}, fetch: async () => reply(200, { candidates: [{ content: { parts: [{ text: 'sorry' }] } }] }) });
+  await assert.rejects(silent({ id: 'q', text: 'x' }, '/o'), /не повернув звуку/);
+  const noRate = geminiEngine({ key: 'K', writeFile: (f, b) => assert.equal(b[0], 0xff), fetch: async () => reply(200, { candidates: [{ content: { parts: [{ inlineData: { data: pcm(0.2).toString('base64') } }] } }] }) });
+  await noRate({ id: 'q', text: 'x' }, '/o');
+  assert.throws(() => geminiEngine({ fetch() {}, writeFile() {} }), /GEMINI_API_KEY/);
+});
+
+test('geminiEngine: денний ліміт і надто довге очікування — одразу зупиняється з поясненням', async () => {
+  const daily = { error: { details: [{ violations: [{ quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier' }] }, { '@type': 'RetryInfo', retryDelay: '40518s' }] } };
+  assert.equal(isDailyQuota(daily), true);
+  assert.equal(isDailyQuota({ error: { details: [{ violations: [{ quotaId: 'PerMinute' }] }, { violations: [{}] }, {}] } }), false);
+  assert.equal(isDailyQuota(null), false);
+  let slept = 0;
+  const eng = geminiEngine({ key: 'K', sleep: async () => slept++, writeFile() {}, fetch: async () => reply(429, daily) });
+  await assert.rejects(eng({ id: 'q', text: 'x' }, '/o'), /денний ліміт/);
+  const long = geminiEngine({ key: 'K', maxWait: 1000, sleep: async () => slept++, writeFile() {}, fetch: async () => reply(429, { error: { details: [{ '@type': 'RetryInfo', retryDelay: '300s' }] } }) });
+  await assert.rejects(long({ id: 'q', text: 'x' }, '/o'), /зачекати 5 хв/);
+  assert.equal(slept, 0, 'марно не чекає');
+});
+
+test('geminiEngine: значення за замовчуванням (голос Leda, справжній sleep)', async () => {
+  let body;
+  let n = 0;
+  const eng = geminiEngine({ key: 'K', writeFile() {}, fetch: async (_u, init) => { body = JSON.parse(init.body); return ++n === 1 ? reply(429, { error: { details: [{ '@type': 'RetryInfo', retryDelay: '0s' }] } }) : reply(200, okBody()); } });
+  await eng({ id: 'q', text: 'x' }, '/o');
+  assert.equal(body.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName, 'Leda');
+});
+
 test('azureEngine: правильний запит і запис файлу; помилка сервера — зрозуміла', async () => {
   let req, written;
   const ok = azureEngine({
@@ -173,9 +246,10 @@ test('runJobs: помилка одного не зупиняє решту, ти�
 // ---------- аргументи й .env ----------
 
 test('parseArgs', () => {
-  assert.deepEqual(parseArgs([]), { engine: 'edge', voice: null, model: null, speaker: null, force: false, only: null, list: false });
+  assert.deepEqual(parseArgs([]), { engine: 'edge', voice: null, model: null, speaker: null, force: false, only: null, list: false, out: null });
+  assert.equal(parseArgs(['--engine', 'gemini', '--out', '/tmp/s']).out, '/tmp/s');
   assert.deepEqual(parseArgs(['--engine', 'azure', '--force', '--only', 'a,b', '--list', '--speaker', '1', '--voice', 'uk-UA-OstapNeural']),
-    { engine: 'azure', voice: 'uk-UA-OstapNeural', model: null, speaker: 1, force: true, only: ['a', 'b'], list: true });
+    { engine: 'azure', voice: 'uk-UA-OstapNeural', model: null, speaker: 1, force: true, only: ['a', 'b'], list: true, out: null });
   assert.equal(parseArgs(['--engine', 'piper']).engine, 'piper');
   assert.throws(() => parseArgs(['--speaker', 'x']), /номер голосу/);
   assert.equal(parseArgs(['--model', 'x.onnx']).model, 'x.onnx');
