@@ -5,7 +5,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: 'tests/e2e',
   fullyParallel: true,
-  workers: 4,
+  workers: 2, // Chromium і WebKit разом на одній машині — більше процесів дає тайм-аути через навантаження
+  timeout: 45000,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: [['list']],
