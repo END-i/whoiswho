@@ -3,6 +3,7 @@
   import { load, byAudience } from './lib/questions.js';
   import { newGame, finishCard, remaining, allDone, updatePlayers, restoreGame } from './lib/state.js';
   import { loadAll, saveAll, newId } from './lib/storage.js';
+  import { clampTpl } from './lib/templates.js';
   import Setup from './screens/Setup.svelte';
   import Rules from './screens/Rules.svelte';
   import Categories from './screens/Categories.svelte';
@@ -12,6 +13,10 @@
   import Sheet from './components/Sheet.svelte';
   import Avatar from './components/Avatar.svelte';
   import Confetti from './components/Confetti.svelte';
+  import audioList from 'virtual:audio-ids';
+  import { pickUkVoice } from './lib/speech.js';
+  import { createWakeLock, supported as wakeSupported } from './lib/wakelock.js';
+  import { onDestroy } from 'svelte';
 
   // Питання читаються один раз під час старту; реактивність тут не потрібна.
   const { data, errors } = (() => {
@@ -24,15 +29,15 @@
   const saved = loadAll() || {};
   const cleanPlayers = (list) => {
     const ok = Array.isArray(list) ? list.filter((p) => p && typeof p.id === 'string' && typeof p.name === 'string') : [];
-    return ok.length >= 2 ? ok.map((p) => ({ id: p.id, name: p.name, photo: p.photo || null, template: p.template || null })) : null;
+    return ok.length >= 2 ? ok.map((p) => ({ id: p.id, name: p.name, photo: p.photo || null, template: p.template || null, tplPos: clampTpl(p.tplPos) })) : null;
   };
   const SCREENS = ['setup', 'rules', 'categories', 'grid', 'summary'];
 
   // Усе відновлення — звичайними змінними, один раз; далі стан живе в $state.
   const init = (() => {
     const players = cleanPlayers(saved.players) || [
-      { id: newId(), name: '', photo: null, template: null },
-      { id: newId(), name: '', photo: null, template: null },
+      { id: newId(), name: '', photo: null, template: null, tplPos: clampTpl() },
+      { id: newId(), name: '', photo: null, template: null, tplPos: clampTpl() },
     ];
     const game = data ? restoreGame(saved.game, data.questions.map((q) => q.id), players) : null;
     const ui = saved.ui || {};
@@ -44,7 +49,7 @@
   })();
 
   let players = $state(init.players);
-  let settings = $state({ audience: saved.settings?.audience === 'kids' ? 'kids' : 'family', scoring: !!saved.settings?.scoring });
+  let settings = $state({ audience: saved.settings?.audience === 'kids' ? 'kids' : 'family', scoring: !!saved.settings?.scoring, voice: !!saved.settings?.voice });
   let rulesSeen = $state(!!saved.rulesSeen);
   let lastDeck = $state(saved.lastDeck || null); // колода минулої гри — щоб номери не повторювались
   let names = $state(saved.names || {});          // id → ім'я всіх, хто будь-коли грав
@@ -58,6 +63,20 @@
   let party = $state(0);    // лічильник для конфеті
   let toastTimer;
   const category = $derived(data?.categories.find((c) => c.id === catId));
+
+  // ---------- озвучка ----------
+  const audioIds = new Set(audioList);
+  let ukVoice = $state(null);
+  const synth = globalThis.speechSynthesis;
+  const findVoice = () => (ukVoice = pickUkVoice(synth?.getVoices?.()));
+  findVoice();
+  synth?.addEventListener?.('voiceschanged', findVoice);
+  const sound = $derived({ ids: audioIds, voiceOn: settings.voice, voice: ukVoice });
+
+  // ---------- екран не гасне під час гри ----------
+  const wake = createWakeLock();
+  $effect(() => { wake.set(screen === 'categories' || screen === 'grid'); });
+  onDestroy(() => { wake.dispose(); synth?.removeEventListener?.('voiceschanged', findVoice); });
   const orderPlayers = $derived(game ? game.order.map((id) => players.find((p) => p.id === id)).filter(Boolean) : players);
 
   $effect(() => {
@@ -111,7 +130,7 @@
       <ul>{#each errors as e}<li>{e}</li>{/each}</ul>
     </section>
   {:else if screen === 'setup'}
-    <Setup bind:players bind:settings inGame={!!game} onstart={start} />
+    <Setup bind:players bind:settings inGame={!!game} onstart={start} voiceAvailable={!!ukVoice} audioCount={audioIds.size} wakeLock={wakeSupported()} />
   {:else if screen === 'rules'}
     <Rules rules={data.meta.rules} again={!!rulesFrom}
       onok={() => { rulesSeen = true; screen = rulesFrom || 'categories'; rulesFrom = null; }} />
@@ -123,7 +142,7 @@
       back={screen === 'grid' ? () => { catId = null; screen = 'categories'; } : null} />
     {#if screen === 'grid' && category}
       <Grid {category} index={data.categories.indexOf(category)} {game} players={orderPlayers} {byId}
-        scoringCategories={data.meta.scoringCategories} bind:selected onfinish={finish} />
+        scoringCategories={data.meta.scoringCategories} {sound} bind:selected onfinish={finish} />
     {:else}
       <Categories categories={data.categories} {game} onpick={(id) => { catId = id; screen = 'grid'; }} />
     {/if}

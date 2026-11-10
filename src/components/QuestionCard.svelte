@@ -1,8 +1,22 @@
 <script>
   import Avatar from './Avatar.svelte';
   import { roles } from '../lib/state.js';
+  import { listenMode, playQuestion } from '../lib/speech.js';
+  import { onDestroy } from 'svelte';
 
-  let { question, category, colors, number, game, players, scoring, onfinish } = $props();
+  let { question, category, colors, number, game, players, scoring, sound = {}, onfinish } = $props();
+  const mode = $derived(listenMode(question.id, sound));
+  let stop = () => {};
+  let playing = $state(false);
+  function listen() {
+    stop();
+    playing = true;
+    stop = playQuestion(question, mode, {
+      base: import.meta.env.BASE_URL, voice: sound.voice, synth: globalThis.speechSynthesis, Utterance: globalThis.SpeechSynthesisUtterance,
+      makeAudio: (url) => new Audio(url), onend: () => (playing = false),
+    });
+  }
+  onDestroy(() => stop());
 
   const n = $derived(players.length);
   const i = $derived(game.turn);
@@ -36,7 +50,7 @@
       <div class="badges">
         <span class="badge">{TYPE[question.type]}</span>
         {#if scoring && isGuess}<span class="badge pts">⭐ +1 бал</span>{/if}
-        <button class="listen" disabled title="Озвучка з'явиться на кроці 8" aria-label="Прослухати (скоро)">🔊</button>
+        {#if mode}<button class="listen" class:playing onclick={listen} aria-label="Прослухати питання">🔊</button>{/if}
       </div>
 
       {#if question.type === 'who'}
@@ -115,7 +129,8 @@
   .badge { font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .05em; background: color-mix(in srgb, var(--c1) 18%, var(--card)); color: var(--c2); padding: 5px 10px; border-radius: 10px; }
   .badge.pts { background: #FFC23D; color: #5a3a00; }
   .listen { margin-left: auto; width: 40px; height: 40px; border-radius: 14px; border: 2px solid var(--line); background: var(--card); font-size: 18px; }
-  .listen:disabled { opacity: .4; }
+  .listen.playing { border-color: var(--c1); animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 50% { transform: scale(1.1); } }
   .people { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
   .who { display: flex; gap: 10px; align-items: center; min-width: 0; }
   .who span { display: flex; flex-direction: column; line-height: 1.1; min-width: 0; }
