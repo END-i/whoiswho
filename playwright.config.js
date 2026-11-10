@@ -12,9 +12,10 @@ export default defineConfig({
   reporter: [['list']],
   // reducedMotion: гра пропускає анімацію перевороту карти — тести швидші й стабільніші.
   // Окремий тест у layout.spec.js перевіряє гру з анімаціями.
-  use: { baseURL: 'http://localhost:5199', trace: 'retain-on-failure', contextOptions: { reducedMotion: 'reduce' }, serviceWorkers: 'block' }, // SW — лише в pwa.spec.js
+  use: { baseURL: process.env.E2E_BASE_URL || 'http://localhost:5199', trace: 'retain-on-failure', contextOptions: { reducedMotion: 'reduce' }, serviceWorkers: 'block' }, // SW — лише в pwa.spec.js
   // Зібрана гра, як на хостингу (dev-сервер іноді сам перезавантажує сторінку, коли оптимізує залежності).
-  webServer: { command: 'E2E_AUDIO_IDS=gs-01,am-02 npm run build && npx vite preview --port 5199 --strictPort', url: 'http://localhost:5199', reuseExistingServer: false },
+  // E2E_BASE_URL=https://… — перевірити опубліковану гру замість локальної збірки
+  webServer: process.env.E2E_BASE_URL ? undefined : { command: 'E2E_AUDIO_IDS=gs-01,am-02 npm run build && npx vite preview --port 5199 --strictPort', url: 'http://localhost:5199', reuseExistingServer: false },
   projects: [
     { name: 'android', use: { ...devices['Pixel 7'] } },
     { name: 'iphone', use: { ...devices['iPhone 14'] } },
