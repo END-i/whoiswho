@@ -1,0 +1,14 @@
+// Cloudflare Workers (Static Assets): публікує зібрану гру з dist/.
+// У налаштуваннях Workers Builds: Build command — `npm run build` (або порожньо: збірку запускає build.command нижче),
+// Deploy command — `npx wrangler deploy`.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "whoiswho",
+  "compatibility_date": "2026-11-01",
+  "build": { "command": "npm run build" },
+  "assets": {
+    "directory": "./dist",
+    // PWA з однією сторінкою: невідомі адреси віддають index.html
+    "not_found_handling": "single-page-application"
+  }
+}
