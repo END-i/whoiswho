@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { speechText, audioUrl, pickUkVoice, listenMode, playQuestion } from '../src/lib/speech.js';
-import { listAudioIds, planJobs, ssml, piperEngine, azureEngine, runJobs, parseArgs, parseEnv, piperText, numberWords, parseWav, wavToMp3 } from '../scripts/audio-lib.mjs';
+import { listAudioIds, planJobs, ssml, piperEngine, azureEngine, edgeEngine, runJobs, parseArgs, parseEnv, piperText, numberWords, parseWav, wavToMp3 } from '../scripts/audio-lib.mjs';
 import { audioIdsPlugin, VIRTUAL_ID } from '../scripts/vite-audio-plugin.mjs';
 import { mkdtempSync, writeFileSync as wf, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -132,6 +132,15 @@ test('piperEngine: нормалізований текст у stdin, голос,
   assert.throws(() => piperEngine({ run() {}, tmpWav() {}, fs }), /модель Piper/);
 });
 
+test('edgeEngine: голос, темп і текст як є (нейронний голос сам читає числа й лапки)', async () => {
+  const calls = [];
+  const eng = edgeEngine({ run: async (...a) => calls.push(a) });
+  assert.equal(await eng({ id: 'q', text: 'Протанцюй 10 секунд!' }, '/o/q.mp3'), null);
+  assert.deepEqual(calls[0], ['edge-tts', ['--voice', 'uk-UA-PolinaNeural', '--rate=-5%', '--text', 'Протанцюй 10 секунд!', '--write-media', '/o/q.mp3']]);
+  await edgeEngine({ run: async (...a) => calls.push(a), voice: 'uk-UA-OstapNeural', rate: '+0%', bin: '/b/edge-tts' })({ id: 'q', text: 'Так' }, '/o');
+  assert.deepEqual(calls[1], ['/b/edge-tts', ['--voice', 'uk-UA-OstapNeural', '--rate=+0%', '--text', 'Так', '--write-media', '/o']]);
+});
+
 test('azureEngine: правильний запит і запис файлу; помилка сервера — зрозуміла', async () => {
   let req, written;
   const ok = azureEngine({
@@ -164,9 +173,10 @@ test('runJobs: помилка одного не зупиняє решту, ти�
 // ---------- аргументи й .env ----------
 
 test('parseArgs', () => {
-  assert.deepEqual(parseArgs([]), { engine: 'piper', model: null, speaker: null, force: false, only: null, list: false });
-  assert.deepEqual(parseArgs(['--engine', 'azure', '--force', '--only', 'a,b', '--list', '--speaker', '1']),
-    { engine: 'azure', model: null, speaker: 1, force: true, only: ['a', 'b'], list: true });
+  assert.deepEqual(parseArgs([]), { engine: 'edge', voice: null, model: null, speaker: null, force: false, only: null, list: false });
+  assert.deepEqual(parseArgs(['--engine', 'azure', '--force', '--only', 'a,b', '--list', '--speaker', '1', '--voice', 'uk-UA-OstapNeural']),
+    { engine: 'azure', voice: 'uk-UA-OstapNeural', model: null, speaker: 1, force: true, only: ['a', 'b'], list: true });
+  assert.equal(parseArgs(['--engine', 'piper']).engine, 'piper');
   assert.throws(() => parseArgs(['--speaker', 'x']), /номер голосу/);
   assert.equal(parseArgs(['--model', 'x.onnx']).model, 'x.onnx');
   assert.deepEqual(parseArgs(['--only']).only, []);

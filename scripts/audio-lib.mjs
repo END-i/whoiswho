@@ -112,6 +112,17 @@ export function piperEngine({ model, run, tmpWav, fs, symbols = null, speaker = 
   };
 }
 
+/**
+ * Нейронні голоси Microsoft через edge-tts (pip install edge-tts): безкоштовно, без ключа, MP3 одразу.
+ * Голоси: uk-UA-PolinaNeural (жіночий), uk-UA-OstapNeural (чоловічий).
+ */
+export function edgeEngine({ run, voice = 'uk-UA-PolinaNeural', rate = '-5%', bin = 'edge-tts' }) {
+  return async (job, outFile) => {
+    await run(bin, ['--voice', voice, `--rate=${rate}`, '--text', job.text, '--write-media', outFile]);
+    return null;
+  };
+}
+
 /** Azure Speech REST. fetch і запис файлу передаються параметрами. */
 export function azureEngine({ key, region, voice, fetch, writeFile }) {
   if (!key || !region) throw new Error('Для Azure потрібні AZURE_SPEECH_KEY і AZURE_SPEECH_REGION у .env');
@@ -149,20 +160,21 @@ export async function runJobs(jobs, engine, { outFile, cleanup = () => {}, log =
   return { done, failed };
 }
 
-/** Аргументи командного рядка: --engine piper|azure --model шлях --speaker N --force --only a,b --list */
+/** Аргументи: --engine edge|azure|piper --voice назва --model шлях --speaker N --force --only a,b --list */
 export function parseArgs(argv) {
-  const o = { engine: 'piper', model: null, speaker: null, force: false, only: null, list: false };
+  const o = { engine: 'edge', voice: null, model: null, speaker: null, force: false, only: null, list: false };
   for (let k = 0; k < argv.length; k++) {
     const a = argv[k];
     if (a === '--engine') o.engine = argv[++k];
     else if (a === '--model') o.model = argv[++k];
+    else if (a === '--voice') o.voice = argv[++k];
     else if (a === '--speaker') { o.speaker = Number(argv[++k]); if (!Number.isInteger(o.speaker) || o.speaker < 0) throw new Error('--speaker — номер голосу: 0, 1, 2…'); }
     else if (a === '--force') o.force = true;
     else if (a === '--list') o.list = true;
     else if (a === '--only') o.only = String(argv[++k] || '').split(',').filter(Boolean);
     else throw new Error(`Невідомий аргумент: ${a}`);
   }
-  if (!['piper', 'azure'].includes(o.engine)) throw new Error(`Невідомий рушій: ${o.engine} (є piper і azure)`);
+  if (!['edge', 'azure', 'piper'].includes(o.engine)) throw new Error(`Невідомий рушій: ${o.engine} (є edge, azure і piper)`);
   return o;
 }
 

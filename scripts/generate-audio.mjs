@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Одноразова генерація озвучки: public/audio/{id}.mp3 для кожного питання. Готові файли пропускає.
 //
-//   node scripts/generate-audio.mjs --model ~/piper/uk_UA-ukrainian_tts-medium.onnx   # Piper, локально (--speaker 0|1|2)
+//   node scripts/generate-audio.mjs                                                   # edge-tts, голос Поліна (за замовчуванням)
+//   node scripts/generate-audio.mjs --voice uk-UA-OstapNeural                         # той самий рушій, голос Остап
+//   node scripts/generate-audio.mjs --engine piper --model ~/piper/uk_UA-ukrainian_tts-medium.onnx   # Piper, локально
 //   node scripts/generate-audio.mjs --engine azure                                    # Azure F0, ключі в .env
 //   node scripts/generate-audio.mjs --list                                            # що буде озвучено
 //   ... --force (перегенерувати все), --only gs-01,gs-02
@@ -12,7 +14,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { listAudioIds, planJobs, piperEngine, azureEngine, runJobs, parseArgs, parseEnv } from './audio-lib.mjs';
+import { listAudioIds, planJobs, piperEngine, azureEngine, edgeEngine, runJobs, parseArgs, parseEnv } from './audio-lib.mjs';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const outDir = path.join(root, 'public/audio');
@@ -37,8 +39,10 @@ function run(cmd, args, stdin) {
 }
 
 const env = { ...parseEnv(fs.existsSync(path.join(root, '.env')) ? fs.readFileSync(path.join(root, '.env'), 'utf8') : ''), ...process.env };
-const engine = opts.engine === 'azure'
-  ? azureEngine({ key: env.AZURE_SPEECH_KEY, region: env.AZURE_SPEECH_REGION, voice: env.AZURE_SPEECH_VOICE, fetch, writeFile: fs.writeFileSync })
+const engine = opts.engine === 'edge'
+  ? edgeEngine({ run, voice: opts.voice || undefined, bin: env.EDGE_TTS_BIN || 'edge-tts' })
+  : opts.engine === 'azure'
+  ? azureEngine({ key: env.AZURE_SPEECH_KEY, region: env.AZURE_SPEECH_REGION, voice: opts.voice || env.AZURE_SPEECH_VOICE, fetch, writeFile: fs.writeFileSync })
   : piperEngine({
     model: opts.model, run, fs, speaker: opts.speaker, bin: env.PIPER_BIN || 'piper',
     tmpWav: (id) => path.join(os.tmpdir(), `whoiswho-${id}.wav`),
