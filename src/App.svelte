@@ -17,6 +17,7 @@
   import { pickUkVoice } from './lib/speech.js';
   import { createWakeLock, supported as wakeSupported } from './lib/wakelock.js';
   import { onDestroy } from 'svelte';
+  import { downloadAll, cachedCount, clearAudio } from './lib/audiocache.js';
 
   // Питання читаються один раз під час старту; реактивність тут не потрібна.
   const { data, errors } = (() => {
@@ -72,6 +73,23 @@
   findVoice();
   synth?.addEventListener?.('voiceschanged', findVoice);
   const sound = $derived({ ids: audioIds, voiceOn: settings.voice, voice: ukVoice });
+  // Озвучка для офлайну: у фоні під час першого запуску, далі — лише нове
+  let audioDone = $state(0);
+  let audioBusy = $state(false);
+  const cacheDeps = { caches: globalThis.caches, fetch: globalThis.fetch?.bind(globalThis), base: import.meta.env.BASE_URL };
+  async function fetchAudio() {
+    if (audioBusy || !audioIds.size || !cacheDeps.caches) return;
+    audioBusy = true;
+    const r = await downloadAll([...audioIds], { ...cacheDeps, onProgress: (d) => (audioDone = d) });
+    audioDone = r.done; audioBusy = false;
+  }
+  async function removeAudio() {
+    if (!confirm('Видалити завантажену озвучку з цього телефона? Без інтернету кнопка 🔊 тоді не працюватиме.')) return;
+    await clearAudio(cacheDeps); audioDone = 0;
+  }
+  if (audioIds.size && cacheDeps.caches) {
+    cachedCount([...audioIds], cacheDeps).then((n) => { audioDone = n; if (n < audioIds.size && navigator.onLine !== false) fetchAudio(); });
+  }
 
   // ---------- екран не гасне під час гри ----------
   const wake = createWakeLock();
@@ -130,7 +148,8 @@
       <ul>{#each errors as e}<li>{e}</li>{/each}</ul>
     </section>
   {:else if screen === 'setup'}
-    <Setup bind:players bind:settings inGame={!!game} onstart={start} voiceAvailable={!!ukVoice} audioCount={audioIds.size} wakeLock={wakeSupported()} />
+    <Setup bind:players bind:settings inGame={!!game} onstart={start} voiceAvailable={!!ukVoice} audioCount={audioIds.size} wakeLock={wakeSupported()}
+      audio={{ total: audioIds.size, done: audioDone, busy: audioBusy, fetch: fetchAudio, remove: removeAudio }} />
   {:else if screen === 'rules'}
     <Rules rules={data.meta.rules} again={!!rulesFrom}
       onok={() => { rulesSeen = true; screen = rulesFrom || 'categories'; rulesFrom = null; }} />

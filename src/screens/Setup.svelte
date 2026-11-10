@@ -5,7 +5,7 @@
   import { newId } from '../lib/storage.js';
 
   // players — масив { id, name, photo, template } ($state у App, змінюється на місці)
-  let { players = $bindable(), settings = $bindable(), inGame, onstart, voiceAvailable = false, audioCount = 0, wakeLock = true } = $props();
+  let { players = $bindable(), settings = $bindable(), inGame, onstart, voiceAvailable = false, audioCount = 0, wakeLock = true, audio = null } = $props();
   let photoFor = $state(null);
 
   const MIN = 2, MAX = 8;
@@ -99,6 +99,16 @@
       : 'На цьому телефоні немає українського голосу — кнопка недоступна'}</small></span>
     <input type="checkbox" role="switch" bind:checked={settings.voice} disabled={!voiceAvailable} aria-label="Голос браузера" />
   </label>
+  {#if audio?.total}
+    <div class="opt audio">
+      <span><span class="lbl">🎧 Озвучка для офлайну</span>
+        <small>{audio.done >= audio.total ? `Готово: ${audio.total} з ${audio.total}` : audio.busy ? `Завантажую… ${audio.done} з ${audio.total}` : `Завантажено ${audio.done} з ${audio.total}`}</small>
+        <span class="bar" aria-hidden="true"><i style="width:{(audio.done / audio.total) * 100}%"></i></span>
+      </span>
+      {#if audio.done < audio.total}<button class="mini" onclick={audio.fetch} disabled={audio.busy}>Завантажити</button>
+      {:else}<button class="mini danger" onclick={audio.remove}>Видалити</button>{/if}
+    </div>
+  {/if}
   {#if !wakeLock}<p class="note">💡 Телефон може гаснути під час гри. Вимкни автоблокування в налаштуваннях телефона на час гри.</p>{/if}
 </section>
 
@@ -160,6 +170,11 @@
   .sw input:checked { background: var(--ok); }
   .sw input:checked::after { transform: translateX(22px); }
   .off { opacity: .5; }
+  .audio > span { flex: 1; min-width: 0; }
+  .bar { display: block; height: 8px; border-radius: 6px; background: var(--line); margin-top: 6px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--ok); transition: width .3s; }
+  .mini { min-height: 40px; padding: 0 12px; border-radius: 12px; border: none; background: var(--soft); font-weight: 900; box-shadow: 0 3px 0 var(--line); flex: none; }
+  .mini.danger { color: var(--no); }
   .seg { display: flex; background: var(--soft); border-radius: 14px; padding: 4px; gap: 4px; }
   .seg button { border: none; background: none; padding: 10px 10px; border-radius: 11px; font-weight: 900; font-size: 14px; color: var(--dim); white-space: nowrap; }
   .seg button.on { background: var(--card); color: var(--ink); box-shadow: 0 3px 0 var(--line); }

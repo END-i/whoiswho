@@ -179,6 +179,11 @@ test('vite-плагін: virtual:audio-ids містить id з теки озв�
   assert.equal(audioIdsPlugin(join(dir, 'nope')).load(resolved), 'export default [];');
 });
 
+test('vite-плагін: E2E_AUDIO_IDS підміняє список (лише для e2e)', () => {
+  const p = audioIdsPlugin('/nope', { readdirSync: () => ['real.mp3'] }, 'gs-02,gs-01,');
+  assert.equal(p.load(p.resolveId(VIRTUAL_ID)), 'export default ["gs-01","gs-02"];');
+});
+
 test('vite-плагін у dev: зміна в теці озвучки інвалідує модуль, інші файли — ні', () => {
   const dir = '/proj/public/audio';
   const p = audioIdsPlugin(dir, { readdirSync: () => [] });

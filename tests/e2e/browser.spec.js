@@ -48,10 +48,10 @@ test('голос браузера: перемикач доступний, кно
   await sw.check();
   await page.getByRole('button', { name: /Почати гру/ }).click();
   await page.getByRole('button', { name: /Зрозуміло, граємо/ }).click();
-  await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
+  await openQuestion(page, 'Вгадай', 'guess', 'gs-04'); // для gs-04 записаної озвучки немає
   await page.getByRole('button', { name: 'Прослухати питання' }).click();
   const spoken = await page.evaluate(() => window.__spoken);
-  expect(spoken).toEqual([{ text: 'Що гравець ліворуч любить їсти найбільше?', lang: 'uk-UA', voice: 'Lesya' }]);
+  expect(spoken).toEqual([{ text: 'Яку суперсилу обрав би гравець ліворуч?', lang: 'uk-UA', voice: 'Lesya' }]);
 });
 
 test('без українського голосу перемикач вимкнений, а кнопки 🔊 немає', async ({ page }) => {
@@ -63,13 +63,13 @@ test('без українського голосу перемикач вимкн
   await setPlayers(page, ['Оля', 'Тарас']);
   await page.getByRole('button', { name: /Почати гру/ }).click();
   await page.getByRole('button', { name: /Зрозуміло, граємо/ }).click();
-  await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
+  await openQuestion(page, 'Вгадай', 'guess', 'gs-04');
   await expect(page.getByRole('button', { name: 'Прослухати питання' })).toHaveCount(0);
 });
 
 test('голос вимкнений — кнопки 🔊 немає, навіть якщо голос є', async ({ page }) => {
   await page.addInitScript(fakeVoice);
   await startGame(page, ['Оля', 'Тарас']);
-  await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
+  await openQuestion(page, 'Вгадай', 'guess', 'gs-04');
   await expect(page.getByRole('button', { name: 'Прослухати питання' })).toHaveCount(0);
 });
