@@ -197,8 +197,9 @@
     unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 
   :global(:root) {
-    --bg: #FFF5EA; --card: #FFFFFF; --ink: #2D1B3D; --dim: #8B7792; --line: #F2E1D2;
-    --accent: #FF7A1A; --accent2: #E85D00; --ok: #2FB86A; --ok2: #1E8E4E; --no: #F0505A; --no2: #C2323C;
+    /* значення звіряються з TOKENS у src/lib/theme.js (e2e) — WCAG AA */
+    --bg: #FFF5EA; --card: #FFFFFF; --ink: #2D1B3D; --dim: #76637E; --line: #F2E1D2;
+    --accent: #E66E18; --accent2: #B5530C; --ok: #2AA660; --ok2: #1C7A45; --no: #E0434C; --no2: #AE2B33;
     --soft: #FFEBDC; --shadow: 0 10px 30px rgba(120, 60, 20, .14); --radius: 22px;
     color-scheme: light;
   }
@@ -228,7 +229,7 @@
   /* Об'ємна «ігрова» кнопка: --c — колір, --c2 — тінь */
   :global(.chunky) {
     --c: var(--accent); --c2: var(--accent2);
-    border: none; border-radius: 18px; background: var(--c); color: #fff; font-weight: 900; font-size: 18px;
+    border: none; border-radius: 18px; background: var(--c); color: #fff; font-weight: 900; font-size: 19px; /* ≥ 18.7px жирний = «великий текст» WCAG */
     min-height: 58px; padding: 0 20px; box-shadow: 0 5px 0 var(--c2), 0 10px 20px rgba(0, 0, 0, .12);
     transition: transform .08s, box-shadow .08s; text-shadow: 0 1px 0 rgba(0, 0, 0, .15);
   }

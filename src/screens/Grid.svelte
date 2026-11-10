@@ -9,7 +9,7 @@
   const all = $derived(total(game, category.id));
   const numbers = $derived(Array.from({ length: all }, (_, k) => k + 1));
   const question = $derived(selected ? byId.get(questionAt(game, category.id, selected)) : null);
-  const [c1, c2] = $derived(categoryColor(category.id, index));
+  const [c1, c2, t] = $derived(categoryColor(category.id, index));
   let flipping = $state(null);
 
   function choose(num) {
@@ -20,7 +20,7 @@
   }
 </script>
 
-<header style="--c1:{c1}; --c2:{c2}">
+<header style="--c1:{c1}; --c2:{c2}; --t:{t}">
   <span class="emoji" aria-hidden="true">{category.emoji}</span>
   <div>
     <h1>{category.title}</h1>
@@ -43,7 +43,7 @@
 
 {#if question}
   {#key selected}
-    <QuestionCard {question} {category} colors={[c1, c2]} number={selected} {game} {players} {sound}
+    <QuestionCard {question} {category} colors={[c1, c2, t]} number={selected} {game} {players} {sound}
       scoring={game.scoring && scoringCategories.includes(category.id)}
       onfinish={(outcome, answerer) => onfinish(selected, outcome, answerer)} />
   {/key}
@@ -51,13 +51,13 @@
 
 <style>
   header {
-    display: flex; gap: 14px; align-items: center; margin-bottom: 14px; padding: 14px; border-radius: 24px; color: #fff;
+    display: flex; gap: 14px; align-items: center; margin-bottom: 14px; padding: 14px; border-radius: 24px; color: var(--t);
     background: radial-gradient(circle at 100% 0, rgba(255, 255, 255, .3) 0 50px, transparent 51px), linear-gradient(150deg, var(--c1), var(--c2));
     box-shadow: 0 5px 0 color-mix(in srgb, var(--c2) 70%, #000);
   }
   .emoji { font-size: 32px; width: 58px; height: 58px; flex: none; display: grid; place-items: center; background: #fff; border-radius: 18px; box-shadow: 0 4px 0 rgba(0, 0, 0, .12); }
   h1 { font-size: 24px; margin: 0; font-weight: 900; line-height: 1.1; }
-  header p { margin: 3px 0 0; font-size: 14px; opacity: .95; }
+  header p { margin: 3px 0 0; font-size: 14px; }
   .deck { display: grid; grid-template-columns: repeat(5, 1fr); gap: 9px; perspective: 900px; }
   .card { aspect-ratio: 3 / 4; padding: 0; border: none; background: none; animation: deal .35s cubic-bezier(.2, 1.4, .4, 1) both; }
   @keyframes deal { from { transform: translateY(-14px) rotate(-6deg); opacity: 0; } }
@@ -70,7 +70,7 @@
     box-shadow: inset 0 0 0 3px rgba(255, 255, 255, .55), 0 4px 0 color-mix(in srgb, var(--c2) 70%, #000);
   }
   .num {
-    min-width: 34px; height: 34px; padding: 0 4px; border-radius: 12px; background: #fff; color: var(--c2);
+    min-width: 34px; height: 34px; padding: 0 4px; border-radius: 12px; background: #fff; color: #2D1B3D;
     font-weight: 900; font-size: 18px; display: grid; place-items: center; box-shadow: 0 2px 0 rgba(0, 0, 0, .15);
   }
   .face { transform: rotateY(180deg); background: var(--card); color: var(--c2); font-size: 26px; font-weight: 900; box-shadow: inset 0 0 0 3px var(--c1); }

@@ -39,7 +39,7 @@
 </script>
 
 <div class="overlay" role="dialog" aria-modal="true" aria-label="Картка {number}">
-  <article class="card" style="--c1:{colors[0]}; --c2:{colors[1]}">
+  <article class="card" style="--c1:{colors[0]}; --c2:{colors[1]}; --t:{colors[2] || '#fff'}">
     <div class="band">
       <span class="emoji" aria-hidden="true">{category.emoji}</span>
       <span class="cat">{category.title}</span>
@@ -118,15 +118,15 @@
   }
   @keyframes zoom { from { transform: scale(.6) rotateY(80deg); opacity: 0; } }
   .band {
-    display: flex; align-items: center; gap: 10px; padding: 14px 16px; color: #fff;
+    display: flex; align-items: center; gap: 10px; padding: 14px 16px; color: var(--t);
     background: repeating-linear-gradient(45deg, rgba(255, 255, 255, .14) 0 8px, transparent 8px 16px), linear-gradient(150deg, var(--c1), var(--c2));
   }
   .emoji { font-size: 24px; width: 42px; height: 42px; display: grid; place-items: center; background: #fff; border-radius: 14px; }
-  .cat { flex: 1; font-weight: 900; font-size: 18px; text-shadow: 0 1px 0 rgba(0, 0, 0, .15); }
+  .cat { flex: 1; font-weight: 900; font-size: 19px; }
   .cardno { font-weight: 900; background: rgba(255, 255, 255, .25); padding: 4px 10px; border-radius: 12px; }
   .body { padding: 16px 18px 18px; }
   .badges { display: flex; gap: 6px; align-items: center; margin-bottom: 14px; }
-  .badge { font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .05em; background: color-mix(in srgb, var(--c1) 18%, var(--card)); color: var(--c2); padding: 5px 10px; border-radius: 10px; }
+  .badge { font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .05em; background: color-mix(in srgb, var(--c1) 18%, var(--card)); color: color-mix(in srgb, var(--c2) 45%, var(--ink)); padding: 5px 10px; border-radius: 10px; }
   .badge.pts { background: #FFC23D; color: #5a3a00; }
   .listen { margin-left: auto; width: 40px; height: 40px; border-radius: 14px; border: 2px solid var(--line); background: var(--card); font-size: 18px; }
   .listen.playing { border-color: var(--c1); animation: pulse 1s ease-in-out infinite; }
@@ -142,7 +142,7 @@
   .pair .arrow { align-self: center; margin-top: -26px; }
   .who small { font-size: 11px; color: var(--dim); font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
   .who b { font-size: 19px; font-weight: 900; }
-  .who em { font-style: normal; font-size: 13px; color: var(--c2); font-weight: 800; }
+  .who em { font-style: normal; font-size: 13px; color: color-mix(in srgb, var(--c2) 45%, var(--ink)); font-weight: 800; }
   @media (prefers-color-scheme: dark) { .who em, .badge { color: color-mix(in srgb, var(--c1) 70%, #fff); } }
   .arrow { font-size: 24px; font-weight: 900; color: var(--c1); margin: 0 4px; }
   .all { display: flex; gap: 10px; align-items: center; font-weight: 800; background: color-mix(in srgb, var(--c1) 14%, var(--card)); padding: 12px 14px; border-radius: 16px; }
