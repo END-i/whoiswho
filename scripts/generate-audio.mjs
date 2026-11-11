@@ -5,6 +5,7 @@
 //   node scripts/generate-audio.mjs --voice uk-UA-OstapNeural                         # той самий рушій, голос Остап
 //   node scripts/generate-audio.mjs --engine piper --model ~/piper/uk_UA-ukrainian_tts-medium.onnx   # Piper, локально
 //   node scripts/generate-audio.mjs --engine azure                                    # Azure F0, ключі в .env
+//   node scripts/generate-audio.mjs --engine gemini --voice Leda --model gemini-3.8-flash-tts   # Gemini, ключ у .env
 //   node scripts/generate-audio.mjs --list                                            # що буде озвучено
 //   ... --force (перегенерувати все), --only gs-01,gs-02
 // Шлях до piper можна задати змінною PIPER_BIN. ffmpeg не потрібен: MP3 кодує lamejs.
@@ -40,7 +41,7 @@ function run(cmd, args, stdin) {
 
 const env = { ...parseEnv(fs.existsSync(path.join(root, '.env')) ? fs.readFileSync(path.join(root, '.env'), 'utf8') : ''), ...process.env };
 const engine = opts.engine === 'gemini'
-  ? geminiEngine({ key: env.GEMINI_API_KEY, voice: opts.voice || undefined, fetch, writeFile: fs.writeFileSync, log: (m) => console.log(m) })
+  ? geminiEngine({ key: env.GEMINI_API_KEY, voice: opts.voice || undefined, model: opts.model || env.GEMINI_MODEL || undefined, fetch, writeFile: fs.writeFileSync, log: (m) => console.log(m) })
   : opts.engine === 'edge'
   ? edgeEngine({ run, voice: opts.voice || undefined, bin: env.EDGE_TTS_BIN || 'edge-tts' })
   : opts.engine === 'azure'

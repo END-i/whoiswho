@@ -135,8 +135,20 @@ export function edgeEngine({ run, voice = 'uk-UA-PolinaNeural', rate = '-5%', bi
 }
 
 // ---------- Gemini TTS ----------
-export const GEMINI_STYLE = 'Прочитай українською тепло й весело, як ведучий сімейної гри для дітей, чітко й не поспішаючи';
+export const GEMINI_STYLE = 'тепло й весело, як ведучий сімейної гри для дітей, чітко й не поспішаючи';
 export const GEMINI_MODEL = 'gemini-2.5-flash-preview-tts';
+
+/**
+ * Тіло запиту до Gemini TTS. Моделі 2.x беруть стиль прямо в тексті («Прочитай …: питання»).
+ * Моделі 3.x читають text дослівно (разом з інструкцією!), тож стиль іде окремо — у speech_metadata.style.
+ */
+export function geminiRequest(text, { voice = 'Leda', style = GEMINI_STYLE, model = GEMINI_MODEL } = {}) {
+  const legacy = /^gemini-2\./.test(model);
+  return {
+    contents: [{ role: 'user', parts: [legacy ? { text: `Прочитай українською ${style}: ${text}` } : { text, speech_metadata: { style } }] }],
+    generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: legacy ? { prebuiltVoiceConfig: { voiceName: voice } } : { voice } } },
+  };
+}
 
 /** Чи вичерпано денний ліміт (тоді чекати марно — до кінця доби). */
 export function isDailyQuota(errorBody) {
@@ -161,10 +173,7 @@ export function geminiEngine({ key, fetch, writeFile, sleep = (ms) => new Promis
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: `${style}: ${job.text}` }] }],
-          generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } },
-        }),
+        body: JSON.stringify(geminiRequest(job.text, { voice, style, model })),
       });
       const body = await res.json().catch(() => ({}));
       if (res.status === 429 && isDailyQuota(body)) {
@@ -178,8 +187,11 @@ export function geminiEngine({ key, fetch, writeFile, sleep = (ms) => new Promis
       if (!res.ok) throw new Error(`Gemini відповів ${res.status}: ${String(body?.error?.message || '').slice(0, 200)}`);
       const part = body?.candidates?.[0]?.content?.parts?.find?.((p) => p.inlineData)?.inlineData;
       if (!part?.data) throw new Error('Gemini не повернув звуку');
+      // 2.5 віддає сирий PCM (audio/L16;rate=24000), 3.x — готовий WAV із заголовком
+      const audio = Buffer.from(part.data, 'base64');
+      const isWav = /wav/i.test(part.mimeType || '') || audio.subarray(0, 4).toString('latin1') === 'RIFF';
       const rate = Number((part.mimeType || '').match(/rate=(\d+)/)?.[1]) || 24000;
-      writeFile(outFile, pcmToMp3(Buffer.from(part.data, 'base64'), rate));
+      writeFile(outFile, isWav ? wavToMp3(audio, 48) : pcmToMp3(audio, rate));
       return null;
     }
   };

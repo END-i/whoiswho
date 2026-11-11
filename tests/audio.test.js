@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { speechText, audioUrl, pickUkVoice, listenMode, playQuestion } from '../src/lib/speech.js';
-import { listAudioIds, planJobs, ssml, piperEngine, azureEngine, edgeEngine, geminiEngine, pcmToMp3, retryDelay, isDailyQuota, GEMINI_STYLE, runJobs, parseArgs, parseEnv, piperText, numberWords, parseWav, wavToMp3 } from '../scripts/audio-lib.mjs';
+import { listAudioIds, planJobs, ssml, piperEngine, azureEngine, edgeEngine, geminiEngine, geminiRequest, pcmToMp3, retryDelay, isDailyQuota, GEMINI_STYLE, runJobs, parseArgs, parseEnv, piperText, numberWords, parseWav, wavToMp3 } from '../scripts/audio-lib.mjs';
 import { audioIdsPlugin, VIRTUAL_ID } from '../scripts/vite-audio-plugin.mjs';
 import { mkdtempSync, writeFileSync as wf, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -169,10 +169,40 @@ test('geminiEngine: правильний запит (голос, стиль, к�
   assert.equal(req.init.headers['x-goog-api-key'], 'K');
   assert.ok(!req.url.includes('K'), 'ключ не в адресі');
   const body = JSON.parse(req.init.body);
-  assert.equal(body.contents[0].parts[0].text, `${GEMINI_STYLE}: Привіт!`);
+  assert.equal(body.contents[0].parts[0].text, `Прочитай українською ${GEMINI_STYLE}: Привіт!`);
   assert.deepEqual(body.generationConfig.responseModalities, ['AUDIO']);
   assert.equal(body.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName, 'Puck');
   assert.equal(file.f, '/o/q.mp3'); assert.equal(file.b[0], 0xff);
+});
+
+test('geminiRequest: 2.x — стиль у тексті; 3.x — текст дослівно, стиль у speech_metadata, голос у voice', () => {
+  const old = geminiRequest('Питання?', { voice: 'Kore', model: 'gemini-2.5-pro-preview-tts' });
+  assert.equal(old.contents[0].parts[0].text, `Прочитай українською ${GEMINI_STYLE}: Питання?`);
+  assert.equal(old.contents[0].parts[0].speech_metadata, undefined);
+  assert.deepEqual(old.generationConfig.speechConfig.voiceConfig, { prebuiltVoiceConfig: { voiceName: 'Kore' } });
+  const neu = geminiRequest('Питання?', { voice: 'Kore', style: 'весело', model: 'gemini-3.8-flash-tts' });
+  assert.deepEqual(neu.contents[0].parts[0], { text: 'Питання?', speech_metadata: { style: 'весело' } });
+  assert.deepEqual(neu.generationConfig.speechConfig.voiceConfig, { voice: 'Kore' });
+  assert.deepEqual(neu.generationConfig.responseModalities, ['AUDIO']);
+  // за замовчуванням — модель GEMINI_MODEL і голос Leda
+  assert.match(JSON.stringify(geminiRequest('x')), /Leda/);
+});
+
+test('geminiEngine: модель задається; WAV-відповідь 3.x кодується без заголовка, сирий PCM 2.5 — як PCM', async () => {
+  const wav = makeWav({ seconds: 0.3, rate: 24000 });
+  const out = [];
+  const replyWith = (inlineData) => async (url) => { out.push(url); return reply(200, { candidates: [{ content: { parts: [{ inlineData }] } }] }); };
+  const files = [];
+  const write = (_f, b) => files.push(b);
+  await geminiEngine({ key: 'K', model: 'gemini-3.8-flash-tts', writeFile: write, fetch: replyWith({ mimeType: 'audio/wav', data: wav.toString('base64') }) })({ id: 'a', text: 'x' }, '/o/a.mp3');
+  assert.match(out[0], /models\/gemini-3\.8-flash-tts:generateContent$/);
+  assert.deepEqual(files[0], wavToMp3(wav, 48), 'WAV з mimeType — через wavToMp3');
+  // без mimeType, але з підписом RIFF — теж WAV
+  await geminiEngine({ key: 'K', writeFile: write, fetch: replyWith({ data: wav.toString('base64') }) })({ id: 'b', text: 'x' }, '/o/b.mp3');
+  assert.deepEqual(files[1], wavToMp3(wav, 48));
+  const raw = pcm(0.3);
+  await geminiEngine({ key: 'K', writeFile: write, fetch: replyWith({ mimeType: 'audio/L16;codec=pcm;rate=24000', data: raw.toString('base64') }) })({ id: 'c', text: 'x' }, '/o/c.mp3');
+  assert.deepEqual(files[2], pcmToMp3(raw, 24000));
 });
 
 test('geminiEngine: 429 — чекає й повторює; вичерпав спроби чи інша помилка — зрозуміле повідомлення', async () => {
