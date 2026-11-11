@@ -265,7 +265,7 @@ async function batchPart(jobs, { key, fetch, writeFile, outFile, sleep = (ms) =>
     let body;
     try { body = await res.json(); } catch { body = null; }
     if (!res.ok) throw new Error(`Gemini Batch відповів ${res.status}: ${String(body?.error?.message || '').slice(0, 200)}`);
-    if (!body) throw new Error('Відповідь Gemini Batch не прочиталася — завелика? Зменш --chunk');
+    if (!body) throw new Error('Відповідь Gemini Batch не прочиталася — завелика? Зменш розмір частини (chunk у geminiBatch)');
     return body;
   };
   const requests = jobs.map((j) => ({ request: geminiRequest(j.text, { voice, style, model }), metadata: { key: j.id } }));
