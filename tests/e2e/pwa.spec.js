@@ -91,3 +91,16 @@ test('озвучка: обрив мережі — частина заванта�
   await page.getByRole('button', { name: 'Завантажити' }).click();
   await expect(page.getByText('Готово: 2 з 2')).toBeVisible();
 });
+
+test('озвучка для офлайну — лише вибраного набору: в іншому наборі без записаних питань нічого не качається', async ({ page }) => {
+  const hits = await serveAudio(page);
+  confirmAll(page);
+  await page.goto('/');
+  await expect(page.getByText('Готово: 2 з 2')).toBeVisible();
+  hits.length = 0;
+  await page.getByRole('radiogroup', { name: 'Набір питань' }).getByRole('radio', { name: /Для друзів/ }).click();
+  // у тестовій збірці озвучені лише gs-01 і am-02 (сімейні) — у наборі друзів рядка озвучки немає
+  await expect(page.getByText(/Озвучка для офлайну/)).toHaveCount(0);
+  await page.waitForTimeout(300);
+  expect(hits).toEqual([]);
+});

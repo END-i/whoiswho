@@ -119,33 +119,40 @@
   synth?.addEventListener?.('voiceschanged', loadVoices);
   const voice = $derived(pickVoice(voices, settings.lang));
   const sound = $derived({ ids: audioIds, voiceOn: settings.voice, voice, lang: settings.lang });
-  // Озвучка для офлайну: у фоні під час першого запуску, далі — лише нове; лише мовою інтерфейсу
+  // Озвучка для офлайну: у фоні під час першого запуску, далі — лише нове;
+  // лише мовою інтерфейсу й лише для вибраного набору (усі набори — десятки мегабайтів)
+  const offlineIds = () => {
+    const ids = audioByLang[settings.lang], pack = packs[game?.pack ?? settings.pack];
+    return pack ? pack.questions.map((q) => q.id).filter((id) => ids.has(id)) : [];
+  };
+  const offlineKey = () => `${settings.lang}|${game?.pack ?? settings.pack}`;
+  let audioTotal = $state(0);
   let audioDone = $state(0);
   let audioBusy = $state(false);
   const cacheDeps = { caches: globalThis.caches, fetch: globalThis.fetch?.bind(globalThis), base: import.meta.env.BASE_URL };
   async function fetchAudio() {
-    const lang = settings.lang, ids = [...audioByLang[lang]];
+    const lang = settings.lang, key = offlineKey(), ids = offlineIds();
     if (audioBusy || !ids.length || !cacheDeps.caches) return;
     audioBusy = true;
-    const r = await downloadAll(ids, { ...cacheDeps, lang, onProgress: (d) => { if (settings.lang === lang) audioDone = d; } });
+    const r = await downloadAll(ids, { ...cacheDeps, lang, onProgress: (d) => { if (offlineKey() === key) audioDone = d; } });
     audioBusy = false;
-    if (settings.lang === lang) audioDone = r.done; else syncAudio(); // мову змінили під час завантаження
+    if (offlineKey() === key) audioDone = r.done; else syncAudio(); // мову чи набір змінили під час завантаження
   }
   async function removeAudio() {
     if (!confirm(t('app.removeAudio'))) return;
     await clearAudio(cacheDeps); audioDone = 0;
   }
   function syncAudio() {
-    const lang = settings.lang, ids = [...audioByLang[lang]];
-    audioDone = 0;
+    const lang = settings.lang, key = offlineKey(), ids = offlineIds();
+    audioDone = 0; audioTotal = ids.length;
     if (!ids.length || !cacheDeps.caches) return;
     cachedCount(ids, { ...cacheDeps, lang }).then((n) => {
-      if (settings.lang !== lang) return;
+      if (offlineKey() !== key) return;
       audioDone = n;
       if (n < ids.length && navigator.onLine !== false) fetchAudio();
     });
   }
-  $effect(() => { settings.lang; untrack(syncAudio); });
+  $effect(() => { settings.lang; settings.pack; game?.pack; untrack(syncAudio); });
 
   // ---------- екран не гасне під час гри ----------
   const wake = createWakeLock();
@@ -230,7 +237,7 @@
     </section>
   {:else if screen === 'setup'}
     <Setup bind:players bind:settings packs={packOrder.map((id) => packs[id].meta.pack)} gamePack={game?.pack} inGame={!!game} onstart={start} historyCount={history.length} onhistory={openHistory} showInstall={installKind !== 'installed'} oninstall={openInstall} onabout={openAbout} voiceAvailable={!!voice} audioCount={audioIds.size} wakeLock={wakeSupported()}
-      audio={{ total: audioIds.size, done: audioDone, busy: audioBusy, fetch: fetchAudio, remove: removeAudio }} />
+      audio={{ total: audioTotal, done: audioDone, busy: audioBusy, fetch: fetchAudio, remove: removeAudio }} />
   {:else if screen === 'rules'}
     <Rules rules={data.meta.rules} again={!!rulesFrom}
       onok={() => { if (!rulesSeen.includes(game.pack)) rulesSeen = [...rulesSeen, game.pack]; screen = rulesFrom || 'categories'; rulesFrom = null; }} />
