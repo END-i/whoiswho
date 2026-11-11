@@ -34,6 +34,9 @@ function packErrors(pack) {
   if (!Number.isInteger(lo) || lo < 2) e.push('meta.pack.minPlayers — ціле число від 2');
   else if (!Number.isInteger(hi) || hi < lo || hi > MAX_PLAYERS) e.push(`meta.pack.maxPlayers — від minPlayers до ${MAX_PLAYERS}`);
   if (pack.kids && pack.adults) e.push('Набір не може бути водночас для дітей і 18+');
+  // свої підписи ролей на картці (напр. для пар: «твоя половинка» замість «гравець ліворуч»)
+  if (pack.roleNames !== undefined && (typeof pack.roleNames !== 'object' || !pack.roleNames
+    || Object.entries(pack.roleNames).some(([k, v]) => !ROLES.includes(k) || typeof v !== 'string' || !v))) e.push('meta.pack.roleNames — { роль: підпис } для self, left, right, pick');
   return e;
 }
 

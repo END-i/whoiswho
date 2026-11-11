@@ -205,7 +205,7 @@
       <ul>{#each errors as e}<li>{e}</li>{/each}</ul>
     </section>
   {:else if screen === 'setup'}
-    <Setup bind:players bind:settings inGame={!!game} onstart={start} historyCount={history.length} onhistory={openHistory} showInstall={installKind !== 'installed'} oninstall={openInstall} onabout={openAbout} voiceAvailable={!!ukVoice} audioCount={audioIds.size} wakeLock={wakeSupported()}
+    <Setup bind:players bind:settings packs={packOrder.map((id) => packs[id].meta.pack)} gamePack={game?.pack} inGame={!!game} onstart={start} historyCount={history.length} onhistory={openHistory} showInstall={installKind !== 'installed'} oninstall={openInstall} onabout={openAbout} voiceAvailable={!!ukVoice} audioCount={audioIds.size} wakeLock={wakeSupported()}
       audio={{ total: audioIds.size, done: audioDone, busy: audioBusy, fetch: fetchAudio, remove: removeAudio }} />
   {:else if screen === 'rules'}
     <Rules rules={data.meta.rules} again={!!rulesFrom}
@@ -217,12 +217,12 @@
   {:else if screen === 'install'}
     <Install kind={installKind} canPrompt={!!installPrompt} oninstall={installNow} onback={() => (screen = installFrom === 'install' ? 'setup' : installFrom)} />
   {:else if screen === 'history'}
-    <History {history} {players} onback={() => (screen = historyFrom === 'history' ? 'setup' : historyFrom)} onclear={clearHistory} />
+    <History {history} {players} packs={Object.fromEntries(packOrder.map((id) => [id, packs[id].meta.pack]))} onback={() => (screen = historyFrom === 'history' ? 'setup' : historyFrom)} onclear={clearHistory} />
   {:else}
     <TopBar players={orderPlayers} {game} onmenu={() => (sheet = 'menu')} onscores={() => (sheet = 'scores')}
       back={screen === 'grid' ? () => { catId = null; screen = 'categories'; } : null} />
     {#if screen === 'grid' && category}
-      <Grid {category} index={data.categories.indexOf(category)} {game} players={orderPlayers} {byId}
+      <Grid {category} index={data.categories.indexOf(category)} {game} players={orderPlayers} {byId} roleNames={data.meta.pack.roleNames}
         scoringCategories={data.meta.scoringCategories} {sound} bind:selected onfinish={finish} />
     {:else}
       <Categories categories={data.categories} {game} onpick={(id) => { catId = id; screen = 'grid'; }} />

@@ -3,16 +3,36 @@
   import Sheet from '../components/Sheet.svelte';
   import PhotoEditor from '../components/PhotoEditor.svelte';
   import { newId } from '../lib/storage.js';
+  import { plural } from '../lib/plural.js';
 
   // players — масив { id, name, photo, template } ($state у App, змінюється на місці)
-  let { players = $bindable(), settings = $bindable(), inGame, onstart, historyCount = 0, onhistory = () => {}, showInstall = false, oninstall = () => {}, onabout = () => {}, voiceAvailable = false, audioCount = 0, wakeLock = true, audio = null } = $props();
+  // packs — описи наборів (meta.pack) у порядку показу; gamePack — набір поточної гри
+  let { players = $bindable(), settings = $bindable(), packs = [], gamePack = null, inGame, onstart, historyCount = 0, onhistory = () => {}, showInstall = false, oninstall = () => {}, onabout = () => {}, voiceAvailable = false, audioCount = 0, wakeLock = true, audio = null } = $props();
   let photoFor = $state(null);
 
-  const MIN = 2, MAX = 8;
+  const MIN = 2;
+  const pack = $derived(packs.find((p) => p.id === (inGame ? gamePack : settings.pack)) ?? packs[0] ?? { minPlayers: 2, maxPlayers: 8 });
+  const MAX = $derived(pack.maxPlayers);
   const names = $derived(players.map((p) => p.name.trim()));
   const empty = $derived(names.some((n) => !n));
   const dups = $derived([...new Set(names.filter((n, i) => n && names.findIndex((m) => m.toLowerCase() === n.toLowerCase()) !== i))]);
-  const canStart = $derived(players.length >= MIN && !empty);
+  const fits = $derived(players.length >= pack.minPlayers && players.length <= pack.maxPlayers);
+  const canStart = $derived(fits && !empty);
+  const limit = $derived(pack.minPlayers === pack.maxPlayers
+    ? `рівно ${pack.maxPlayers} ${plural(pack.maxPlayers, ['гравець', 'гравці', 'гравців'])}`
+    : `від ${pack.minPlayers} до ${pack.maxPlayers} гравців`);
+
+  const ADULT_Q = 'Набір 18+ — лише для дорослих. Усім гравцям уже є 18 років?';
+  function choosePack(p) {
+    if (p.id === settings.pack) return;
+    if (p.adults && !confirm(ADULT_Q)) return;
+    settings.pack = p.id;
+  }
+  // 18+ — підтвердження ще й перед кожною новою грою: телефон міг перейти до дітей
+  function start() {
+    if (!inGame && pack.adults && !confirm(ADULT_Q)) return;
+    onstart();
+  }
 
   function add() {
     if (players.length >= MAX) return;
@@ -85,7 +105,21 @@
   {#if dups.length}<p class="warn">⚠️ Однакові імена: {dups.join(', ')}. Можна й так, але буде легко сплутати.</p>{/if}
 </section>
 
+<section class="panel packs">
+  <h2>Набір питань</h2>
+  <div class="packlist" role="radiogroup" aria-label="Набір питань">
+    {#each packs as p (p.id)}
+      <button role="radio" class="pack" class:on={pack.id === p.id} aria-checked={pack.id === p.id} disabled={inGame} onclick={() => choosePack(p)}>
+        <span class="pe" aria-hidden="true">{p.emoji}</span>
+        <span><b>{p.title}</b><small>{p.description}</small></span>
+      </button>
+    {/each}
+  </div>
+  {#if inGame}<p class="note">Набір можна змінити лише в новій грі.</p>{/if}
+</section>
+
 <section class="panel opts">
+  {#if pack.kids}
   <div class="opt">
     <span class="lbl">Хто грає</span>
     <div class="seg" role="radiogroup" aria-label="Аудиторія">
@@ -94,12 +128,13 @@
     </div>
   </div>
   {#if inGame}<p class="note">Аудиторію можна змінити лише в новій грі.</p>{/if}
+  {/if}
   <label class="opt sw">
     <span><span class="lbl">⭐ Режим з балами</span><small>Після кожної картки — «правильно чи ні», за «правильно» бал. Можна ввімкнути й посеред гри</small></span>
     <input type="checkbox" role="switch" bind:checked={settings.scoring} />
   </label>
   <label class="opt sw">
-    <span><span class="lbl">🔔 Звуки</span><small>Дзвіночок, коли зараховано бал</small></span>
+    <span><span class="lbl">🔔 Звуки</span><small>Мелодія за бал, «ва-ва» на «Ні», «шух» на пропуск</small></span>
     <input type="checkbox" role="switch" bind:checked={settings.sounds} aria-label="Звуки" />
   </label>
   <label class="opt sw" class:off={!voiceAvailable}>
@@ -121,7 +156,8 @@
   {#if !wakeLock}<p class="note">💡 Телефон може гаснути під час гри. Вимкни автоблокування в налаштуваннях телефона на час гри.</p>{/if}
 </section>
 
-<button class="chunky start" disabled={!canStart} onclick={onstart}>{inGame ? '▶ Повернутися до гри' : '🎲 Почати гру'}</button>
+{#if !fits}<p class="warn" role="status">У наборі «{pack.title}» грають {limit}. {players.length > pack.maxPlayers ? 'Прибери зайвих.' : 'Додай гравців.'}</p>{/if}
+<button class="chunky start" disabled={!canStart} onclick={start}>{inGame ? '▶ Повернутися до гри' : '🎲 Почати гру'}</button>
 {#if empty}<p class="hint2">Заповни всі імена, щоб почати.</p>{/if}
 {#if historyCount && !inGame}<button class="hist" onclick={onhistory}>🏆 Історія ігор ({historyCount})</button>{/if}
 <button class="about" onclick={onabout}>ℹ️ Про гру · версія {__APP_VERSION__}</button>
@@ -133,6 +169,13 @@
 {/if}
 
 <style>
+  .packlist { display: flex; flex-direction: column; gap: 8px; }
+  .pack { display: flex; align-items: center; gap: 12px; text-align: left; padding: 10px 14px; border-radius: 18px; border: 3px solid transparent; background: var(--soft); color: var(--ink); }
+  .pack.on { border-color: var(--accent); background: var(--card); }
+  .pack:disabled:not(.on) { opacity: .5; }
+  .pack .pe { font-size: 30px; }
+  .pack b { display: block; font-size: 17px; font-weight: 900; }
+  .pack small { display: block; color: var(--dim); font-weight: 700; font-size: 13px; }
   .installbar { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; text-align: left; min-height: 48px; padding: 8px 14px; border-radius: 16px; border: 2px dashed var(--accent); background: var(--soft); font-weight: 800; margin-bottom: 8px; }
   .hero { text-align: center; margin: 6px 0 16px; }
   .logo { display: flex; justify-content: center; gap: 6px; margin-bottom: 6px; }

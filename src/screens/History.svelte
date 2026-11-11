@@ -2,7 +2,8 @@
   import Avatar from '../components/Avatar.svelte';
   import { leaderboard } from '../lib/history.js';
 
-  let { history, players, onback, onclear } = $props();
+  // packs — { id: meta.pack }, щоб підписати, з якого набору гра
+  let { history, players, packs = {}, onback, onclear } = $props();
   const board = $derived(leaderboard(history));
   // фото й шаблон беремо в поточного гравця з тим самим id, якщо він ще є
   const face = (id, name) => players.find((p) => p.id === id) || { id, name };
@@ -37,7 +38,8 @@
   <ul class="games">
     {#each history as g (g.id)}
       <li>
-        <div class="top"><span class="date">{date(g.date)}</span>{#if !g.finished}<span class="tag">не завершена</span>{/if}</div>
+        <div class="top"><span class="date">{date(g.date)}</span>
+          <span class="tags">{#if packs[g.pack] && g.pack !== 'family'}<span class="tag pk">{packs[g.pack].emoji} {packs[g.pack].title}</span>{/if}{#if !g.finished}<span class="tag">не завершена</span>{/if}</span></div>
         <p class="win">
           {#if !g.scoring}Без балів{:else if g.winners.length}🥇 {g.players.filter((p) => g.winners.includes(p.id)).map((p) => p.name).join(', ')}{:else}Без переможців{/if}
         </p>
@@ -66,6 +68,7 @@
   .games li { background: var(--card); border: 2px solid var(--line); border-radius: 18px; padding: 10px 14px; }
   .top { display: flex; justify-content: space-between; gap: 8px; }
   .date { color: var(--dim); font-weight: 800; font-size: 13px; }
+  .tags { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
   .tag { font-size: 12px; font-weight: 900; color: var(--dim); background: var(--soft); padding: 2px 8px; border-radius: 8px; }
   .win { margin: 4px 0 2px; font-weight: 900; }
   .scores, .cards { margin: 0; font-size: 14px; color: var(--dim); font-weight: 700; }

@@ -4,7 +4,7 @@
   import QuestionCard from '../components/QuestionCard.svelte';
 
   // selected піднято в App: відкрита картка переживає перезавантаження сторінки
-  let { category, index = 0, game, players, byId, scoringCategories, sound, selected = $bindable(), onfinish } = $props();
+  let { category, index = 0, game, players, byId, scoringCategories, sound, roleNames = {}, selected = $bindable(), onfinish } = $props();
 
   const all = $derived(total(game, category.id));
   const numbers = $derived(Array.from({ length: all }, (_, k) => k + 1));
@@ -43,7 +43,7 @@
 
 {#if question}
   {#key selected}
-    <QuestionCard {question} {category} colors={[c1, c2, t]} number={selected} {game} {players} {sound}
+    <QuestionCard {question} {category} colors={[c1, c2, t]} number={selected} {game} {players} {sound} {roleNames}
       scoring={game.scoring && scoringCategories.includes(category.id)}
       onfinish={(outcome, answerer) => onfinish(selected, outcome, answerer)} />
   {/key}

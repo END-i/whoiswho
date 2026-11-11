@@ -4,7 +4,7 @@
   import { listenMode, playQuestion } from '../lib/speech.js';
   import { onDestroy } from 'svelte';
 
-  let { question, category, colors, number, game, players, scoring, sound = {}, onfinish } = $props();
+  let { question, category, colors, number, game, players, scoring, sound = {}, roleNames = {}, onfinish } = $props();
   const mode = $derived(listenMode(question.id, sound));
   let stop = () => {};
   let playing = $state(false);
@@ -38,7 +38,7 @@
   let tipOpen = $state(false);
 
   function roleText(role) {
-    return { self: 'твоя черга', left: 'гравець ліворуч', right: 'гравець праворуч', pick: 'на твій вибір' }[role];
+    return roleNames[role] ?? { self: 'твоя черга', left: 'гравець ліворуч', right: 'гравець праворуч', pick: 'на твій вибір' }[role];
   }
   // питання на «ти» до того, чия черга: відповідає інший — замість нього
   const instead = $derived(question.form === 'you');

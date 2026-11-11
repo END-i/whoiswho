@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { validate, load, byAudience, isAboutOther, loadPacks } from '../src/lib/questions.js';
-import { packFiles, family as raw } from './packs.js';
+import { packFiles, family as raw, allQuestions } from './packs.js';
 
 const clone = () => structuredClone(raw);
 
@@ -54,8 +54,8 @@ test('валідатор ловить типові помилки', () => {
   }
 });
 
-test("у текстах і підказках немає форм на кшталт «з'їв(ла)»", () => {
-  const bad = raw.questions.filter((q) => /\((ла|ою|а|лася|ну|ним|нею)\)/.test(q.text + (q.tip || '')));
+test("у текстах і підказках усіх наборів немає форм на кшталт «з'їв(ла)»", () => {
+  const bad = allQuestions.filter((q) => /\((ла|ою|а|лася|ну|ним|нею)\)/.test(q.text + (q.tip || '')));
   assert.deepEqual(bad.map((q) => q.id), []);
 });
 
@@ -64,8 +64,8 @@ test('load кидає помилку зі списком', () => {
   assert.throws(() => load(d), (e) => Array.isArray(e.errors) && e.errors.length === 1);
 });
 
-test("у текстах немає «навпроти» — такої ролі немає", () => {
-  assert.deepEqual(raw.questions.filter((q) => /навпроти/i.test(q.text)).map((q) => q.id), []);
+test("у текстах усіх наборів немає «навпроти» — такої ролі немає", () => {
+  assert.deepEqual(allQuestions.filter((q) => /навпроти/i.test(q.text)).map((q) => q.id), []);
 });
 
 test("guess-питання про іншого називають його роль словами", () => {
@@ -145,6 +145,8 @@ test('meta.pack: id, назва, кількість гравців, kids і adul
   assert.ok(run((p) => { p.maxPlayers = 9; }).some((e) => /maxPlayers/.test(e)));
   assert.ok(run((p) => { p.maxPlayers = 1.5; }).some((e) => /maxPlayers/.test(e)));
   assert.ok(run((p) => { p.adults = true; }).some((e) => /водночас/.test(e)));
+  assert.deepEqual(run((p) => { p.roleNames = { left: 'твоя половинка' }; }), []);
+  for (const bad of [null, 'x', { left: '' }, { left: 3 }, { aside: 'хтось' }]) assert.ok(run((p) => { p.roleNames = bad; }).some((e) => /roleNames/.test(e)), JSON.stringify(bad));
   assert.ok(run((p) => { delete p.kids; }).some((e) => /audience «kids» — лише/.test(e)), 'дитячі питання — лише в наборі з фільтром');
 });
 
@@ -166,4 +168,16 @@ test('loadPacks: усі набори, порядок, повтор id питан
   const broken = loadPacks({ 'f.json': clone(), 'b.json': null });
   assert.ok(broken.errors.some((e) => /^b.json: Файл питань порожній/.test(e)));
   assert.deepEqual(loadPacks({ 'c.json': other('couples') }).errors, ['Немає сімейного набору (family)']);
+});
+
+test('у текстах усіх наборів немає подвійних пробілів, порожніх кінців і повторів', () => {
+  const texts = new Map();
+  for (const q of allQuestions) {
+    assert.equal(q.text, q.text.trim(), q.id);
+    assert.ok(!/ {2}/.test(q.text), `${q.id}: подвійний пробіл`);
+    assert.ok(/[.?!…»)]$/.test(q.text), `${q.id}: текст має закінчуватися розділовим знаком`);
+    const key = q.text.toLowerCase();
+    assert.ok(!texts.has(key), `${q.id}: такий самий текст, як у ${texts.get(key)}`);
+    texts.set(key, q.id);
+  }
 });

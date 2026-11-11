@@ -12,6 +12,29 @@ export const CATEGORY_COLORS = {
   ifwhat: ['#7DCE45', '#4E9F22', INK],
   show: ['#B050A4', '#B83BA3', '#FFFFFF'],
   facts: ['#5BC0EB', '#1E96D1', INK],
+  // для пар
+  cguess: ['#F06292', '#E35B8D', INK],
+  cstory: ['#FFB74D', '#F57C00', INK],
+  cdreams: ['#8367B4', '#673AB7', '#FFFFFF'],
+  cwarm: ['#FF8A80', '#EA5D59', INK],
+  cwho: ['#FFD54F', '#FFA000', INK],
+  cdare: ['#4DB6AC', '#299C90', INK],
+  // для друзів
+  fwho: ['#FFCA28', '#FF8F00', INK],
+  fguess: ['#7E57C2', '#5E35B1', '#FFFFFF'],
+  fstory: ['#26C6DA', '#00ACC1', INK],
+  fdare: ['#C94643', '#C62828', '#FFFFFF'],
+  fifwhat: ['#9CCC65', '#689F38', INK],
+  fhonest: ['#5C6BC0', '#3949AB', '#FFFFFF'],
+  flaugh: ['#FF7043', '#E96035', INK],
+  // 18+
+  aconfess: ['#AD1457', '#880E4F', '#FFFFFF'],
+  adate: ['#D0386B', '#C2185B', '#FFFFFF'],
+  aflirt: ['#F48FB1', '#EE5488', INK],
+  awho: ['#FFB300', '#FF6F00', INK],
+  aguess: ['#8E24AA', '#6A1B9A', '#FFFFFF'],
+  adesire: ['#D32F2F', '#B71C1C', '#FFFFFF'],
+  abold: ['#6D4C41', '#4E342E', '#FFFFFF'],
 };
 const FALLBACK = Object.values(CATEGORY_COLORS);
 
