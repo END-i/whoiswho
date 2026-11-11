@@ -51,3 +51,9 @@ export async function downloadAll(ids, { caches, fetch, base = '/', lang = 'uk',
 export async function clearAudio({ caches }) {
   try { return caches ? await caches.delete(AUDIO_CACHE) : false; } catch { return false; }
 }
+
+/** Скільки мегабайтів займуть записи (size — id → байти); до 10 МБ — з одним знаком після коми. */
+export function megabytes(ids, size = {}) {
+  const mb = ids.reduce((a, id) => a + (size[id] || 0), 0) / 1048576;
+  return mb >= 10 ? Math.round(mb) : Math.round(mb * 10) / 10;
+}

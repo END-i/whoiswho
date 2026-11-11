@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cachedCount, downloadAll, clearAudio, AUDIO_CACHE } from '../src/lib/audiocache.js';
+import { cachedCount, downloadAll, clearAudio, AUDIO_CACHE, megabytes } from '../src/lib/audiocache.js';
 
 // Підставний Cache Storage
 function fakeCaches() {
@@ -76,4 +76,11 @@ test('Cache Storage відмовляє (приватний режим, нема�
   const half = { open: async () => ({ match: boom, put: boom }) };
   assert.equal(await cachedCount(['a'], { caches: half }), 0);
   assert.deepEqual(await downloadAll(['a', 'b'], { caches: half, fetch: async () => ({ ok: true }) }), { done: 0, total: 2, failed: 2 });
+});
+
+test('megabytes: розмір записів для підказки перед завантаженням', () => {
+  const M = 1048576;
+  assert.equal(megabytes(['a', 'b'], { a: 12 * M, b: 6.4 * M }), 18);
+  assert.equal(megabytes(['a'], { a: 2.36 * M }), 2.4);
+  assert.equal(megabytes(['a', 'x']), 0, 'розміри невідомі — 0');
 });

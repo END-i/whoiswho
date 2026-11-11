@@ -22,7 +22,7 @@
   import { pickVoice } from './lib/speech.js';
   import { createWakeLock, supported as wakeSupported } from './lib/wakelock.js';
   import { onDestroy, untrack } from 'svelte';
-  import { downloadAll, cachedCount, clearAudio } from './lib/audiocache.js';
+  import { downloadAll, cachedCount, clearAudio, megabytes } from './lib/audiocache.js';
   import { playSfx } from './lib/sfx.js';
   import { t, setLang } from './lib/lang.svelte.js';
   import { cleanLang } from './lib/i18n.js';
@@ -63,7 +63,7 @@
   })();
 
   let players = $state(init.players);
-  let settings = $state({ lang: cleanLang(saved.settings?.lang), pack: packOf(saved.settings?.pack), audience: saved.settings?.audience === 'kids' ? 'kids' : 'family', scoring: saved.settings?.scoring ?? true, voice: !!saved.settings?.voice, sounds: saved.settings?.sounds ?? true, autoRead: saved.settings?.autoRead !== false });
+  let settings = $state({ lang: cleanLang(saved.settings?.lang), pack: packOf(saved.settings?.pack), audience: saved.settings?.audience === 'kids' ? 'kids' : 'family', scoring: saved.settings?.scoring ?? true, voice: !!saved.settings?.voice, sounds: saved.settings?.sounds ?? true, autoRead: saved.settings?.autoRead !== false, offline: saved.settings?.offline === true });
   // набори, правила яких уже показували (раніше — просто true для сімейного)
   setLang(cleanLang(saved.settings?.lang));
   $effect(() => setLang(settings.lang));
@@ -126,6 +126,9 @@
     return pack ? pack.questions.map((q) => q.id).filter((id) => ids.has(id)) : [];
   };
   const offlineKey = () => `${settings.lang}|${game?.pack ?? settings.pack}`;
+  // записано все для вибраного набору й мови — голос браузера не потрібен; і скільки мегабайтів качати
+  const audioFull = $derived.by(() => { settings.lang; game?.pack; const p = packs[game?.pack ?? settings.pack]; return !!p && offlineIds().length === p.questions.length; });
+  const audioMb = $derived.by(() => { settings.lang; game?.pack; settings.pack; return megabytes(offlineIds(), audioList.size?.[settings.lang]); });
   let audioTotal = $state(0);
   let audioDone = $state(0);
   let audioBusy = $state(false);
@@ -133,6 +136,7 @@
   async function fetchAudio() {
     const lang = settings.lang, key = offlineKey(), ids = offlineIds();
     if (audioBusy || !ids.length || !cacheDeps.caches) return;
+    settings.offline = true; // згода дана — далі докачується саме (нові набори, мова)
     audioBusy = true;
     const r = await downloadAll(ids, { ...cacheDeps, lang, onProgress: (d) => { if (offlineKey() === key) audioDone = d; } });
     audioBusy = false;
@@ -140,7 +144,7 @@
   }
   async function removeAudio() {
     if (!confirm(t('app.removeAudio'))) return;
-    await clearAudio(cacheDeps); audioDone = 0;
+    await clearAudio(cacheDeps); audioDone = 0; settings.offline = false;
   }
   function syncAudio() {
     const lang = settings.lang, key = offlineKey(), ids = offlineIds();
@@ -149,7 +153,9 @@
     cachedCount(ids, { ...cacheDeps, lang }).then((n) => {
       if (offlineKey() !== key) return;
       audioDone = n;
-      if (n < ids.length && navigator.onLine !== false) fetchAudio();
+      // качаємо самі лише після згоди (кнопка «Завантажити»); хто вже качав раніше — згоду дав
+      if (n) settings.offline = true;
+      if (settings.offline && n < ids.length && navigator.onLine !== false) fetchAudio();
     });
   }
   $effect(() => { settings.lang; settings.pack; game?.pack; untrack(syncAudio); });
@@ -248,7 +254,7 @@
     </section>
   {:else if screen === 'setup'}
     <Setup bind:players bind:settings packs={packOrder.map((id) => packs[id].meta.pack)} gamePack={game?.pack} inGame={!!game} onstart={start} historyCount={history.length} onhistory={openHistory} showInstall={installKind !== 'installed'} oninstall={openInstall} onabout={openAbout} voiceAvailable={!!voice} audioCount={audioIds.size} wakeLock={wakeSupported()}
-      audio={{ total: audioTotal, done: audioDone, busy: audioBusy, fetch: fetchAudio, remove: removeAudio }} />
+      audioFull={audioFull} audio={{ total: audioTotal, done: audioDone, busy: audioBusy, mb: audioMb, fetch: fetchAudio, remove: removeAudio }} />
   {:else if screen === 'rules'}
     <Rules rules={data.meta.rules} again={!!rulesFrom}
       onok={() => { if (!rulesSeen.includes(game.pack)) rulesSeen = [...rulesSeen, game.pack]; screen = rulesFrom || 'categories'; rulesFrom = null; }} />

@@ -99,13 +99,20 @@ test('без затримки: файл питання просять уже п�
   expect(srcs).toEqual([expect.stringMatching(new RegExp(`/audio/gs-01\\.mp3#t=${starts['gs-01']}$`))]);
 });
 
-test('озвучка для офлайну: качається у фоні, видаляється й качається знову', async ({ page }) => {
+test('озвучка для офлайну: лише за згодою («Завантажити»), далі сама; видаляється й качається знову', async ({ page }) => {
   await serveAudio(page);
   // A single open, no fresh(): its reload interrupts the first cache.put in flight,
   // and WebKit on Linux keeps that entry broken (match() misses it). The context is clean anyway.
   confirmAll(page);
   await page.goto('/');
+  // без згоди нічого не качається: видно розмір і кнопку
+  await expect(page.getByText(/Щоб озвучка працювала й без інтернету/)).toBeVisible();
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(async () => !!(await (await caches.open('whoiswho-audio')).match('/audio/gs-01.mp3')))).toBe(false);
+  await page.getByRole('button', { name: 'Завантажити' }).click();
   await expect(page.getByText('Готово: 2 з 2')).toBeVisible();
+  // згода запам'ятовується — далі нові записи докачуються самі
+  await expect.poll(async () => (await page.evaluate(() => JSON.parse(localStorage.getItem('whoiswho.v2'))))?.settings?.offline).toBe(true);
   // перевіряємо через match — так гра й service worker читають файли (keys() у WebKit буває порожнім)
   const cached = () => page.evaluate(async () => {
     const c = await caches.open('whoiswho-audio');
@@ -113,7 +120,7 @@ test('озвучка для офлайну: качається у фоні, ви
   });
   expect(await cached()).toEqual([true, true, false]);
   await page.getByRole('button', { name: 'Видалити', exact: true }).click();
-  await expect(page.getByText('Завантажено 0 з 2')).toBeVisible();
+  await expect(page.getByText(/Щоб озвучка працювала й без інтернету/)).toBeVisible();
   expect(await page.evaluate(() => caches.has('whoiswho-audio'))).toBe(false);
   await page.getByRole('button', { name: 'Завантажити' }).click();
   await expect(page.getByText('Готово: 2 з 2')).toBeVisible();
@@ -123,6 +130,7 @@ test('озвучка: обрив мережі — частина заванта�
   let fail = true;
   await page.route('**/audio/*.mp3', (r) => (fail && r.request().url().includes('gs-01') ? r.abort('internetdisconnected') : r.fulfill({ status: 200, contentType: 'audio/mpeg', body: MP3 })));
   await fresh(page);
+  await page.getByRole('button', { name: 'Завантажити' }).click();
   await expect(page.getByText('Завантажено 1 з 2')).toBeVisible();
   fail = false;
   await page.getByRole('button', { name: 'Завантажити' }).click();
@@ -133,6 +141,7 @@ test('озвучка для офлайну — лише вибраного на�
   const hits = await serveAudio(page);
   confirmAll(page);
   await page.goto('/');
+  await page.getByRole('button', { name: 'Завантажити' }).click();
   await expect(page.getByText('Готово: 2 з 2')).toBeVisible();
   hits.length = 0;
   await page.getByRole('radiogroup', { name: 'Набір питань' }).getByRole('radio', { name: /Для друзів/ }).click();

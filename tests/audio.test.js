@@ -452,16 +452,17 @@ test('vite-плагін: virtual:audio-ids містить id з теки озв�
   assert.equal(p.load('other'), null);
   mkdirSync(join(dir, 'ru')); wf(join(dir, 'ru', 'gs-01.mp3'), '');
   wf(join(dir, 'starts.json'), '{"gs-01":0.3}'); wf(join(dir, 'ru', 'starts.json'), 'зламаний');
-  assert.equal(p.load(resolved), 'export default {"uk":["am-02","gs-01"],"ru":["gs-01"],"start":{"uk":{"gs-01":0.3},"ru":{}}};');
+  wf(join(dir, 'gs-01.mp3'), 'abc');
+  assert.equal(p.load(resolved), 'export default {"uk":["am-02","gs-01"],"ru":["gs-01"],"start":{"uk":{"gs-01":0.3},"ru":{}},"size":{"uk":{"am-02":0,"gs-01":3},"ru":{"gs-01":0}}};');
   rmSync(dir, { recursive: true });
-  assert.equal(audioIdsPlugin(join(dir, 'nope')).load(resolved), 'export default {"uk":[],"ru":[],"start":{"uk":{},"ru":{}}};');
+  assert.equal(audioIdsPlugin(join(dir, 'nope')).load(resolved), 'export default {"uk":[],"ru":[],"start":{"uk":{},"ru":{}},"size":{"uk":{},"ru":{}}};');
 });
 
 test('vite-плагін: E2E_AUDIO_IDS підміняє список (лише для e2e)', () => {
   const p = audioIdsPlugin('/nope', { readdirSync: () => ['real.mp3'] }, { uk: 'gs-02,gs-01,' });
-  assert.equal(p.load(p.resolveId(VIRTUAL_ID)), 'export default {"uk":["gs-01","gs-02"],"ru":[],"start":{"uk":{},"ru":{}}};');
+  assert.equal(p.load(p.resolveId(VIRTUAL_ID)), 'export default {"uk":["gs-01","gs-02"],"ru":[],"start":{"uk":{},"ru":{}},"size":{"uk":{"gs-01":0,"gs-02":0},"ru":{}}};');
   const r = audioIdsPlugin('/nope', { readdirSync: () => [] }, { ru: 'gs-01' });
-  assert.equal(r.load(r.resolveId(VIRTUAL_ID)), 'export default {"uk":[],"ru":["gs-01"],"start":{"uk":{},"ru":{}}};');
+  assert.equal(r.load(r.resolveId(VIRTUAL_ID)), 'export default {"uk":[],"ru":["gs-01"],"start":{"uk":{},"ru":{}},"size":{"uk":{},"ru":{"gs-01":0}}};');
 });
 
 test('vite-плагін у dev: зміна в теці озвучки інвалідує модуль, інші файли — ні', () => {

@@ -204,3 +204,12 @@ test('стрілка на схемі кола лежить на колі й за
   expect(geo.marker).toContain('arrowhead');
   expect(geo.clockwise).toBe(true);
 });
+
+test('налаштування: окремий блок «🔊 Звук»; «Голос браузера» є лише там, де бракує записаної озвучки', async ({ page }) => {
+  await fresh(page);
+  const sound = page.locator('section', { has: page.getByRole('heading', { name: '🔊 Звук' }) });
+  await expect(sound.getByRole('switch', { name: 'Звуки' })).toBeVisible();
+  await expect(sound.getByRole('switch', { name: 'Читати питання вголос' })).toBeVisible();
+  // у тестовій збірці записано лише 2 питання — голос браузера потрібен
+  await expect(sound.getByText('🔈 Голос браузера')).toBeVisible();
+});

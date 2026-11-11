@@ -9,7 +9,7 @@
 
   // players — масив { id, name, photo, template } ($state у App, змінюється на місці)
   // packs — описи наборів (meta.pack) у порядку показу; gamePack — набір поточної гри
-  let { players = $bindable(), settings = $bindable(), packs = [], gamePack = null, inGame, onstart, historyCount = 0, onhistory = () => {}, showInstall = false, oninstall = () => {}, onabout = () => {}, voiceAvailable = false, audioCount = 0, wakeLock = true, audio = null } = $props();
+  let { players = $bindable(), settings = $bindable(), packs = [], gamePack = null, inGame, onstart, historyCount = 0, onhistory = () => {}, showInstall = false, oninstall = () => {}, onabout = () => {}, voiceAvailable = false, audioCount = 0, audioFull = false, wakeLock = true, audio = null } = $props();
   let photoFor = $state(null);
 
   const MIN = 2;
@@ -144,6 +144,11 @@
     <span><span class="lbl">{t('setup.scoring')}</span><small>{t('setup.scoringHint')}</small></span>
     <input type="checkbox" role="switch" bind:checked={settings.scoring} />
   </label>
+  {#if !wakeLock}<p class="note">{t('setup.noWake')}</p>{/if}
+</section>
+
+<section class="panel opts">
+  <h2>{t('setup.soundTitle')}</h2>
   <label class="opt sw">
     <span><span class="lbl">{t('setup.sounds')}</span><small>{t('setup.soundsHint')}</small></span>
     <input type="checkbox" role="switch" bind:checked={settings.sounds} aria-label={t('setup.soundsLabel')} />
@@ -152,23 +157,26 @@
     <span><span class="lbl">{t('setup.autoRead')}</span><small>{t('setup.autoReadHint')}</small></span>
     <input type="checkbox" role="switch" bind:checked={settings.autoRead} aria-label={t('setup.autoReadLabel')} />
   </label>
+  <!-- голос браузера потрібен лише там, де немає записаної озвучки -->
+  {#if !audioFull}
   <label class="opt sw" class:off={!voiceAvailable}>
     <span><span class="lbl">{t('setup.voice')}</span><small>{voiceAvailable
       ? t('setup.voiceHint') + (audioCount ? t('setup.voiceRecorded', { n: audioCount }) : '')
       : t('setup.voiceNone')}</small></span>
     <input type="checkbox" role="switch" bind:checked={settings.voice} disabled={!voiceAvailable} aria-label={t('setup.voiceLabel')} />
   </label>
+  {/if}
   {#if audio?.total}
     <div class="opt audio">
       <span><span class="lbl">{t('setup.offline')}</span>
-        <small>{audio.done >= audio.total ? t('setup.offlineDone', { n: audio.total }) : audio.busy ? t('setup.offlineBusy', { a: audio.done, b: audio.total }) : t('setup.offlinePart', { a: audio.done, b: audio.total })}</small>
+        <small>{audio.done >= audio.total ? t('setup.offlineDone', { n: audio.total }) : audio.busy ? t('setup.offlineBusy', { a: audio.done, b: audio.total })
+          : audio.done ? t('setup.offlinePart', { a: audio.done, b: audio.total }) : t('setup.offlineAsk')}{#if audio.done < audio.total && audio.mb} {t('setup.offlineSize', { mb: audio.mb })}{/if}</small>
         <span class="bar" aria-hidden="true"><i style="width:{(audio.done / audio.total) * 100}%"></i></span>
       </span>
       {#if audio.done < audio.total}<button class="mini" onclick={audio.fetch} disabled={audio.busy}>{t('setup.download')}</button>
       {:else}<button class="mini danger" onclick={audio.remove}>{t('setup.delete')}</button>{/if}
     </div>
   {/if}
-  {#if !wakeLock}<p class="note">{t('setup.noWake')}</p>{/if}
 </section>
 
 {#if !fits}<p class="warn" role="status">{t('setup.limit', { pack: pack.title, limit })} {players.length > pack.maxPlayers ? t('setup.tooMany') : t('setup.tooFew')}</p>{/if}
