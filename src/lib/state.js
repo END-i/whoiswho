@@ -14,6 +14,7 @@
  * @property {Object<string,number>} scores          id гравця → бали (видалені гравці лишаються)
  * @property {Object<string,string>} gone            id видаленого гравця → ім'я, щоб показати в підсумку
  * @property {{answered:number, skipped:number}} stats
+ * @property {boolean} [over]                    гру завершено — лишається лише підсумок
  */
 
 export const VERSION = 2;
@@ -95,12 +96,15 @@ export const remaining = (game, cat) => {
 export const questionAt = (game, cat, num) => game.deck[cat]?.[num - 1] ?? null;
 export const allDone = (game) => Object.keys(game.deck).every((c) => remaining(game, c) === 0);
 
+/** Завершити гру: далі лише підсумок і нова гра. */
+export const endGame = (game) => ({ ...game, over: true });
+
 /**
  * Закриває картку й передає хід далі.
  * outcome: 'answered' | 'skipped' | 'correct' | 'wrong'. За 'correct' бал отримує гравець з індексом answerer.
  */
 export function finishCard(game, cat, num, outcome, answerer = null) {
-  if (isUsed(game, cat, num)) return game;
+  if (game.over || isUsed(game, cat, num)) return game;
   const pid = answerer !== null ? game.order[answerer] : null;
   const scores = outcome === 'correct' && pid ? { ...game.scores, [pid]: (game.scores[pid] || 0) + 1 } : game.scores;
   return {
@@ -186,5 +190,6 @@ export function restoreGame(saved, questionIds, players) {
     version: VERSION, order: g.order, audience: g.audience === 'kids' ? 'kids' : 'family', scoring: !!g.scoring,
     turn, deck, used, scores: { ...g.scores }, gone: { ...(g.gone || {}) },
     stats: { answered: +g.stats.answered || 0, skipped: +g.stats.skipped || 0 },
+    over: !!g.over,
   };
 }

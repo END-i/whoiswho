@@ -1,7 +1,8 @@
 <script>
   import raw from './data/questions.json';
   import { load, byAudience } from './lib/questions.js';
-  import { newGame, finishCard, remaining, allDone, updatePlayers, restoreGame } from './lib/state.js';
+  import { newGame, finishCard, remaining, allDone, updatePlayers, restoreGame, endGame } from './lib/state.js';
+  import { gameRecord, addRecord, cleanHistory } from './lib/history.js';
   import { loadAll, saveAll, newId } from './lib/storage.js';
   import { clampTpl } from './lib/templates.js';
   import Setup from './screens/Setup.svelte';
@@ -9,6 +10,7 @@
   import Categories from './screens/Categories.svelte';
   import Grid from './screens/Grid.svelte';
   import Summary from './screens/Summary.svelte';
+  import History from './screens/History.svelte';
   import TopBar from './components/TopBar.svelte';
   import Sheet from './components/Sheet.svelte';
   import Avatar from './components/Avatar.svelte';
@@ -32,7 +34,7 @@
     const ok = Array.isArray(list) ? list.filter((p) => p && typeof p.id === 'string' && typeof p.name === 'string') : [];
     return ok.length >= 2 ? ok.map((p) => ({ id: p.id, name: p.name, photo: p.photo || null, template: p.template || null, tplPos: clampTpl(p.tplPos) })) : null;
   };
-  const SCREENS = ['setup', 'rules', 'categories', 'grid', 'summary'];
+  const SCREENS = ['setup', 'rules', 'categories', 'grid', 'summary', 'history'];
 
   // Усе відновлення — звичайними змінними, один раз; далі стан живе в $state.
   const init = (() => {
@@ -46,6 +48,7 @@
     const catId = game && data.categories.some((c) => c.id === ui.catId) ? ui.catId : null;
     const selected = game && catId && Number.isInteger(ui.selected) && remaining(game, catId) && !game.used[catId]?.includes(ui.selected) ? ui.selected : null;
     if (screen === 'grid' && !catId) screen = 'categories';
+    if (game?.over && screen !== 'history') screen = 'summary'; // завершена гра — лише підсумок
     return { players, game, screen, catId, selected };
   })();
 
@@ -58,6 +61,8 @@
   let screen = $state(init.screen);
   let catId = $state(init.catId);
   let selected = $state(init.selected);
+  let history = $state(cleanHistory(saved.history));
+  let historyFrom = $state('setup');
   let rulesFrom = $state(null);
   let sheet = $state(null); // null | 'menu' | 'scores'
   let toast = $state(null);
@@ -100,8 +105,15 @@
   $effect(() => {
     saveAll({
       players: $state.snapshot(players), settings: $state.snapshot(settings), rulesSeen, lastDeck,
-      names: $state.snapshot(names), game: $state.snapshot(game), ui: { screen, catId, selected },
+      names: $state.snapshot(names), game: $state.snapshot(game), history: $state.snapshot(history), ui: { screen, catId, selected },
     });
+  });
+
+  // Новий екран (чи інша категорія) завжди відкривається згори
+  let lastView = `${init.screen}|${init.catId}`;
+  $effect(() => {
+    const view = `${screen}|${catId}`;
+    if (view !== lastView) { lastView = view; window.scrollTo({ top: 0, behavior: 'instant' }); }
   });
 
   // ---------- дії ----------
@@ -128,15 +140,27 @@
       clearTimeout(toastTimer); toastTimer = setTimeout(() => (toast = null), 2000);
     }
     if (!remaining(game, catId)) { catId = null; screen = 'categories'; }
-    if (allDone(game)) screen = 'summary';
+    if (allDone(game)) finishGame();
+  }
+  /** Гра закінчилась: запис в історію, далі лише підсумок і нова гра. */
+  function finishGame() {
+    history = addRecord(history, gameRecord($state.snapshot(game), names, { finished: true }));
+    game = endGame(game); selected = null; sheet = null; screen = 'summary';
   }
   function newGameAsk() {
-    if (game && !confirm('Почати нову гру? Поточні бали й використані картки скинуться.')) return;
+    if (game && !game.over) {
+      if (!confirm('Почати нову гру? Поточна гра збережеться в історії, картки перемішаються заново.')) return;
+      history = addRecord(history, gameRecord($state.snapshot(game), names, { finished: false }));
+    }
     game = null; catId = null; selected = null; sheet = null; screen = 'setup';
   }
   function endAsk() {
     sheet = null;
-    if (confirm('Завершити гру й подивитися підсумок?')) { selected = null; screen = 'summary'; }
+    if (confirm('Завершити гру? Вона збережеться в історії, а продовжити її вже не вийде.')) finishGame();
+  }
+  function openHistory() { historyFrom = screen; sheet = null; screen = 'history'; }
+  function clearHistory() {
+    if (confirm('Очистити всю історію ігор? Загальна таблиця теж зникне.')) history = [];
   }
   const go = (s) => { sheet = null; screen = s; };
 </script>
@@ -148,14 +172,15 @@
       <ul>{#each errors as e}<li>{e}</li>{/each}</ul>
     </section>
   {:else if screen === 'setup'}
-    <Setup bind:players bind:settings inGame={!!game} onstart={start} voiceAvailable={!!ukVoice} audioCount={audioIds.size} wakeLock={wakeSupported()}
+    <Setup bind:players bind:settings inGame={!!game} onstart={start} historyCount={history.length} onhistory={openHistory} voiceAvailable={!!ukVoice} audioCount={audioIds.size} wakeLock={wakeSupported()}
       audio={{ total: audioIds.size, done: audioDone, busy: audioBusy, fetch: fetchAudio, remove: removeAudio }} />
   {:else if screen === 'rules'}
     <Rules rules={data.meta.rules} again={!!rulesFrom}
       onok={() => { rulesSeen = true; screen = rulesFrom || 'categories'; rulesFrom = null; }} />
   {:else if screen === 'summary'}
-    <Summary {game} {players} {names} onnew={newGameAsk}
-      onback={allDone(game) ? null : () => (screen = catId ? 'grid' : 'categories')} />
+    <Summary {game} {players} {names} onnew={newGameAsk} onhistory={openHistory} />
+  {:else if screen === 'history'}
+    <History {history} {players} onback={() => (screen = historyFrom === 'history' ? 'setup' : historyFrom)} onclear={clearHistory} />
   {:else}
     <TopBar players={orderPlayers} {game} onmenu={() => (sheet = 'menu')} onscores={() => (sheet = 'scores')}
       back={screen === 'grid' ? () => { catId = null; screen = 'categories'; } : null} />
@@ -176,6 +201,7 @@
     <nav class="menu">
       <button onclick={() => { rulesFrom = screen; go('rules'); }}><span>📜</span>Правила</button>
       <button onclick={() => go('setup')}><span>👥</span>Гравці й налаштування</button>
+      <button onclick={openHistory}><span>🏆</span>Історія ігор</button>
       <button onclick={endAsk}><span>🏁</span>Завершити гру</button>
       <button class="danger" onclick={newGameAsk}><span>🔄</span>Нова гра</button>
     </nav>

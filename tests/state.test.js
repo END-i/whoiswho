@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   shuffle, derange, buildDeck, newGame, finishCard, remaining, isUsed, questionAt, total, allDone,
-  updatePlayers, seat, roles, restoreGame, VERSION,
+  updatePlayers, seat, roles, restoreGame, endGame, VERSION,
 } from '../src/lib/state.js';
 
 // Відтворюваний генератор випадкових чисел (mulberry32)
@@ -218,7 +218,15 @@ const ids = [...Q('a', 3), ...Q('b', 2)].map((q) => q.id);
 
 test('restoreGame: збережене через JSON відновлюється без змін', () => {
   const { players, g } = fresh();
-  assert.deepEqual(restoreGame(JSON.parse(JSON.stringify(g)), ids, players), g);
+  assert.deepEqual(restoreGame(JSON.parse(JSON.stringify(g)), ids, players), { ...g, over: false });
+});
+
+test('endGame: гру завершено — картки більше не закриваються, позначка переживає збереження', () => {
+  const { players, g } = fresh();
+  const over = endGame(g);
+  assert.equal(over.over, true); assert.equal(g.over, undefined, 'старий стан не змінюється');
+  assert.equal(finishCard(over, 'a', 1, 'correct', 0), over);
+  assert.equal(restoreGame(JSON.parse(JSON.stringify(over)), ids, players).over, true);
 });
 
 test('restoreGame: чужа версія чи зламаний формат — null', () => {

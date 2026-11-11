@@ -131,8 +131,10 @@ test('без режиму балів кнопок «Правильно» нем�
   await page.getByRole('button', { name: 'Меню' }).click();
   await page.getByRole('button', { name: /Завершити гру/ }).click();
   await expect(page.getByText('Тут немає переможців')).toBeVisible();
-  await page.getByRole('button', { name: /Продовжити/ }).click();
-  await expect(page.getByRole('group', { name: /Карти категорії «Вгадай»/ })).toBeVisible();
+  // завершену гру продовжити не можна — лише історія або нова гра
+  await expect(page.getByRole('button', { name: /Продовжити/ })).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Гра завершена!' })).toBeVisible();
 });
 
 test('вичерпана категорія стає «пройдено» і не відкривається', async ({ page }) => {
