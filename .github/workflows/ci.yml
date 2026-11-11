@@ -1,4 +1,4 @@
-# Тести на кожен push і pull request. Деплой робить Cloudflare Workers Builds окремо (див. README).
+# Тести на кожен push і pull request. Деплой робить Cloudflare Pages окремо (див. README).
 name: CI
 
 on:
@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   unit:
-    name: Юніт-тести (100% покриття)
+    name: Unit tests (100% coverage)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
