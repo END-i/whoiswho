@@ -51,7 +51,6 @@ for (const scheme of ['light', 'dark']) {
       const { size, weight } = await btn.evaluate((el) => ({ size: parseFloat(getComputedStyle(el).fontSize), weight: +getComputedStyle(el).fontWeight }));
       expect(size).toBeGreaterThanOrEqual(18.67); expect(weight).toBeGreaterThanOrEqual(700);
       await page.getByRole('button', { name: 'Пропустити' }).click();
-      await page.getByRole('button', { name: 'До категорій' }).click();
     }
   });
 }

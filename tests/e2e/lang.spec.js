@@ -55,7 +55,6 @@ test('гра російською: категорії й питання росі
   expect(hits).not.toContain('/audio/gs-01.mp3');
   // am-02 озвучено лише українською (E2E_AUDIO_IDS_RU=gs-01) — російською кнопки немає
   await card.getByRole('button', { name: /Пропустить/ }).click();
-  await page.getByRole('button', { name: 'К категориям' }).click();
   await page.locator('.cat', { hasText: 'Что о тебе знают' }).click();
   await page.getByRole('button', { name: `Карта ${s.game.deck.aboutme.indexOf('am-02') + 1}`, exact: true }).click();
   await expect(page.getByRole('dialog').getByText('Что ты больше всего любишь делать в выходные?')).toBeVisible();

@@ -1,6 +1,6 @@
 <script>
   import Avatar from './Avatar.svelte';
-  import { roles } from '../lib/state.js';
+  import { roles, POINTS, isRated } from '../lib/state.js';
   import { listenMode, playQuestion, questionAudio, AUTO_DELAY } from '../lib/speech.js';
   import { onDestroy } from 'svelte';
   import { t } from '../lib/lang.svelte.js';
@@ -41,6 +41,11 @@
   // «Хто з нас?»: після того як показали пальцем, вибираємо, на кого показала більшість
   let voting = $state(false);
   const showAbout = $derived(question.type !== 'who' && about !== null && about !== answerer);
+  // Відповідає не той, чия черга, а інший гравець — про себе: «Питає Оля → Відповідає Тарас»
+  const asks = $derived(!isWho && !showAbout && answerer !== null && answerer !== i);
+  // Без правильної відповіді — компанія оцінює: +10 / +20 / +50
+  const rated = $derived(isRated(question.type));
+  const RATES = [['👍', 'rateOk'], ['😂', 'rateFun'], ['🤩', 'rateWow']];
   let tipOpen = $state(false);
 
   function roleText(role) {
@@ -71,7 +76,7 @@
     <div class="body">
       <div class="badges">
         <span class="badge">{t(`type.${question.type}`)}</span>
-        {#if scoring}<span class="badge pts">{t('card.point')}</span>{/if}
+        {#if scoring}<span class="badge pts">{rated ? t('card.pointsUpTo', { n: POINTS.rate.at(-1) }) : t('card.points', { n: POINTS.right })}</span>{/if}
         {#if mode}
           <button class="listen" class:playing onclick={toggle} aria-label={playing ? t('card.stop') : t('card.listen')}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path class="spk" d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z" />
@@ -85,6 +90,15 @@
 
       {#if question.type === 'who'}
         <div class="all"><span>👆</span> {t('card.whoAll')}</div>
+      {:else if !need && asks}
+        <div class="people pair">
+          <div class="who"><Avatar player={players[i]} size={56} />
+            <span><small>{t('card.asks')}</small><b>{players[i].name}</b><em>{roleText('self')}</em></span></div>
+          <span class="arrow" aria-hidden="true">→</span>
+          <div class="who"><Avatar player={players[answerer]} size={56} ring />
+            <span><small>{t('card.answers')}</small><b>{players[answerer].name}</b><em>{roleText(question.answerer)}</em></span></div>
+        </div>
+        <p class="instead">{t('card.asksHint', { name: players[answerer].name })}</p>
       {:else if !need}
         <div class="people" class:pair={showAbout}>
           <div class="who"><Avatar player={players[answerer]} size={56} ring />
@@ -132,7 +146,7 @@
           {#if !voting}
             <button class="chunky ok wide" onclick={() => (voting = true)}>{t('card.shown')}</button>
           {:else}
-            <p class="check">{t('card.majority')} <b>{t('card.plusOne')}</b></p>
+            <p class="check">{t('card.majority')} <b>{t('card.points', { n: POINTS.right })}</b></p>
             <div class="chips">
               {#each players as p, k}
                 <button class="chip" onclick={() => onfinish('correct', k)}><Avatar player={p} size={40} /><span>{p.name}</span></button>
@@ -140,15 +154,25 @@
             </div>
             <button class="chunky light wide" onclick={() => onfinish('wrong', null)}>{t('card.tie')}</button>
           {/if}
+        {:else if rated}
+          <p class="check"><b>{players[answerer].name}</b>{t('card.rateQ')}</p>
+          <div class="rates">
+            {#each RATES as [emoji, key], k}
+              <button class="chunky rate" onclick={() => onfinish('correct', answerer, POINTS.rate[k])} aria-label={t(`card.${key}`, { n: POINTS.rate[k] })}>
+                <span class="big" aria-hidden="true">{emoji}</span><span>+{POINTS.rate[k]}</span>
+              </button>
+            {/each}
+          </div>
         {:else}
           <p class="check">
             {#if isGuess}{t('card.checks')} <b>{players[about].name}</b>{t('card.checksQ')}
             {:else if isQuiz}<b>{players[answerer].name}</b>{t('card.quizCheck')}
-            {:else}<b>{players[answerer].name}</b>{t('card.acceptQ')}{/if}
+            {:else}<b>{players[answerer].name}</b>{t('card.acceptQ')}
+            {/if}
           </p>
           <div class="row">
-            <button class="chunky ok" onclick={() => onfinish('correct', answerer)}><span class="ico" aria-hidden="true">✅&nbsp;</span>{isGuess || isQuiz ? t('card.right') : t('card.accepted')}</button>
-            <button class="chunky no" onclick={() => onfinish('wrong', answerer)}><span class="ico" aria-hidden="true">❌&nbsp;</span>{isGuess || isQuiz ? t('card.wrong') : t('card.no')}</button>
+            <button class="chunky ok" onclick={() => onfinish('correct', answerer, POINTS.right)}><span class="ico" aria-hidden="true">✅&nbsp;</span>{t('card.right')}</button>
+            <button class="chunky no" onclick={() => onfinish('wrong', answerer)}><span class="ico" aria-hidden="true">❌&nbsp;</span>{t('card.wrong')}</button>
           </div>
         {/if}
         {/if}
@@ -236,6 +260,9 @@
   @media (max-width: 460px) { .row .ico { display: none; } }
   @media (max-width: 400px) { .row { grid-template-columns: 1fr; } }
   .chips + .wide { margin-top: 12px; }
+  .rates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .rate { --c: #FFC23D; --c2: #E59A00; color: #3d2600; text-shadow: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 76px; padding: 6px 4px; font-size: 20px; line-height: 1; }
+  .rate .big { font-size: 28px; }
   .chunky.ok { --c: var(--ok); --c2: var(--ok2); }
   .chunky.no { --c: var(--no); --c2: var(--no2); }
   .wide { width: 100%; margin-top: 16px; }

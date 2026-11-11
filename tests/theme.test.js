@@ -71,3 +71,11 @@ test('assignColors: у кожного гравця свій колір; збер
   const nine = assignColors(Array.from({ length: 9 }, (_, k) => ({ id: `n${k}` })));
   assert.ok(PLAYER_COLORS.includes(nine[8].color), 'палітра скінчилась — усе одно колір з палітри');
 });
+
+test('PLAYER_COLORS: кольори гравців помітно різні між собою (не два майже однакові помаранчеві)', () => {
+  const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  for (const [k, a] of PLAYER_COLORS.entries()) for (const b of PLAYER_COLORS.slice(k + 1)) {
+    const d = Math.hypot(...rgb(a).map((v, i) => v - rgb(b)[i]));
+    assert.ok(d > 60, `${a} і ${b} надто схожі (${d.toFixed(0)})`);
+  }
+});

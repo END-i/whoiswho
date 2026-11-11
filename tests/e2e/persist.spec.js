@@ -4,15 +4,15 @@ import { startGame, category, openCard, openQuestion, numberOf, saved, turnName 
 test('перезавантаження посеред гри: той самий екран, хід, використані карти й відкрита картка', async ({ page }) => {
   await startGame(page, ['Оля', 'Тарас', 'Мама'], { scoring: true });
   const a = await openQuestion(page, 'Відкрийся', 'open', 'op-02');
-  await page.getByRole('button', { name: /Зараховано/ }).click();
-  const b = await numberOf(page, 'open', 'op-03');
-  await openCard(page, b);
+  await page.getByRole('button', { name: 'Добре, +10' }).click();
+  const b = await openQuestion(page, 'Відкрийся', 'open', 'op-03');
   const text = await page.locator('.q').innerText();
   await page.reload();
   await expect(page.getByRole('dialog', { name: `Картка ${b}` })).toBeVisible();
   await expect(page.locator('.q')).toHaveText(text);
   expect(await turnName(page)).toBe('Тарас');
   await page.getByRole('button', { name: 'Пропустити' }).click();
+  await category(page, 'Відкрийся').click();
   await expect(page.getByRole('button', { name: `Карта ${a}, вже була` })).toBeDisabled();
   await expect(page.getByRole('button', { name: `Карта ${b}, вже була` })).toBeDisabled();
 });

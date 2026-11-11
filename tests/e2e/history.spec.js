@@ -2,7 +2,7 @@ import { test, expect } from './fixtures.js';
 import { startGame, openQuestion, saved } from './helpers.js';
 
 const menu = async (page, item) => { await page.getByRole('button', { name: 'Меню' }).click(); await page.getByRole('button', { name: item }).click(); };
-const correct = (page) => page.getByRole('button', { name: /Правильно|Зараховано/ }).click();
+const correct = (page) => page.getByRole('button', { name: 'Правильно', exact: true }).click();
 
 test('нові екрани відкриваються згори, а не прокрученими донизу', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 600 });
@@ -27,9 +27,8 @@ test('нулі в усіх — без п\'єдесталу й переможця
 
 test('нічия на першому місці — обоє на першій сходинці', async ({ page }) => {
   await startGame(page, ['Оля', 'Тарас', 'Мама'], { scoring: true });
-  await openQuestion(page, 'Вгадай', 'guess', 'gs-01'); await correct(page);           // Оля +1
-  await page.getByRole('button', { name: 'До категорій' }).click();
-  await openQuestion(page, 'Вгадай', 'guess', 'gs-04'); await correct(page);           // Тарас +1
+  await openQuestion(page, 'Вгадай', 'guess', 'gs-01'); await correct(page);           // Оля +20
+  await openQuestion(page, 'Вгадай', 'guess', 'gs-04'); await correct(page);           // Тарас +20
   await menu(page, /Завершити гру/);
   await expect(page.getByText(/Нічия! Перше місце ділять: Оля, Тарас/)).toBeVisible();
   await expect(page.locator('.step.s1 .avatar, .step.s1 .av')).toHaveCount(2);
@@ -44,14 +43,14 @@ test('історія: дві гри → загальний рахунок; не�
   await menu(page, /Завершити гру/);
   await page.getByRole('button', { name: /Нова гра/ }).click();
   await expect(page.getByRole('button', { name: /Історія ігор \(1\)/ })).toBeVisible();
-  // гра 2: Тарас набирає 2, але гру кидають через «Нова гра»
+  // гра 2: Тарас набирає 10, але гру кидають через «Нова гра»
   await page.getByRole('button', { name: /Почати гру/ }).click();
-  await page.locator('.cat', { hasText: 'Відкрийся' }).click();
   for (const id of ['op-02', 'op-04']) {
+    await page.locator('.cat', { hasText: 'Відкрийся' }).click();
     const s = await saved(page);
     const turn = s.game.order[s.game.turn];
     await page.getByRole('button', { name: `Карта ${s.game.deck.open.indexOf(id) + 1}`, exact: true }).click();
-    await page.getByRole('button', { name: turn === s.game.order[1] ? /Зараховано/ : /^Ні$/ }).click();
+    await page.getByRole('button', { name: turn === s.game.order[1] ? 'Добре, +10' : /Пропустити/ }).click();
   }
   await menu(page, /Нова гра/);
   await page.reload();

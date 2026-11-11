@@ -1,6 +1,6 @@
 <script>
   import { loadPacks, byAudience } from './lib/questions.js';
-  import { newGame, finishCard, remaining, allDone, updatePlayers, restoreGame, endGame } from './lib/state.js';
+  import { newGame, finishCard, remaining, allDone, updatePlayers, restoreGame, endGame, POINTS } from './lib/state.js';
   import { gameRecord, addRecord, cleanHistory } from './lib/history.js';
   import { loadAll, saveAll, newId } from './lib/storage.js';
   import { clampTpl, migrateTemplate } from './lib/templates.js';
@@ -189,17 +189,18 @@
       screen = catId ? 'grid' : 'categories';
     }
   }
-  function finish(num, outcome, answerer) {
-    game = finishCard(game, catId, num, outcome, answerer);
+  function finish(num, outcome, answerer, points) {
+    game = finishCard(game, catId, num, outcome, answerer, points);
     selected = null;
     const sfx = { correct: 'point', wrong: 'miss', skipped: 'skip' }[outcome];
     if (sfx) playSfx(sfx, { enabled: settings.sounds });
     if (outcome === 'correct') {
-      toast = t('app.toastPoint', { name: orderPlayers[answerer]?.name });
+      toast = t('app.toastPoint', { n: points ?? POINTS.right, name: orderPlayers[answerer]?.name });
       party++;
       clearTimeout(toastTimer); toastTimer = setTimeout(() => (toast = null), 2000);
     }
-    if (!remaining(game, catId)) { catId = null; screen = 'categories'; }
+    // хід перейшов до наступного — він вибирає категорію сам (екран категорій відкривається згори)
+    catId = null; screen = 'categories';
     if (allDone(game)) finishGame();
   }
   /** Гра закінчилась: запис в історію, далі лише підсумок і нова гра. */

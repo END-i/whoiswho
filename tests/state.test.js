@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  shuffle, derange, buildDeck, newGame, finishCard, remaining, isUsed, questionAt, total, allDone,
+  shuffle, derange, buildDeck, newGame, POINTS, POINT_SCALE, isRated, finishCard, remaining, isUsed, questionAt, total, allDone,
   updatePlayers, seat, roles, restoreGame, endGame, VERSION,
 } from '../src/lib/state.js';
 
@@ -118,11 +118,30 @@ test('finishCard: номер не повторюється, хід по колу
 test('finishCard: бал за «Правильно» отримує той, хто відповідав', () => {
   let g = newGame({ players: P('A', 'B', 'C'), questions: Q('c', 3), scoring: true, rand: rng(1) });
   g = finishCard(g, 'c', 1, 'correct', 2);
-  assert.deepEqual(g.scores, { p0: 0, p1: 0, p2: 1 });
+  assert.deepEqual(g.scores, { p0: 0, p1: 0, p2: 20 }, '«Правильно» — 20');
   g = finishCard(g, 'c', 2, 'wrong', 0);
   g = finishCard(g, 'c', 3, 'correct', null);
-  assert.deepEqual(g.scores, { p0: 0, p1: 0, p2: 1 });
+  assert.deepEqual(g.scores, { p0: 0, p1: 0, p2: 20 });
   assert.deepEqual(g.stats, { answered: 3, skipped: 0 });
+});
+
+test('finishCard: оцінка компанії — 10, 20 чи 50 балів; isRated — лише відкриті питання й виклики', () => {
+  let g = newGame({ players: P('A', 'B'), questions: Q('c', 3), scoring: true, rand: rng(1) });
+  for (const [k, pts] of POINTS.rate.entries()) g = finishCard(g, 'c', k + 1, 'correct', 0, pts);
+  assert.equal(g.scores.p0, 80);
+  assert.deepEqual(POINTS, { right: 20, rate: [10, 20, 50] });
+  assert.deepEqual(['open', 'activity', 'guess', 'quiz', 'who'].map(isRated), [true, true, false, false, false]);
+});
+
+test('restoreGame: гра, почата до 1.7.0 (по 1 балу), — бали ×20 один раз', () => {
+  const { players, g } = fresh();
+  const old = { ...JSON.parse(JSON.stringify(g)), scores: { [players[0].id]: 2, [players[1].id]: 0 } };
+  delete old.points;
+  const r = restoreGame(old, ids, players);
+  assert.deepEqual(r.scores, { [players[0].id]: 40, [players[1].id]: 0 });
+  assert.equal(r.points, POINT_SCALE);
+  assert.deepEqual(restoreGame(JSON.parse(JSON.stringify(r)), ids, players).scores, r.scores, 'вдруге не множиться');
+  assert.equal(restoreGame({ ...old, scores: { [players[0].id]: 'x' } }, ids, players).scores[players[0].id], 0, 'сміття — 0');
 });
 
 test('finishCard: старий стан не змінюється', () => {

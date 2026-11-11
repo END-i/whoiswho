@@ -132,11 +132,9 @@ test('звук: «Правильно» — мелодія, «Ні» — «ва-�
     if (a.readyState >= 1) ok(a.duration); else a.addEventListener('loadedmetadata', () => ok(a.duration), { once: true });
   }));
   expect(dur).toBeGreaterThan(0.45); expect(dur).toBeLessThan(0.55);
-  await page.getByRole('button', { name: 'До категорій' }).click();
   await openQuestion(page, 'Вгадай', 'guess', 'gs-04');
   await page.getByRole('button', { name: /Неправильно/ }).click();
   await expect.poll(() => played(page)).toEqual(['point', 'miss']);
-  await page.getByRole('button', { name: 'До категорій' }).click();
   await openQuestion(page, 'Вгадай', 'guess', 'gs-06');
   await page.getByRole('button', { name: 'Пропустити' }).click();
   await expect.poll(() => played(page)).toEqual(['point', 'miss', 'skip']);
@@ -145,7 +143,6 @@ test('звук: «Правильно» — мелодія, «Ні» — «ва-�
   await page.getByRole('button', { name: /Гравці й налаштування/ }).click();
   await page.getByRole('switch', { name: 'Звуки' }).uncheck();
   await page.getByRole('button', { name: /Повернутися до гри/ }).click();
-  await page.getByRole('button', { name: 'До категорій' }).click();
   await openQuestion(page, 'Вгадай', 'guess', 'gs-08');
   await page.getByRole('button', { name: /Правильно/ }).click();
   await page.waitForTimeout(200);

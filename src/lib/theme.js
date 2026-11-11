@@ -43,7 +43,7 @@ export function categoryColor(id, index = 0) {
   return CATEGORY_COLORS[id] ?? FALLBACK[((index % FALLBACK.length) + FALLBACK.length) % FALLBACK.length];
 }
 
-export const PLAYER_COLORS = ['#FF7A1A', '#2EC4B6', '#5B3DF0', '#E8467A', '#4E9F22', '#2B74E6', '#F08C00', '#B83BA3'];
+export const PLAYER_COLORS = ['#FF7A1A', '#2EC4B6', '#5B3DF0', '#E8467A', '#4E9F22', '#2B74E6', '#8D5524', '#B83BA3'];
 
 /** Стабільний колір гравця за його id (не змінюється, коли міняють ім'я). */
 export function playerColor(id = '') {

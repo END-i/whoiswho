@@ -20,6 +20,15 @@
 
 export const VERSION = 2;
 
+// ---------- бали ----------
+/** Бали (з 1.7.0): «Правильно» — 20; відповідь без правильної компанія оцінює на 10, 20 чи 50. */
+export const POINTS = { right: 20, rate: [10, 20, 50] };
+/** Шкала балів у збереженій грі й історії: до 1.7.0 за відповідь був 1 бал (тепер це 20). */
+export const POINT_SCALE = 2;
+export const OLD_POINT = POINTS.right;
+/** Питання без правильної відповіді — компанія оцінює відповідь. */
+export const isRated = (type) => type === 'open' || type === 'activity';
+
 // ---------- перемішування ----------
 
 /** Фішер–Єйтс. rand — функція [0,1), щоб тести були відтворюваними. */
@@ -77,7 +86,7 @@ export function buildDeck(questions, prevDeck = null, rand = Math.random) {
 
 export function newGame({ players, pack = 'family', audience = 'family', scoring = false, questions, prevDeck = null, rand = Math.random }) {
   return {
-    version: VERSION,
+    version: VERSION, points: POINT_SCALE,
     order: players.map((p) => p.id),
     pack, audience, scoring, turn: 0,
     deck: buildDeck(questions, prevDeck, rand),
@@ -104,10 +113,10 @@ export const endGame = (game) => ({ ...game, over: true });
  * Закриває картку й передає хід далі.
  * outcome: 'answered' | 'skipped' | 'correct' | 'wrong'. За 'correct' бал отримує гравець з індексом answerer.
  */
-export function finishCard(game, cat, num, outcome, answerer = null) {
+export function finishCard(game, cat, num, outcome, answerer = null, points = POINTS.right) {
   if (game.over || isUsed(game, cat, num)) return game;
   const pid = answerer !== null ? game.order[answerer] : null;
-  const scores = outcome === 'correct' && pid ? { ...game.scores, [pid]: (game.scores[pid] || 0) + 1 } : game.scores;
+  const scores = outcome === 'correct' && pid ? { ...game.scores, [pid]: (game.scores[pid] || 0) + points } : game.scores;
   return {
     ...game, scores,
     used: { ...game.used, [cat]: [...(game.used[cat] || []), num] },
@@ -189,7 +198,9 @@ export function restoreGame(saved, questionIds, players) {
   const turn = Number.isInteger(g.turn) && g.turn >= 0 && g.turn < g.order.length ? g.turn : 0;
   return {
     version: VERSION, order: g.order, pack: typeof g.pack === 'string' ? g.pack : 'family', audience: g.audience === 'kids' ? 'kids' : 'family', scoring: !!g.scoring,
-    turn, deck, used, scores: { ...g.scores }, gone: { ...(g.gone || {}) },
+    // гра, почата до 1.7.0: 1 бал тоді — 20 тепер
+    turn, deck, used, scores: g.points === POINT_SCALE ? { ...g.scores } : Object.fromEntries(Object.entries(g.scores).map(([k, v]) => [k, (+v || 0) * OLD_POINT])),
+    gone: { ...(g.gone || {}) }, points: POINT_SCALE,
     stats: { answered: +g.stats.answered || 0, skipped: +g.stats.skipped || 0 },
     over: !!g.over,
   };

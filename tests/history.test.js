@@ -40,7 +40,7 @@ const names = { p1: 'Оля', p2: 'Тарас', p3: 'Мама' };
 test('gameRecord: гравці з місцями, переможці, картки', () => {
   const r = gameRecord(game(), names, { date: '2026-11-11T10:00:00Z', id: 'g1' });
   assert.deepEqual(r, {
-    id: 'g1', date: '2026-11-11T10:00:00Z', finished: true, scoring: true, pack: 'family',
+    id: 'g1', date: '2026-11-11T10:00:00Z', finished: true, scoring: true, pack: 'family', points: 2,
     players: [{ id: 'p1', name: 'Оля', score: 2, place: 1 }, { id: 'p2', name: 'Тарас', score: 1, place: 2 }],
     winners: ['p1'], cards: { answered: 3, skipped: 1 },
   });
@@ -77,6 +77,14 @@ test('cleanHistory: старі записи без набору — сімейн
   const [r] = cleanHistory([{ id: 'o', date: 'd', players: [] }]);
   assert.equal(r.pack, 'family');
   assert.equal(cleanHistory([{ id: 'o', date: 'd', players: [], pack: 'adults' }])[0].pack, 'adults');
+});
+
+test('cleanHistory: ігри до 1.7.0 (по 1 балу) переводяться в нову шкалу ×20 один раз', () => {
+  const old = { id: 'o', date: 'd', players: [{ id: 'p', name: 'N', score: 3, place: 1 }] };
+  const [r] = cleanHistory([old]);
+  assert.equal(r.players[0].score, 60); assert.equal(r.points, 2);
+  assert.equal(cleanHistory([r])[0].players[0].score, 60, 'вдруге не множиться');
+  assert.equal(old.players[0].score, 3, 'оригінал не змінюється');
 });
 
 test('cleanHistory: відкидає зламане, доповнює відсутнє', () => {

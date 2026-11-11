@@ -56,7 +56,6 @@ test('озвучка є лише там, де є файл: картка сама
   await openQuestion(page, 'Вгадай', 'guess', 'gs-04');
   await expect(page.getByRole('button', { name: 'Прослухати питання' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Пропустити' }).click();
-  await page.getByRole('button', { name: 'До категорій' }).click();
   hits.length = 0;
   // справжній запис (кілька секунд), щоб побачити «Стоп», поки він грає
   await page.route('**/audio/gs-01.mp3', (r) => { hits.push('/audio/gs-01.mp3'); r.fulfill({ status: 200, contentType: 'audio/mpeg', body: readFileSync('public/audio/gs-01.mp3') }); });

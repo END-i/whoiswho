@@ -46,7 +46,7 @@
   {#key selected}
     <QuestionCard {question} {category} colors={[c1, c2, ink]} number={selected} {game} {players} {sound} {roleNames}
       scoring={game.scoring && scoringCategories.includes(category.id)}
-      onfinish={(outcome, answerer) => onfinish(selected, outcome, answerer)} />
+      onfinish={(outcome, answerer, points) => onfinish(selected, outcome, answerer, points)} />
   {/key}
 {/if}
 
