@@ -1,6 +1,6 @@
 <script>
   import { loadPacks, byAudience } from './lib/questions.js';
-  import { newGame, finishCard, remaining, allDone, updatePlayers, restoreGame, endGame, POINTS } from './lib/state.js';
+  import { newGame, finishCard, remaining, allDone, updatePlayers, restoreGame, endGame, undoCard, POINTS } from './lib/state.js';
   import { gameRecord, addRecord, cleanHistory } from './lib/history.js';
   import { loadAll, saveAll, newId } from './lib/storage.js';
   import { clampTpl, migrateTemplate } from './lib/templates.js';
@@ -105,6 +105,7 @@
   let toast = $state(null);
   let party = $state(0);    // лічильник для конфеті
   let toastTimer;
+  const UNDO_MS = 5000; // стільки секунд можна скасувати останню відповідь
   const category = $derived(data?.categories.find((c) => c.id === catId));
 
   // ---------- озвучка ----------
@@ -194,14 +195,27 @@
     selected = null;
     const sfx = { correct: 'point', wrong: 'miss', skipped: 'skip' }[outcome];
     if (sfx) playSfx(sfx, { enabled: settings.sounds });
-    if (outcome === 'correct') {
-      toast = t('app.toastPoint', { n: points ?? POINTS.right, name: orderPlayers[answerer]?.name });
-      party++;
-      clearTimeout(toastTimer); toastTimer = setTimeout(() => (toast = null), 2000);
-    }
+    const name = orderPlayers[answerer]?.name;
+    if (outcome === 'correct') party++;
+    // повідомлення з «Скасувати»: за столом часто тиснуть не ту кнопку
+    toast = {
+      ok: outcome === 'correct',
+      text: outcome === 'correct' ? t('app.toastPoint', { n: points ?? POINTS.right, name })
+        : outcome === 'wrong' && name ? t('app.toastZero', { name })
+        : outcome === 'skipped' ? t('app.toastSkip') : t('app.toastDone'),
+    };
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => (toast = null), UNDO_MS);
     // хід перейшов до наступного — він вибирає категорію сам (екран категорій відкривається згори)
     catId = null; screen = 'categories';
     if (allDone(game)) finishGame();
+  }
+  /** «Скасувати»: остання картка знову закрита, бали й черга як були — і вона знову відкрита. */
+  function undo() {
+    const l = game?.last;
+    toast = null; clearTimeout(toastTimer);
+    if (!l || game.over) return;
+    game = undoCard(game);
+    catId = l.cat; screen = 'grid'; selected = l.num;
   }
   /** Гра закінчилась: запис в історію, далі лише підсумок і нова гра. */
   function finishGame() {
@@ -258,7 +272,12 @@
   {/if}
 </main>
 
-{#if toast}<div class="toast" role="status">🎉 {toast}</div>{/if}
+{#if toast}
+  <div class="toast" class:ok={toast.ok} role="status">
+    <span>{toast.ok ? '🎉 ' : ''}{toast.text}</span>
+    {#if game && !game.over && game.last}<button onclick={undo}>{t('app.undo')}</button>{/if}
+  </div>
+{/if}
 {#if updateReady}
   <div class="update" role="alert"><span>{t('app.update')}</span><button onclick={() => window.__applyUpdate?.()}>{t('app.updateBtn')}</button></div>
 {/if}
@@ -340,9 +359,13 @@
   }
   .toast {
     position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 22px); transform: translateX(-50%); z-index: 40;
-    background: var(--ok); color: #fff; font-weight: 900; padding: 12px 20px; border-radius: 22px;
-    box-shadow: 0 5px 0 var(--ok2), var(--shadow); animation: drop .35s cubic-bezier(.2, 1.6, .4, 1); white-space: nowrap;
+    display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 24px);
+    background: var(--ink); color: var(--bg); font-weight: 900; padding: 8px 8px 8px 18px; border-radius: 22px;
+    box-shadow: var(--shadow); animation: drop .35s cubic-bezier(.2, 1.6, .4, 1); white-space: nowrap;
   }
+  .toast.ok { background: var(--ok); color: #fff; box-shadow: 0 5px 0 var(--ok2), var(--shadow); }
+  .toast span { overflow: hidden; text-overflow: ellipsis; }
+  .toast button { flex: none; min-height: 40px; padding: 0 14px; border: none; border-radius: 16px; background: rgba(255, 255, 255, .22); color: inherit; font-weight: 900; font-size: 15px; }
   @keyframes drop { from { transform: translate(-50%, 40px) scale(.8); opacity: 0; } }
   .update {
     position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); z-index: 45; max-width: 536px; margin: 0 auto;

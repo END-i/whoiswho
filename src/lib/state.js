@@ -119,6 +119,8 @@ export function finishCard(game, cat, num, outcome, answerer = null, points = PO
   const scores = outcome === 'correct' && pid ? { ...game.scores, [pid]: (game.scores[pid] || 0) + points } : game.scores;
   return {
     ...game, scores,
+    // для «Скасувати»: як було до цієї картки (лише один крок назад)
+    last: { cat, num, turn: game.turn, scores: game.scores, stats: game.stats },
     used: { ...game.used, [cat]: [...(game.used[cat] || []), num] },
     turn: (game.turn + 1) % game.order.length,
     stats: {
@@ -145,7 +147,21 @@ export function updatePlayers(game, players, names = {}) {
   const gone = { ...game.gone };
   for (const id of game.order) if (!order.includes(id)) gone[id] = names[id] ?? gone[id] ?? '';
   for (const id of order) delete gone[id];
-  return { ...game, order, turn, scores, gone };
+  // склад змінився — «Скасувати» вже не має сенсу (черга й бали могли зсунутися)
+  return { ...game, order, turn, scores, gone, last: null };
+}
+
+/**
+ * Скасувати останню картку: вона знову закрита, бали, статистика й черга — як до неї.
+ * Лише один крок; після завершення гри чи зміни складу — нічого.
+ */
+export function undoCard(game) {
+  const l = game.last;
+  if (!l || game.over) return game;
+  return {
+    ...game, turn: l.turn, scores: l.scores, stats: l.stats, last: null,
+    used: { ...game.used, [l.cat]: (game.used[l.cat] || []).filter((n) => n !== l.num) },
+  };
 }
 
 // ---------- ролі ----------

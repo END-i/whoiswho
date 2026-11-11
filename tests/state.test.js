@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  shuffle, derange, buildDeck, newGame, POINTS, POINT_SCALE, isRated, finishCard, remaining, isUsed, questionAt, total, allDone,
+  shuffle, derange, buildDeck, newGame, undoCard, POINTS, POINT_SCALE, isRated, finishCard, remaining, isUsed, questionAt, total, allDone,
   updatePlayers, seat, roles, restoreGame, endGame, VERSION,
 } from '../src/lib/state.js';
 
@@ -237,7 +237,9 @@ const ids = [...Q('a', 3), ...Q('b', 2)].map((q) => q.id);
 
 test('restoreGame: збережене через JSON відновлюється без змін', () => {
   const { players, g } = fresh();
-  assert.deepEqual(restoreGame(JSON.parse(JSON.stringify(g)), ids, players), { ...g, over: false });
+  const { last, ...rest } = g; // «Скасувати» живе лише до перезавантаження
+  assert.ok(last);
+  assert.deepEqual(restoreGame(JSON.parse(JSON.stringify(g)), ids, players), { ...rest, over: false });
 });
 
 test('endGame: гру завершено — картки більше не закриваються, позначка переживає збереження', () => {
@@ -306,4 +308,19 @@ test('pack: нова гра знає свій набір; старе збере�
   assert.equal(restoreGame(g, ['q1'], players).pack, 'friends');
   const { pack, ...old } = g;
   assert.equal(restoreGame(old, ['q1'], players).pack, 'family');
+});
+
+test('undoCard: картка знову закрита, бали, статистика й черга — як до неї; лише один крок', () => {
+  let g = newGame({ players: P('A', 'B'), questions: Q('c', 3), scoring: true, rand: rng(1) });
+  g = finishCard(g, 'c', 1, 'correct', 0);
+  const before = g;
+  g = finishCard(g, 'c', 2, 'correct', 1, 50);
+  const u = undoCard(g);
+  assert.deepEqual(u.used.c, [1]); assert.equal(u.turn, before.turn);
+  assert.deepEqual(u.scores, before.scores); assert.deepEqual(u.stats, before.stats);
+  assert.equal(undoCard(u), u, 'вдруге — нічого');
+  assert.equal(undoCard(endGame(g)).used.c.length, 2, 'гру завершено — не скасовується');
+  assert.equal(undoCard(updatePlayers(g, P('A', 'B'), {})).used.c.length, 2, 'змінили склад — не скасовується');
+  const odd = { ...g, used: {} };
+  assert.deepEqual(undoCard(odd).used.c, [], 'без запису used — порожньо, не падає');
 });

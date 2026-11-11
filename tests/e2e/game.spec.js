@@ -276,3 +276,34 @@ test('«Цікаві факти» без балів: після відповід
   await page.getByRole('button', { name: /Пропустити/ }).click();
   expect((await saved(page)).game.stats).toEqual({ answered: 1, skipped: 1 });
 });
+
+test('«↩ Скасувати»: натиснули не ту кнопку — бал, хід і картка повертаються, картка знову відкрита', async ({ page }) => {
+  await startGame(page, ['Оля', 'Тарас'], { scoring: true });
+  const n = await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
+  await page.getByRole('button', { name: 'Правильно', exact: true }).click();
+  await expect(pts(page, 0)).toHaveText('20');
+  expect(await turnName(page)).toBe('Тарас');
+  await page.getByRole('button', { name: '↩ Скасувати' }).click();
+  await expect(page.getByRole('dialog', { name: `Картка ${n}` })).toBeVisible();
+  await expect(pts(page, 0)).toHaveText('0');
+  expect(await turnName(page)).toBe('Оля');
+  await page.getByRole('button', { name: 'Неправильно' }).click();
+  await expect(page.getByRole('status')).toContainText('Без балів — Оля');
+  await expect(pts(page, 0)).toHaveText('0');
+  const s = await saved(page);
+  expect(s.game.stats).toEqual({ answered: 1, skipped: 0 });
+  expect(s.game.used.guess).toEqual([n]);
+  // скасувати можна лише кілька секунд
+  await expect(page.getByRole('button', { name: '↩ Скасувати' })).toHaveCount(0, { timeout: 7000 });
+});
+
+test('«↩ Скасувати» після пропуску теж є; після зміни гравців — зникає', async ({ page }) => {
+  await startGame(page, ['Оля', 'Тарас']);
+  await openQuestion(page, 'Відкрийся', 'open', 'op-02');
+  await page.getByRole('button', { name: /Пропустити/ }).click();
+  await expect(page.getByRole('status')).toContainText('Пропущено');
+  await page.getByRole('button', { name: 'Меню' }).click();
+  await page.getByRole('button', { name: /Гравці й налаштування/ }).click();
+  await page.getByRole('button', { name: /Повернутися до гри/ }).click();
+  await expect(page.getByRole('button', { name: '↩ Скасувати' })).toHaveCount(0);
+});
