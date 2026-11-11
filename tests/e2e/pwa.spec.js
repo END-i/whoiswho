@@ -70,6 +70,35 @@ test('озвучка є лише там, де є файл: картка сама
   await expect(page.getByRole('button', { name: 'Зупинити озвучку' })).toBeVisible();
 });
 
+test('без затримки: файл питання просять уже при дотику до карти (поки вона перевертається), звук стартує з голосу, а не з тиші', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' }); // справжній переворот карти — 0,42 с
+  // записуємо створені плеєри й момент, коли з'явилась картка
+  await page.addInitScript(() => {
+    const A = window.Audio; window.__audios = [];
+    window.Audio = function (...x) { const el = new A(...x); window.__audios.push(el); return el; };
+    window.Audio.prototype = A.prototype;
+    new MutationObserver(() => { if (!window.__cardAt && document.querySelector('[role=dialog]')) window.__cardAt = performance.now(); })
+      .observe(document, { childList: true, subtree: true });
+  });
+  const starts = JSON.parse(readFileSync('public/audio/starts.json', 'utf8'));
+  let requestAt = null;
+  await startGame(page, ['Оля', 'Тарас']);
+  // лише запит плеєра (у WebKit він не «media», тож відсіюємо фонове завантаження для офлайну — fetch)
+  await page.route('**/audio/gs-01.mp3', async (r) => {
+    if (r.request().resourceType() !== 'fetch') requestAt ??= await page.evaluate(() => performance.now());
+    r.fulfill({ status: 200, contentType: 'audio/mpeg', body: readFileSync('public/audio/gs-01.mp3') });
+  });
+  await page.locator('.cat', { hasText: 'Вгадай' }).click();
+  const s = await page.evaluate(() => JSON.parse(localStorage.getItem('whoiswho.v2')));
+  await page.getByRole('button', { name: `Карта ${s.game.deck.guess.indexOf('gs-01') + 1}`, exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Зупинити озвучку' })).toBeVisible(); // грає одразу, без очікування
+  const cardAt = await page.evaluate(() => window.__cardAt);
+  expect(requestAt, `файл просять ще до появи картки: запит ${requestAt}, картка ${cardAt}`).toBeLessThan(cardAt);
+  expect(starts['gs-01']).toBeGreaterThan(0);
+  const srcs = await page.evaluate(() => window.__audios.map((el) => el.src).filter((x) => x.includes('/audio/')));
+  expect(srcs).toEqual([expect.stringMatching(new RegExp(`/audio/gs-01\\.mp3#t=${starts['gs-01']}$`))]);
+});
+
 test('озвучка для офлайну: качається у фоні, видаляється й качається знову', async ({ page }) => {
   await serveAudio(page);
   // A single open, no fresh(): its reload interrupts the first cache.put in flight,

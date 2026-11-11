@@ -72,7 +72,7 @@ test('автоозвучка: вимкнена в налаштуваннях —
   await expect.poll(() => page.evaluate(() => window.__spoken.length)).toBe(1);
 });
 
-test('автоозвучка: де треба вибрати гравця — питання читається лише після вибору; натиснули «Слухати» раніше — не повторює', async ({ page }) => {
+test('автоозвучка: де треба вибрати гравця — питання читається лише після вибору, одразу й один раз', async ({ page }) => {
   await page.addInitScript(fakeVoice);
   await fresh(page);
   await setPlayers(page, ['Оля', 'Тарас', 'Мама']);
@@ -80,11 +80,11 @@ test('автоозвучка: де треба вибрати гравця — п
   await page.getByRole('button', { name: /Почати гру/ }).click();
   await page.getByRole('button', { name: /Граємо!/ }).click();
   await openQuestion(page, 'Вгадай', 'guess', 'gs-05'); // «Вибери будь-кого…»
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(500);
   expect(await page.evaluate(() => window.__spoken)).toEqual([]);
   await page.locator('.chip', { hasText: 'Тарас' }).click();
-  await page.getByRole('button', { name: 'Прослухати питання' }).click(); // одразу, до автоозвучки
-  await page.waitForTimeout(1000);
+  await expect.poll(() => page.evaluate(() => window.__spoken.length), { timeout: 300 }).toBe(1); // без затримки
+  await page.waitForTimeout(500);
   expect((await page.evaluate(() => window.__spoken)).length).toBe(1);
 });
 

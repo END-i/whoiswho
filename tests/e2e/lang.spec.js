@@ -45,13 +45,14 @@ test('гра російською: категорії й питання росі
   await expect(page.locator('.cat .title').first()).toHaveText('Угадай');
   const s = await page.evaluate(() => JSON.parse(localStorage.getItem('whoiswho.v2')));
   await page.locator('.cat', { hasText: 'Угадай' }).first().click();
+  hits.length = 0; // до цього у фоні качалась озвучка для офлайну
   await page.getByRole('button', { name: `Карта ${s.game.deck.guess.indexOf('gs-01') + 1}`, exact: true }).click();
   const card = page.getByRole('dialog');
   await expect(card.getByText('Что игрок слева любит есть больше всего?')).toBeVisible();
   await expect(card.locator('.who').nth(1)).toContainText('игрок слева');
-  hits.length = 0;
-  await card.getByRole('button', { name: 'Прослушать вопрос' }).click();
+  // картка читає сама — файл з audio/ru
   await expect.poll(() => hits).toContain('/audio/ru/gs-01.mp3');
+  await expect(card.getByRole('button', { name: /Прослушать вопрос|Остановить озвучку/ })).toBeVisible();
   expect(hits).not.toContain('/audio/gs-01.mp3');
   // am-02 озвучено лише українською (E2E_AUDIO_IDS_RU=gs-01) — російською кнопки немає
   await card.getByRole('button', { name: /Пропустить/ }).click();

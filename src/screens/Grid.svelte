@@ -3,6 +3,7 @@
   import { categoryColor } from '../lib/theme.js';
   import { t } from '../lib/lang.svelte.js';
   import QuestionCard from '../components/QuestionCard.svelte';
+  import { preloadQuestion, questionAudio } from '../lib/speech.js';
 
   // selected піднято в App: відкрита картка переживає перезавантаження сторінки
   let { category, index = 0, game, players, byId, scoringCategories, sound, roleNames = {}, selected = $bindable(), onfinish } = $props();
@@ -16,6 +17,8 @@
   function choose(num) {
     if (flipping || selected) return;
     flipping = num;
+    // озвучку питання починаємо качати вже зараз — поки карта перевертається (лише якщо картка читатиме сама)
+    if (sound?.auto) preloadQuestion(questionAt(game, category.id, num), { ...sound, base: import.meta.env.BASE_URL, makeAudio: (url) => questionAudio(url) });
     // коротка анімація перевороту карти, потім відкривається велика картка
     setTimeout(() => { selected = num; flipping = null; }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 420);
   }

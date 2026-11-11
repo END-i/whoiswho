@@ -1,28 +1,28 @@
 <script>
   import Avatar from './Avatar.svelte';
   import { roles, POINTS, isRated } from '../lib/state.js';
-  import { listenMode, playQuestion, questionAudio, AUTO_DELAY } from '../lib/speech.js';
-  import { onDestroy } from 'svelte';
+  import { listenMode, playQuestion, questionAudio } from '../lib/speech.js';
+  import { onDestroy, untrack } from 'svelte';
   import { t } from '../lib/lang.svelte.js';
 
   let { question, category, colors, number, game, players, scoring, sound = {}, roleNames = {}, onfinish } = $props();
   const mode = $derived(listenMode(question.id, sound));
   let stop = () => {};
   let playing = $state(false);
-  let autoTimer, autoDone = false;
+  let autoDone = false;
   function listen() {
-    clearTimeout(autoTimer); autoDone = true; // уже слухають — автоозвучка не повторює
+    autoDone = true; // уже слухають — автоозвучка не повторює
     stop();
     playing = true;
     stop = playQuestion(question, mode, {
-      base: import.meta.env.BASE_URL, lang: sound.lang, voice: sound.voice, synth: globalThis.speechSynthesis, Utterance: globalThis.SpeechSynthesisUtterance,
+      base: import.meta.env.BASE_URL, lang: sound.lang, start: sound.start, voice: sound.voice, synth: globalThis.speechSynthesis, Utterance: globalThis.SpeechSynthesisUtterance,
       makeAudio: (url) => questionAudio(url), onend: () => (playing = false),
     });
   }
   function halt() { stop(); stop = () => {}; playing = false; }
   // Кнопка: грає — зупинити, мовчить — прослухати (ще раз)
   const toggle = () => (playing ? halt() : listen());
-  onDestroy(() => { clearTimeout(autoTimer); stop(); });
+  onDestroy(() => stop());
 
   const n = $derived(players.length);
   const i = $derived(game.turn);
@@ -55,13 +55,10 @@
   const instead = $derived(question.form === 'you');
   const aboutRole = $derived(question.about === 'answerer' ? question.answerer : question.about);
 
-  // Автоозвучка: питання з'явилось на картці (гравців уже вибрано) — читаємо його один раз
+  // Автоозвучка: питання з'явилось на картці (гравців уже вибрано) — одразу читаємо його, один раз.
+  // Без затримки: файл почав завантажуватися ще при дотику до карти, а тиша на початку запису пропускається.
   const auto = $derived(!!sound.auto && !!mode && !need);
-  $effect(() => {
-    if (!auto || autoDone) return;
-    autoTimer = setTimeout(listen, AUTO_DELAY);
-    return () => clearTimeout(autoTimer);
-  });
+  $effect(() => { if (auto && !autoDone) untrack(listen); });
 
 </script>
 

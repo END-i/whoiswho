@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { speechText, audioUrl, pickVoice, listenMode, playQuestion, questionAudio, resetQuestionAudio, AUTO_DELAY } from '../src/lib/speech.js';
-import { listAudioIds, planJobs, ssml, piperEngine, azureEngine, edgeEngine, geminiEngine, geminiRequest, geminiBatch, geminiMp3, textHash, updateManifest, staleAudio, checkPronunciation, applyPronunciation, stressedIds, pcmToMp3, retryDelay, isDailyQuota, GEMINI_STYLE, GEMINI_STYLES, runJobs, fatal, parseArgs, parseEnv, piperText, numberWords, parseWav, wavToMp3 } from '../scripts/audio-lib.mjs';
+import { speechText, audioUrl, pickVoice, listenMode, playQuestion, questionAudio, resetQuestionAudio, startUrl, preloadQuestion } from '../src/lib/speech.js';
+import { listAudioIds, planJobs, ssml, piperEngine, azureEngine, edgeEngine, geminiEngine, geminiRequest, geminiBatch, geminiMp3, textHash, updateManifest, staleAudio, checkPronunciation, applyPronunciation, stressedIds, pcmToMp3, retryDelay, isDailyQuota, GEMINI_STYLE, GEMINI_STYLES, runJobs, fatal, parseArgs, parseEnv, piperText, numberWords, parseWav, wavToMp3, voiceStart, trimLead, STARTS, updateStarts } from '../scripts/audio-lib.mjs';
 import { audioIdsPlugin, VIRTUAL_ID } from '../scripts/vite-audio-plugin.mjs';
 import { mkdtempSync, mkdirSync, writeFileSync as wf, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -150,6 +150,29 @@ test('edgeEngine: голос, темп і текст як є (нейронний
 const pcm = (seconds = 0.5, rate = 24000) => { const b = Buffer.alloc(Math.round(seconds * rate) * 2); for (let i = 0; i < b.length / 2; i++) b.writeInt16LE(Math.round(Math.sin(i / 6) * 9000), i * 2); return b; };
 const okBody = (rate = 24000) => ({ candidates: [{ content: { parts: [{ inlineData: { mimeType: `audio/L16;codec=pcm;rate=${rate}`, data: pcm(0.5, rate).toString('base64') } }] } }] });
 const reply = (status, body) => ({ ok: status < 300, status, json: async () => body });
+
+test('voiceStart: де починається голос — з запасом 0,05 с; тиша чи порожньо — 0', () => {
+  const rate = 1000, s = new Int16Array(1000);
+  s.fill(20000, 300); // голос з 0,3 с
+  assert.equal(voiceStart(s, rate), 0.25);
+  assert.equal(voiceStart(new Int16Array(500), rate), 0, 'сама тиша — не зрізаємо');
+  assert.equal(voiceStart(new Int16Array(0), rate), 0);
+  const early = new Int16Array(100); early[10] = -30000;
+  assert.equal(voiceStart(early, rate), 0, 'голос майже одразу — не менше нуля');
+  const f = new Float32Array(1000); f.fill(0.5, 200);
+  assert.equal(voiceStart(f, rate, { full: 1 }), 0.15, 'Float32 з браузера');
+  assert.equal(trimLead(s, rate).length, 750);
+});
+
+test('updateStarts: щойно записані файли — без тиші, їхні позиції забуваємо', () => {
+  assert.deepEqual(updateStarts({ a: 0.3, b: 0.2 }, ['a']), { b: 0.2 });
+  assert.equal(STARTS, 'starts.json');
+});
+
+test('wavToMp3 / pcmToMp3: тиша на початку зрізається — запис коротший', () => {
+  const silentThenTone = (sec) => { const p = pcm(sec); const lead = Buffer.alloc(24000 * 2 * 0.5); return Buffer.concat([lead, p]); };
+  assert.ok(pcmToMp3(silentThenTone(1)).length < pcmToMp3(Buffer.concat([Buffer.alloc(0), pcm(1.5)])).length);
+});
 
 test('pcmToMp3: сирий PCM → MP3; непарний байт не ламає', () => {
   const mp3 = pcmToMp3(pcm(1));
@@ -350,10 +373,42 @@ test('questionAudio: один плеєр на всі питання; нова а
   const a = questionAudio('/audio/a.mp3', Audio);
   const b = questionAudio('/audio/b.mp3', Audio);
   assert.equal(a, b); assert.equal(created, 1);
-  assert.equal(b.src, '/audio/b.mp3'); assert.equal(b.paused, 2);
+  assert.equal(b.src, '/audio/b.mp3'); assert.equal(b.paused, 2); assert.equal(b.preload, 'auto');
+  b.src = 'loaded'; // та сама адреса — не завантажуємо вдруге (почали качати ще при дотику до карти)
+  questionAudio('/audio/b.mp3', Audio);
+  assert.equal(b.src, 'loaded'); assert.equal(b.paused, 3, 'але попереднє все одно зупиняється');
   resetQuestionAudio();
   assert.notEqual(questionAudio('/audio/c.mp3', Audio), a);
-  assert.ok(AUTO_DELAY > 0 && AUTO_DELAY < 1000, 'автоозвучка — у межах секунди після дотику (iPhone)');
+  // Safari качає лише після явного load()
+  resetQuestionAudio();
+  class Loading { pause() {} load() { this.loads = (this.loads || 0) + 1; } }
+  const l = questionAudio('/audio/d.mp3', Loading); questionAudio('/audio/d.mp3', Loading);
+  assert.equal(l.loads, 1, 'нова адреса — load(), та сама — ні');
+  resetQuestionAudio();
+});
+
+test('startUrl / preloadQuestion: запис стартує з голосу; качати заздалегідь — лише те, що записано', () => {
+  assert.equal(startUrl('/audio/a.mp3', 0.26), '/audio/a.mp3#t=0.26');
+  assert.equal(startUrl('/audio/a.mp3', 0), '/audio/a.mp3');
+  assert.equal(startUrl('/audio/a.mp3'), '/audio/a.mp3');
+  const urls = [];
+  const deps = { ids: new Set(['gs-01']), start: { 'gs-01': 0.3 }, base: '/', lang: 'ru', makeAudio: (u) => (urls.push(u), u) };
+  assert.equal(preloadQuestion('gs-01', deps), '/audio/ru/gs-01.mp3#t=0.3');
+  assert.equal(preloadQuestion('gs-99', deps), null);
+  assert.equal(preloadQuestion('gs-01', { ...deps, start: undefined, lang: undefined, base: undefined }), '/audio/gs-01.mp3');
+  assert.equal(preloadQuestion('gs-01', { makeAudio: deps.makeAudio }), null, 'без списку записів — нічого');
+  assert.deepEqual(urls, ['/audio/ru/gs-01.mp3#t=0.3', '/audio/gs-01.mp3']);
+});
+
+test('playQuestion: тиша на початку пропускається; повтор уже завантаженого — знову з голосу', () => {
+  const made = [];
+  const deps = { start: { 'gs-01': 0.3 }, makeAudio: (url) => { const a = { url, readyState: made.length ? 4 : 0, play() {} }; made.push(a); return a; } };
+  playQuestion({ id: 'gs-01' }, 'file', deps);
+  assert.equal(made[0].url, '/audio/gs-01.mp3#t=0.3'); assert.equal(made[0].currentTime, undefined, 'ще не завантажений — позицію задає #t');
+  playQuestion({ id: 'gs-01' }, 'file', deps);
+  assert.equal(made[1].currentTime, 0.3);
+  playQuestion({ id: 'gs-02' }, 'file', deps);
+  assert.equal(made[2].currentTime, 0, 'без позиції — з самого початку');
 });
 
 test('playQuestion: голос браузера — український, трохи повільніше, текст без дужок', () => {
@@ -396,16 +451,17 @@ test('vite-плагін: virtual:audio-ids містить id з теки озв�
   assert.equal(p.resolveId('other'), null);
   assert.equal(p.load('other'), null);
   mkdirSync(join(dir, 'ru')); wf(join(dir, 'ru', 'gs-01.mp3'), '');
-  assert.equal(p.load(resolved), 'export default {"uk":["am-02","gs-01"],"ru":["gs-01"]};');
+  wf(join(dir, 'starts.json'), '{"gs-01":0.3}'); wf(join(dir, 'ru', 'starts.json'), 'зламаний');
+  assert.equal(p.load(resolved), 'export default {"uk":["am-02","gs-01"],"ru":["gs-01"],"start":{"uk":{"gs-01":0.3},"ru":{}}};');
   rmSync(dir, { recursive: true });
-  assert.equal(audioIdsPlugin(join(dir, 'nope')).load(resolved), 'export default {"uk":[],"ru":[]};');
+  assert.equal(audioIdsPlugin(join(dir, 'nope')).load(resolved), 'export default {"uk":[],"ru":[],"start":{"uk":{},"ru":{}}};');
 });
 
 test('vite-плагін: E2E_AUDIO_IDS підміняє список (лише для e2e)', () => {
   const p = audioIdsPlugin('/nope', { readdirSync: () => ['real.mp3'] }, { uk: 'gs-02,gs-01,' });
-  assert.equal(p.load(p.resolveId(VIRTUAL_ID)), 'export default {"uk":["gs-01","gs-02"],"ru":[]};');
+  assert.equal(p.load(p.resolveId(VIRTUAL_ID)), 'export default {"uk":["gs-01","gs-02"],"ru":[],"start":{"uk":{},"ru":{}}};');
   const r = audioIdsPlugin('/nope', { readdirSync: () => [] }, { ru: 'gs-01' });
-  assert.equal(r.load(r.resolveId(VIRTUAL_ID)), 'export default {"uk":[],"ru":["gs-01"]};');
+  assert.equal(r.load(r.resolveId(VIRTUAL_ID)), 'export default {"uk":[],"ru":["gs-01"],"start":{"uk":{},"ru":{}}};');
 });
 
 test('vite-плагін у dev: зміна в теці озвучки інвалідує модуль, інші файли — ні', () => {

@@ -57,6 +57,22 @@ export function parseWav(buf) {
   return { sampleRate: fmt.sampleRate, channels: fmt.channels, samples };
 }
 /** WAV → MP3 (моно). Стерео зводиться в моно. */
+/**
+ * Де в записі починається голос (секунди): перший відлік, гучніший за threshold (частка повної шкали),
+ * мінус keep — щоб не зрізати перший звук. full — повна шкала: 32768 для PCM 16 біт, 1 для Float32.
+ * Тиші на початку записів Gemini — від 0,2 до 0,45 с, і різна; без неї питання звучить одразу.
+ */
+export function voiceStart(samples, rate, { threshold = 0.02, keep = 0.05, full = 32768 } = {}) {
+  const limit = threshold * full;
+  let i = 0;
+  while (i < samples.length && Math.abs(samples[i]) < limit) i++;
+  if (i === samples.length) return 0; // самий шум — нічого не зрізаємо
+  return Math.max(0, Math.round((i / rate - keep) * 100) / 100);
+}
+
+/** Запис без тиші на початку (див. voiceStart). */
+export const trimLead = (samples, rate) => samples.subarray(Math.round(voiceStart(samples, rate) * rate));
+
 export function wavToMp3(wav, kbps = MP3_KBPS) {
   const { sampleRate, channels, samples } = parseWav(wav);
   let mono = samples;
@@ -71,7 +87,7 @@ export function wavToMp3(wav, kbps = MP3_KBPS) {
 export function pcmToMp3(pcm, sampleRate = 24000, kbps = 48) {
   const b = Buffer.isBuffer(pcm) ? pcm : Buffer.from(pcm);
   const samples = new Int16Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.length - (b.length % 2)));
-  return encodeMono(samples, sampleRate, kbps);
+  return encodeMono(trimLead(samples, sampleRate), sampleRate, kbps);
 }
 
 function encodeMono(mono, sampleRate, kbps) {
@@ -106,6 +122,12 @@ export function planJobs(questions, existing, { force = false, only = null, stre
 // ---- Маніфест озвучки: id → відбиток тексту, з якого записано файл. Так видно застарілу озвучку. ----
 
 export const MANIFEST = 'manifest.json';
+/** Де починається голос у старих файлах (id → секунди); нові файли записуються вже без тиші — їх тут немає. */
+export const STARTS = 'starts.json';
+/** Після генерації: щойно записані файли — без тиші на початку, тож їхні старі позиції забуваємо. */
+export function updateStarts(starts, done) {
+  return Object.fromEntries(Object.entries(starts).filter(([id]) => !done.includes(id)));
+}
 /** Відбиток тексту, який читає голос (після speechText і словника вимови). */
 export const textHash = (spoken) => createHash('sha1').update(spoken).digest('hex').slice(0, 12);
 

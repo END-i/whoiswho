@@ -20,22 +20,21 @@ export function pickVoice(voices, lang = 'uk') {
   return list.find((v) => re.test(v.lang)) || null;
 }
 
-/** Затримка автоозвучки після появи питання (мс): картка вже з'явилась, а iPhone ще дозволяє звук після дотику (~1 с). */
-export const AUTO_DELAY = 600;
-
-let player = null;
+let player = null, playerUrl = null;
 /**
  * Один <audio> на всі питання: iPhone, раз дозволивши звук цьому плеєру після дотику, дозволяє його й далі,
- * тож автоозвучка наступних карток не блокується. Audio передається параметром (у тестах — підставний).
+ * тож автоозвучка наступних карток не блокується. Та сама адреса — файл не завантажується вдруге
+ * (його вже почали качати при дотику до карти). Audio передається параметром (у тестах — підставний).
  */
 export function questionAudio(url, Audio = globalThis.Audio) {
   player ||= new Audio();
   player.pause?.();
-  player.src = url;
+  // load() явно: Safari інакше не качає, доки не попросять грати (preload для нього лише підказка)
+  if (playerUrl !== url) { player.preload = 'auto'; player.src = url; playerUrl = url; player.load?.(); }
   return player;
 }
 /** Для тестів: забути плеєр. */
-export const resetQuestionAudio = () => (player = null);
+export const resetQuestionAudio = () => { player = null; playerUrl = null; };
 
 
 /**
@@ -48,14 +47,26 @@ export function listenMode(id, { ids, voiceOn, voice }) {
   return null;
 }
 
+/** Адреса запису з позицією, де починається голос (#t= — медіафрагмент: браузер одразу стартує звідти). */
+export const startUrl = (url, start) => (start > 0 ? `${url}#t=${start}` : url);
+
+/** Почати завантажувати запис питання заздалегідь — у момент дотику до карти, поки вона перевертається. */
+export function preloadQuestion(id, { ids, start = {}, base = '/', lang = 'uk', makeAudio }) {
+  if (!ids?.has(id)) return null;
+  return makeAudio(startUrl(audioUrl(id, base, lang), start[id]));
+}
+
 /**
- * Відтворити питання. deps: { makeAudio(url), synth, Utterance, voice, base, lang, onend }.
+ * Відтворити питання. deps: { makeAudio(url), synth, Utterance, voice, base, lang, start, onend }.
+ * start — id → секунди, де в записі починається голос (тиша на початку пропускається).
  * Попереднє відтворення зупиняється. Повертає функцію «стоп».
  */
 export function playQuestion(q, mode, deps) {
   deps.synth?.cancel?.();
   if (mode === 'file') {
-    const a = deps.makeAudio(audioUrl(q.id, deps.base, deps.lang));
+    const from = deps.start?.[q.id] || 0;
+    const a = deps.makeAudio(startUrl(audioUrl(q.id, deps.base, deps.lang), from));
+    if (a.readyState >= 1) a.currentTime = from; // уже завантажений (повтор) — знову з початку голосу
     const done = () => deps.onend?.();
     a.onended = a.onerror = done;
     a.play?.()?.catch?.(done); // відтворення заборонене чи файл не завантажився — просто тиша

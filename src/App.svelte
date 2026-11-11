@@ -117,7 +117,7 @@
   loadVoices();
   synth?.addEventListener?.('voiceschanged', loadVoices);
   const voice = $derived(pickVoice(voices, settings.lang));
-  const sound = $derived({ ids: audioIds, voiceOn: settings.voice, voice, lang: settings.lang, auto: settings.autoRead });
+  const sound = $derived({ ids: audioIds, start: audioList.start?.[settings.lang] || {}, voiceOn: settings.voice, voice, lang: settings.lang, auto: settings.autoRead });
   // Озвучка для офлайну: у фоні під час першого запуску, далі — лише нове;
   // лише мовою інтерфейсу й лише для вибраного набору (усі набори — десятки мегабайтів)
   const offlineIds = () => {

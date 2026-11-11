@@ -16,7 +16,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { GEMINI_STYLES, listAudioIds, planJobs, checkPronunciation, geminiBatch, updateManifest, MANIFEST, piperEngine, azureEngine, edgeEngine, geminiEngine, runJobs, parseArgs, parseEnv } from './audio-lib.mjs';
+import { GEMINI_STYLES, listAudioIds, planJobs, checkPronunciation, geminiBatch, updateManifest, MANIFEST, STARTS, updateStarts, piperEngine, azureEngine, edgeEngine, geminiEngine, runJobs, parseArgs, parseEnv } from './audio-lib.mjs';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 // усі набори питань: озвучка спільна, id питань між наборами не повторюються
@@ -78,5 +78,7 @@ const { done, failed, stopped } = opts.batch
 const manifestFile = path.join(outDir, MANIFEST);
 const manifest = fs.existsSync(manifestFile) ? JSON.parse(fs.readFileSync(manifestFile, 'utf8')) : {};
 fs.writeFileSync(manifestFile, JSON.stringify(updateManifest(manifest, jobs, done), null, 2) + '\n');
+const startsFile = path.join(outDir, STARTS);
+if (fs.existsSync(startsFile)) fs.writeFileSync(startsFile, JSON.stringify(updateStarts(JSON.parse(fs.readFileSync(startsFile, 'utf8')), done), null, 2) + '\n');
 console.log(`Готово: ${done.length}. Помилок: ${failed.length}.${stopped.length ? ` Зупинено, не озвучено ще ${stopped.length}.` : ''}`);
 process.exit(failed.length ? 1 : 0);
