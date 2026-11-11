@@ -2,7 +2,9 @@
   import Avatar from '../components/Avatar.svelte';
   import Confetti from '../components/Confetti.svelte';
   import { rank, winners, podium } from '../lib/ranking.js';
-  import { t } from '../lib/lang.svelte.js';
+  import { t, i18n } from '../lib/lang.svelte.js';
+  import { shareLines, shareImage } from '../lib/share.js';
+  import { LOCALES } from '../lib/i18n.js';
 
   let { game, players, names = {}, onnew, onhistory } = $props();
   // Поточні гравці + ті, кого прибрали посеред гри (з позначкою)
@@ -15,6 +17,38 @@
   const total = $derived(game.stats.answered + game.stats.skipped);
   const MEDAL = { 1: '🥇', 2: '🥈', 3: '🥉' };
   // п'єдестал: друге місце ліворуч, перше в центрі, третє праворуч
+  /** Намалювати рядки на canvas 1080×(висота за кількістю рядків). Повертає canvas. */
+  function drawShare(lines) {
+    const W = 1080, rowH = 120, top = 300, h = top + (lines.length - 2) * rowH + 200;
+    const c = document.createElement('canvas'); c.width = W; c.height = h;
+    const g = c.getContext('2d');
+    const bg = g.createLinearGradient(0, 0, W, h); bg.addColorStop(0, '#FFF3E6'); bg.addColorStop(1, '#F3E8FF');
+    g.fillStyle = bg; g.fillRect(0, 0, W, h);
+    g.textBaseline = 'middle';
+    let y = top;
+    for (const l of lines) {
+      if (l.kind === 'title') { g.fillStyle = '#E8467A'; g.font = '900 84px Nunito, sans-serif'; g.textAlign = 'center'; g.fillText(l.text, W / 2, 150); }
+      else if (l.kind === 'row') {
+        g.fillStyle = '#FFFFFF'; g.beginPath(); g.roundRect(70, y - 48, W - 140, 96, 32); g.fill();
+        g.fillStyle = '#2A1B3D'; g.font = '800 56px Nunito, sans-serif'; g.textAlign = 'left'; g.fillText(l.text, 110, y);
+        g.textAlign = 'right'; g.font = '900 60px Nunito, sans-serif'; g.fillText(l.score, W - 110, y);
+        y += rowH;
+      } else { g.fillStyle = '#7A6A8A'; g.font = '800 40px Nunito, sans-serif'; g.textAlign = 'center'; g.fillText(l.text, W / 2, h - 80); }
+    }
+    return c;
+  }
+
+  let sharing = $state(false);
+  async function share() {
+    sharing = true;
+    await document.fonts?.ready;
+    const date = new Date().toLocaleDateString(LOCALES[i18n.lang], { day: 'numeric', month: 'long' });
+    const lines = shareLines(ranked.map((r) => ({ name: r.p.name, score: r.score, place: r.place })), { title: t('app.title'), footer: date, scoring: game.scoring });
+    const canvas = drawShare(lines);
+    const blob = await new Promise((ok) => canvas.toBlob(ok, 'image/png'));
+    await shareImage(blob, 'whoiswho.png');
+    sharing = false;
+  }
   const order = $derived([steps.find((g) => g.place === 2), steps.find((g) => g.place === 1), steps.find((g) => g.place === 3)].filter(Boolean));
 </script>
 
@@ -58,6 +92,7 @@
 {/if}
 
 <div class="btns">
+  <button class="chunky light share" onclick={share} disabled={sharing}>{t('summary.share')}</button>
   <button class="chunky light" onclick={onhistory}>{t('summary.history')}</button>
   <button class="chunky" onclick={onnew}>{t('summary.new')}</button>
 </div>
@@ -91,6 +126,6 @@
   .name small { color: var(--dim); font-weight: 700; }
   .table b { font-size: 24px; font-weight: 1000; }
   .msg { background: var(--card); border-radius: 20px; padding: 18px; margin: 16px 0; font-size: 18px; font-weight: 800; text-align: center; border: 2px solid var(--line); }
-  .btns { display: flex; gap: 10px; margin-top: 22px; }
-  .btns button { flex: 1; }
+  .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 22px; }
+  .btns .share { grid-column: 1 / -1; }
 </style>

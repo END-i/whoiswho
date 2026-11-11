@@ -72,3 +72,23 @@ test('нова гра без жодної картки не потрапляє �
   await menu(page, /Нова гра/);
   expect((await saved(page)).history).toEqual([]);
 });
+
+test('підсумок: «📤 Поділитися» — картинка PNG з іменами через меню телефона, а без нього — завантаження', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__shared = [];
+    navigator.canShare = () => true;
+    navigator.share = async ({ files }) => { const f = files[0]; window.__shared.push({ name: f.name, type: f.type, size: f.size }); };
+  });
+  await startGame(page, ['Оля', 'Тарас'], { scoring: true });
+  await openQuestion(page, 'Вгадай', 'guess', 'gs-01'); await correct(page);
+  await menu(page, /Завершити гру/);
+  await page.getByRole('button', { name: '📤 Поділитися' }).click();
+  await expect.poll(() => page.evaluate(() => window.__shared)).toHaveLength(1);
+  const [f] = await page.evaluate(() => window.__shared);
+  expect(f.name).toBe('whoiswho.png'); expect(f.type).toBe('image/png'); expect(f.size).toBeGreaterThan(10_000);
+  // без меню «Поділитися» — файл завантажується
+  await page.evaluate(() => { navigator.canShare = () => false; });
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: '📤 Поділитися' }).click();
+  expect((await download).suggestedFilename()).toBe('whoiswho.png');
+});
