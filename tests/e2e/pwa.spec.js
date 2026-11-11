@@ -71,7 +71,8 @@ test('озвучка для офлайну: качається у фоні, ви
     const c = await caches.open('whoiswho-audio');
     return Promise.all(['/audio/am-02.mp3', '/audio/gs-01.mp3', '/audio/gs-04.mp3'].map(async (u) => !!(await c.match(u))));
   });
-  expect(await cached()).toEqual([true, true, false]);
+  // WebKit на Linux записує кеш із затримкою — чекаємо, поки стан устоїться
+  await expect.poll(cached).toEqual([true, true, false]);
   await page.getByRole('button', { name: 'Видалити', exact: true }).click();
   await expect(page.getByText('Завантажено 0 з 2')).toBeVisible();
   expect(await page.evaluate(() => caches.has('whoiswho-audio'))).toBe(false);
