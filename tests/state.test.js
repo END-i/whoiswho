@@ -277,3 +277,14 @@ test('restoreGame: відсутні gone й аудиторія kids', () => {
   assert.deepEqual(r.gone, {}); assert.equal(r.audience, 'kids');
   assert.equal(restoreGame({ ...g, audience: 'weird' }, ids, players).audience, 'family');
 });
+
+test("restarted: нова гра пам'ятає категорії, що пішли по колу; restoreGame — лише відомі категорії, сміття — порожньо", () => {
+  const players = [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }];
+  const questions = [{ id: 'q1', category: 'c1' }, { id: 'q2', category: 'c2' }];
+  const g = newGame({ players, questions, restarted: ['c1'] });
+  assert.deepEqual(g.restarted, ['c1']);
+  assert.deepEqual(newGame({ players, questions }).restarted, []);
+  const ids = ['q1', 'q2'];
+  assert.deepEqual(restoreGame({ ...g, restarted: ['c1', 'gone'] }, ids, players).restarted, ['c1']);
+  assert.deepEqual(restoreGame({ ...g, restarted: 'c1' }, ids, players).restarted, []);
+});

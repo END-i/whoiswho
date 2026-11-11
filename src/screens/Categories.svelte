@@ -9,6 +9,11 @@
 
 <h1 class="lead">Вибери категорію</h1>
 
+{#if game.restarted?.length}
+  {@const names = categories.filter((c) => game.restarted.includes(c.id)).map((c) => `«${c.title}»`)}
+  <p class="again" role="status">🔁 {names.join(', ')}: усі питання вже були в минулих іграх — граємо їх по колу знову.</p>
+{/if}
+
 <div class="grid">
   {#each visible as c, k (c.id)}
     {@const left = remaining(game, c.id)}
@@ -27,6 +32,7 @@
 
 <style>
   .lead { margin: 0 0 12px 4px; font-size: 24px; font-weight: 900; }
+  .again { margin: 0 0 12px; padding: 10px 14px; border-radius: 16px; background: var(--card); border: 2px solid var(--line); font-weight: 800; }
   .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
   .cat {
     position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left;

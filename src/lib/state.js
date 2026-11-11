@@ -15,6 +15,7 @@
  * @property {Object<string,string>} gone            id видаленого гравця → ім'я, щоб показати в підсумку
  * @property {{answered:number, skipped:number}} stats
  * @property {boolean} [over]                    гру завершено — лишається лише підсумок
+ * @property {string[]} restarted               категорії, у яких усі питання вже були, і вони пішли по колу
  */
 
 export const VERSION = 2;
@@ -74,7 +75,7 @@ export function buildDeck(questions, prevDeck = null, rand = Math.random) {
 
 // ---------- гра ----------
 
-export function newGame({ players, audience = 'family', scoring = false, questions, prevDeck = null, rand = Math.random }) {
+export function newGame({ players, audience = 'family', scoring = false, questions, prevDeck = null, restarted = [], rand = Math.random }) {
   return {
     version: VERSION,
     order: players.map((p) => p.id),
@@ -84,6 +85,7 @@ export function newGame({ players, audience = 'family', scoring = false, questio
     scores: Object.fromEntries(players.map((p) => [p.id, 0])),
     gone: {},
     stats: { answered: 0, skipped: 0 },
+    restarted,
   };
 }
 
@@ -191,5 +193,6 @@ export function restoreGame(saved, questionIds, players) {
     turn, deck, used, scores: { ...g.scores }, gone: { ...(g.gone || {}) },
     stats: { answered: +g.stats.answered || 0, skipped: +g.stats.skipped || 0 },
     over: !!g.over,
+    restarted: Array.isArray(g.restarted) ? g.restarted.filter((c) => deck[c]) : [],
   };
 }

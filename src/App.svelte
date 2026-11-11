@@ -1,7 +1,8 @@
 <script>
   import raw from './data/questions.json';
   import { load, byAudience } from './lib/questions.js';
-  import { newGame, finishCard, remaining, allDone, updatePlayers, restoreGame, endGame } from './lib/state.js';
+  import { newGame, finishCard, remaining, allDone, updatePlayers, restoreGame, endGame, questionAt } from './lib/state.js';
+  import { freshQuestions, markSeen, cleanSeen } from './lib/seen.js';
   import { gameRecord, addRecord, cleanHistory } from './lib/history.js';
   import { loadAll, saveAll, newId } from './lib/storage.js';
   import { clampTpl, migrateTemplate } from './lib/templates.js';
@@ -66,6 +67,8 @@
   let catId = $state(init.catId);
   let selected = $state(init.selected);
   let history = $state(cleanHistory(saved.history));
+  let seen = $state(cleanSeen(saved.seen)); // зіграні питання між іграми — нова гра спершу дає незіграні
+  const PACK = 'family';
   let historyFrom = $state('setup');
   // ---------- встановлення ----------
   const installKind = platform(navigator.userAgent, { standalone: isStandalone(), maxTouchPoints: navigator.maxTouchPoints || 0 });
@@ -128,7 +131,7 @@
   $effect(() => {
     saveAll({
       players: $state.snapshot(players), settings: $state.snapshot(settings), rulesSeen, lastDeck,
-      names: $state.snapshot(names), game: $state.snapshot(game), history: $state.snapshot(history), ui: { screen, catId, selected },
+      names: $state.snapshot(names), game: $state.snapshot(game), history: $state.snapshot(history), seen: $state.snapshot(seen), ui: { screen, catId, selected },
     });
   });
 
@@ -143,9 +146,11 @@
   function start() {
     for (const p of players) names[p.id] = p.name.trim();
     if (!game) {
+      const fresh = freshQuestions(byAudience(data.questions, settings.audience), $state.snapshot(seen), PACK);
+      seen = fresh.seen;
       game = newGame({
         players: players.map((p) => ({ id: p.id, name: p.name.trim() })), audience: settings.audience, scoring: settings.scoring,
-        questions: byAudience(data.questions, settings.audience), prevDeck: lastDeck,
+        questions: fresh.questions, prevDeck: lastDeck, restarted: fresh.restarted,
       });
       lastDeck = game.deck;
       screen = rulesSeen ? 'categories' : 'rules';
@@ -155,6 +160,7 @@
     }
   }
   function finish(num, outcome, answerer) {
+    seen = markSeen(seen, PACK, questionAt(game, catId, num));
     game = finishCard(game, catId, num, outcome, answerer);
     selected = null;
     const sfx = { correct: 'point', wrong: 'miss', skipped: 'skip' }[outcome];
