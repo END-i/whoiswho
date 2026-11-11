@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 export const KEY = 'whoiswho.v2';
 export const QUESTIONS = JSON.parse(readFileSync(new URL('../../src/data/questions.json', import.meta.url)));
 export const byId = new Map(QUESTIONS.questions.map((q) => [q.id, q]));
-const confirmAll = (page) => page.on('dialog', (d) => d.accept());
+export const confirmAll = (page) => page.on('dialog', (d) => d.accept());
 
 /** Чистий старт: порожнє сховище, підтвердження діалогів. */
 export async function fresh(page) {

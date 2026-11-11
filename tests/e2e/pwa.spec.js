@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { fresh, startGame, openQuestion, setPlayers } from './helpers.js';
+import { fresh, confirmAll, startGame, openQuestion, setPlayers } from './helpers.js';
 
 // Запис трасування Playwright у WebKit ламає Cache Storage (put «вдається», але нічого не зберігається) —
 // це особливість інструмента, не гри: без трасування WebKit кешує нормально. Тому тут трасування вимкнене.
@@ -64,15 +64,17 @@ test('кнопка 🔊 є лише там, де є файл озвучки, і 
 
 test('озвучка для офлайну: качається у фоні, видаляється й качається знову', async ({ page }) => {
   await serveAudio(page);
-  await fresh(page);
+  // A single open, no fresh(): its reload interrupts the first cache.put in flight,
+  // and WebKit on Linux keeps that entry broken (match() misses it). The context is clean anyway.
+  confirmAll(page);
+  await page.goto('/');
   await expect(page.getByText('Готово: 2 з 2')).toBeVisible();
   // перевіряємо через match — так гра й service worker читають файли (keys() у WebKit буває порожнім)
   const cached = () => page.evaluate(async () => {
     const c = await caches.open('whoiswho-audio');
     return Promise.all(['/audio/am-02.mp3', '/audio/gs-01.mp3', '/audio/gs-04.mp3'].map(async (u) => !!(await c.match(u))));
   });
-  // WebKit на Linux записує кеш із затримкою — чекаємо, поки стан устоїться
-  await expect.poll(cached).toEqual([true, true, false]);
+  expect(await cached()).toEqual([true, true, false]);
   await page.getByRole('button', { name: 'Видалити', exact: true }).click();
   await expect(page.getByText('Завантажено 0 з 2')).toBeVisible();
   expect(await page.evaluate(() => caches.has('whoiswho-audio'))).toBe(false);
