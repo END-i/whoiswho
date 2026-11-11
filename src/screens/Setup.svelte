@@ -5,7 +5,7 @@
   import { newId } from '../lib/storage.js';
 
   // players — масив { id, name, photo, template } ($state у App, змінюється на місці)
-  let { players = $bindable(), settings = $bindable(), inGame, onstart, historyCount = 0, onhistory = () => {}, showInstall = false, oninstall = () => {}, voiceAvailable = false, audioCount = 0, wakeLock = true, audio = null } = $props();
+  let { players = $bindable(), settings = $bindable(), inGame, onstart, historyCount = 0, onhistory = () => {}, showInstall = false, oninstall = () => {}, onabout = () => {}, voiceAvailable = false, audioCount = 0, wakeLock = true, audio = null } = $props();
   let photoFor = $state(null);
 
   const MIN = 2, MAX = 8;
@@ -124,6 +124,7 @@
 <button class="chunky start" disabled={!canStart} onclick={onstart}>{inGame ? '▶ Повернутися до гри' : '🎲 Почати гру'}</button>
 {#if empty}<p class="hint2">Заповни всі імена, щоб почати.</p>{/if}
 {#if historyCount && !inGame}<button class="hist" onclick={onhistory}>🏆 Історія ігор ({historyCount})</button>{/if}
+<button class="about" onclick={onabout}>ℹ️ Про гру · версія {__APP_VERSION__}</button>
 
 {#if photoFor !== null}
   <Sheet title="Фото: {players[photoFor].name || `гравець ${photoFor + 1}`}" onclose={() => (photoFor = null)}>
@@ -192,6 +193,7 @@
   .seg button:disabled:not(.on) { opacity: .4; }
   .note, .hint2 { font-size: 13px; color: var(--dim); margin: 0; font-weight: 700; }
   .hint2 { text-align: center; margin-top: 10px; }
+  .about { width: 100%; min-height: 44px; margin-top: 8px; border: none; background: none; color: var(--dim); font-weight: 800; }
   .hist { width: 100%; min-height: 52px; margin-top: 12px; border-radius: 18px; border: 2px solid var(--line); background: var(--card); font-weight: 900; box-shadow: 0 3px 0 var(--line); }
   .start { width: 100%; font-size: 21px; min-height: 64px; }
   @media (max-width: 380px) { .opt:first-child { flex-direction: column; align-items: stretch; } .seg button { flex: 1; } }

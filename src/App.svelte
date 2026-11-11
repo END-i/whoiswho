@@ -12,6 +12,7 @@
   import Summary from './screens/Summary.svelte';
   import History from './screens/History.svelte';
   import Install from './screens/Install.svelte';
+  import About from './screens/About.svelte';
   import { platform, isStandalone } from './lib/install.js';
   import TopBar from './components/TopBar.svelte';
   import Sheet from './components/Sheet.svelte';
@@ -37,7 +38,7 @@
     const ok = Array.isArray(list) ? list.filter((p) => p && typeof p.id === 'string' && typeof p.name === 'string') : [];
     return ok.length >= 2 ? ok.map((p) => ({ id: p.id, name: p.name, photo: p.photo || null, template: migrateTemplate(p.template), tplPos: clampTpl(p.tplPos) })) : null;
   };
-  const SCREENS = ['setup', 'rules', 'categories', 'grid', 'summary', 'history', 'install'];
+  const SCREENS = ['setup', 'rules', 'categories', 'grid', 'summary', 'history', 'install', 'about'];
 
   // Усе відновлення — звичайними змінними, один раз; далі стан живе в $state.
   const init = (() => {
@@ -51,7 +52,7 @@
     const catId = game && data.categories.some((c) => c.id === ui.catId) ? ui.catId : null;
     const selected = game && catId && Number.isInteger(ui.selected) && remaining(game, catId) && !game.used[catId]?.includes(ui.selected) ? ui.selected : null;
     if (screen === 'grid' && !catId) screen = 'categories';
-    if (game?.over && !['history', 'install'].includes(screen)) screen = 'summary'; // завершена гра — лише підсумок
+    if (game?.over && !['history', 'install', 'about'].includes(screen)) screen = 'summary'; // завершена гра — лише підсумок
     return { players, game, screen, catId, selected };
   })();
 
@@ -79,6 +80,12 @@
     await e.userChoice?.catch?.(() => {});
   }
   function openInstall() { installFrom = screen; sheet = null; screen = 'install'; }
+  // ---------- нова версія ----------
+  let updateReady = $state(false);
+  const onUpdate = () => (updateReady = true);
+  window.addEventListener('whoiswho:update', onUpdate);
+  let aboutFrom = $state('setup');
+  function openAbout() { aboutFrom = screen; sheet = null; screen = 'about'; }
   let rulesFrom = $state(null);
   let sheet = $state(null); // null | 'menu' | 'scores'
   let toast = $state(null);
@@ -115,7 +122,7 @@
   // ---------- екран не гасне під час гри ----------
   const wake = createWakeLock();
   $effect(() => { wake.set(screen === 'categories' || screen === 'grid'); });
-  onDestroy(() => { wake.dispose(); synth?.removeEventListener?.('voiceschanged', findVoice); window.removeEventListener('beforeinstallprompt', onBeforeInstall); });
+  onDestroy(() => { wake.dispose(); synth?.removeEventListener?.('voiceschanged', findVoice); window.removeEventListener('beforeinstallprompt', onBeforeInstall); window.removeEventListener('whoiswho:update', onUpdate); });
   const orderPlayers = $derived(game ? game.order.map((id) => players.find((p) => p.id === id)).filter(Boolean) : players);
 
   $effect(() => {
@@ -189,13 +196,15 @@
       <ul>{#each errors as e}<li>{e}</li>{/each}</ul>
     </section>
   {:else if screen === 'setup'}
-    <Setup bind:players bind:settings inGame={!!game} onstart={start} historyCount={history.length} onhistory={openHistory} showInstall={installKind !== 'installed'} oninstall={openInstall} voiceAvailable={!!ukVoice} audioCount={audioIds.size} wakeLock={wakeSupported()}
+    <Setup bind:players bind:settings inGame={!!game} onstart={start} historyCount={history.length} onhistory={openHistory} showInstall={installKind !== 'installed'} oninstall={openInstall} onabout={openAbout} voiceAvailable={!!ukVoice} audioCount={audioIds.size} wakeLock={wakeSupported()}
       audio={{ total: audioIds.size, done: audioDone, busy: audioBusy, fetch: fetchAudio, remove: removeAudio }} />
   {:else if screen === 'rules'}
     <Rules rules={data.meta.rules} again={!!rulesFrom}
       onok={() => { rulesSeen = true; screen = rulesFrom || 'categories'; rulesFrom = null; }} />
   {:else if screen === 'summary'}
     <Summary {game} {players} {names} onnew={newGameAsk} onhistory={openHistory} />
+  {:else if screen === 'about'}
+    <About onback={() => (screen = aboutFrom === 'about' ? 'setup' : aboutFrom)} />
   {:else if screen === 'install'}
     <Install kind={installKind} canPrompt={!!installPrompt} oninstall={installNow} onback={() => (screen = installFrom === 'install' ? 'setup' : installFrom)} />
   {:else if screen === 'history'}
@@ -213,6 +222,9 @@
 </main>
 
 {#if toast}<div class="toast" role="status">🎉 {toast}</div>{/if}
+{#if updateReady}
+  <div class="update" role="alert"><span>✨ Є нова версія гри</span><button onclick={() => window.__applyUpdate?.()}>Оновити</button></div>
+{/if}
 {#key party}{#if party}<Confetti />{/if}{/key}
 
 {#if sheet === 'menu'}
@@ -222,6 +234,7 @@
       <button onclick={() => go('setup')}><span>👥</span>Гравці й налаштування</button>
       <button onclick={openHistory}><span>🏆</span>Історія ігор</button>
       {#if installKind !== 'installed'}<button onclick={openInstall}><span>📲</span>Як встановити</button>{/if}
+      <button onclick={openAbout}><span>ℹ️</span>Про гру · {__APP_VERSION__}</button>
       <button onclick={endAsk}><span>🏁</span>Завершити гру</button>
       <button class="danger" onclick={newGameAsk}><span>🔄</span>Нова гра</button>
     </nav>
@@ -294,6 +307,12 @@
     box-shadow: 0 5px 0 var(--ok2), var(--shadow); animation: drop .35s cubic-bezier(.2, 1.6, .4, 1); white-space: nowrap;
   }
   @keyframes drop { from { transform: translate(-50%, 40px) scale(.8); opacity: 0; } }
+  .update {
+    position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); z-index: 45; max-width: 536px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 10px 10px 16px;
+    background: var(--ink); color: var(--bg); border-radius: 18px; font-weight: 900; box-shadow: var(--shadow);
+  }
+  .update button { border: none; border-radius: 14px; background: var(--accent); color: #fff; font-weight: 900; padding: 10px 16px; }
   .menu { display: flex; flex-direction: column; gap: 10px; }
   .menu button {
     display: flex; align-items: center; gap: 14px; min-height: 60px; border-radius: 18px; border: 2px solid var(--line);
