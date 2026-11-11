@@ -5,7 +5,7 @@
   import { newId } from '../lib/storage.js';
 
   // players — масив { id, name, photo, template } ($state у App, змінюється на місці)
-  let { players = $bindable(), settings = $bindable(), inGame, onstart, historyCount = 0, onhistory = () => {}, voiceAvailable = false, audioCount = 0, wakeLock = true, audio = null } = $props();
+  let { players = $bindable(), settings = $bindable(), inGame, onstart, historyCount = 0, onhistory = () => {}, showInstall = false, oninstall = () => {}, voiceAvailable = false, audioCount = 0, wakeLock = true, audio = null } = $props();
   let photoFor = $state(null);
 
   const MIN = 2, MAX = 8;
@@ -40,6 +40,7 @@
   }));
 </script>
 
+{#if showInstall && !inGame}<button class="installbar" onclick={oninstall}>📲 Встанови гру на телефон — працює без інтернету <b>→</b></button>{/if}
 <header class="hero">
   <div class="logo" aria-hidden="true"><span>🙋</span><span>❓</span><span>💛</span></div>
   <h1>{inGame ? 'Гравці й налаштування' : 'Хто є хто'}</h1>
@@ -131,6 +132,7 @@
 {/if}
 
 <style>
+  .installbar { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; text-align: left; min-height: 48px; padding: 8px 14px; border-radius: 16px; border: 2px dashed var(--accent); background: var(--soft); font-weight: 800; margin-bottom: 8px; }
   .hero { text-align: center; margin: 6px 0 16px; }
   .logo { display: flex; justify-content: center; gap: 6px; margin-bottom: 6px; }
   .logo span { width: 50px; height: 50px; display: grid; place-items: center; font-size: 26px; border-radius: 16px; background: var(--card); box-shadow: 0 4px 0 var(--line), var(--shadow); animation: bob 2.4s ease-in-out infinite; }
