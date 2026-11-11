@@ -1,12 +1,17 @@
 <script>
   import Avatar from './Avatar.svelte';
+  import Timer from './Timer.svelte';
   import { roles, POINTS, isRated } from '../lib/state.js';
-  import { listenMode, playQuestion, questionAudio } from '../lib/speech.js';
+  import { listenMode, playQuestion, questionAudio, answerId } from '../lib/speech.js';
   import { onDestroy, untrack } from 'svelte';
   import { t } from '../lib/lang.svelte.js';
 
   let { question, category, colors, number, game, players, scoring, sound = {}, roleNames = {}, onfinish } = $props();
-  const mode = $derived(listenMode(question.id, sound));
+  let revealed = $state(false);
+  // після «Показати відповідь» у «Цікавих фактах» кнопка й автоозвучка читають відповідь
+  const answerItem = $derived(question.answer ? { id: answerId(question.id), text: question.answer } : null);
+  const answerMode = $derived(answerItem ? listenMode(answerItem.id, sound) : null);
+  const mode = $derived(revealed && answerMode ? answerMode : listenMode(question.id, sound));
   let stop = () => {};
   let playing = $state(false);
   let autoDone = false;
@@ -14,10 +19,14 @@
     autoDone = true; // уже слухають — автоозвучка не повторює
     stop();
     playing = true;
-    stop = playQuestion(question, mode, {
+    stop = playQuestion(revealed && answerMode ? answerItem : question, mode, {
       base: import.meta.env.BASE_URL, lang: sound.lang, start: sound.start, voice: sound.voice, synth: globalThis.speechSynthesis, Utterance: globalThis.SpeechSynthesisUtterance,
       makeAudio: (url) => questionAudio(url), onend: () => (playing = false),
     });
+  }
+  function reveal() {
+    revealed = true;
+    if (sound.auto && answerMode) listen(); // відповідь звучить сама, як і питання
   }
   function halt() { stop(); stop = () => {}; playing = false; }
   // Кнопка: грає — зупинити, мовчить — прослухати (ще раз)
@@ -37,7 +46,6 @@
   const isWho = $derived(question.type === 'who');
   // «Цікаві факти»: спершу відповідь гравця, потім — правильна відповідь
   const isQuiz = $derived(question.type === 'quiz');
-  let revealed = $state(false);
   // «Хто з нас?»: після того як показали пальцем, вибираємо, на кого показала більшість
   let voting = $state(false);
   const showAbout = $derived(question.type !== 'who' && about !== null && about !== answerer);
@@ -131,8 +139,10 @@
           {#if tipOpen}<p class="tiptext">{question.tip}</p>{/if}
         {/if}
 
+        {#if question.type === 'activity'}<Timer sounds={sound.sfx !== false} />{/if}
+
         {#if isQuiz && !revealed}
-          <button class="chunky light wide" onclick={() => (revealed = true)}>{t('card.reveal')}</button>
+          <button class="chunky light wide" onclick={reveal}>{t('card.reveal')}</button>
         {:else}
         {#if isQuiz}
           <div class="answer" role="status"><small>{t('card.answer')}</small><p>{question.answer}</p></div>

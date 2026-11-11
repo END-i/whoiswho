@@ -9,6 +9,9 @@ export function speechText(text) {
   return t ? t.charAt(0).toUpperCase() + t.slice(1) : '';
 }
 
+/** id запису відповіді «Цікавого факту»: fc-01 → fc-01-answer. */
+export const answerId = (id) => `${id}-answer`;
+
 /** Шлях до файлу озвучки з урахуванням базового шляху сайту: українська — audio/{id}.mp3, інші мови — audio/{мова}/{id}.mp3. */
 export const audioUrl = (id, base = '/', lang = 'uk') =>
   `${base.endsWith('/') ? base : base + '/'}audio/${lang === 'uk' ? '' : `${lang}/`}${encodeURIComponent(id)}.mp3`;

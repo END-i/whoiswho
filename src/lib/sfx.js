@@ -1,6 +1,7 @@
 // Звуки гри без файлів: ноти синтезуються у WAV у пам'яті й граються через <audio>.
 // Не Web Audio: на iPhone перемикач беззвучного режиму глушить Web Audio, а <audio> (як і озвучку) — ні.
-// «point» — весела висхідна мелодія за бал, «miss» — смішне «ва-ва», «skip» — тихе «шух».
+// «point» — весела висхідна мелодія за бал, «miss» — смішне «ва-ва», «skip» — тихе «шух»;
+// «tick» і «end» — таймер «Покажи!» і викликів.
 
 export const SFX_RATE = 22050;
 
@@ -18,6 +19,12 @@ export function tones(kind) {
       { freq: 415, slide: 311, start: 0.22, dur: 0.38, gain: 0.45 }, // G#4 → D#4
     ];
     case 'skip': return [{ noise: true, start: 0, dur: 0.16, gain: 0.18 }];
+    // таймер: коротке «тік» в останні секунди й подвійний сигнал, коли час вийшов
+    case 'tick': return [{ freq: 1568, start: 0, dur: 0.05, gain: 0.35 }]; // G6
+    case 'end': return [
+      { freq: 880, start: 0, dur: 0.18, gain: 0.5 },    // A5
+      { freq: 880, start: 0.24, dur: 0.3, gain: 0.5 },
+    ];
     default: return [];
   }
 }

@@ -16,15 +16,16 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { GEMINI_STYLES, listAudioIds, planJobs, checkPronunciation, geminiBatch, updateManifest, MANIFEST, STARTS, updateStarts, piperEngine, azureEngine, edgeEngine, geminiEngine, runJobs, parseArgs, parseEnv } from './audio-lib.mjs';
+import { GEMINI_STYLES, listAudioIds, planJobs, checkPronunciation, geminiBatch, updateManifest, withAnswers, MANIFEST, STARTS, updateStarts, piperEngine, azureEngine, edgeEngine, geminiEngine, runJobs, parseArgs, parseEnv } from './audio-lib.mjs';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 // усі набори питань: озвучка спільна, id питань між наборами не повторюються
 // --lang ru: тексти з src/data/packs/ru, файли в public/audio/ru
 const opts = parseArgs(process.argv.slice(2));
 const packDir = path.join(root, 'src/data/packs', opts.lang === 'uk' ? '' : opts.lang);
-const data = { questions: fs.readdirSync(packDir).filter((f) => f.endsWith('.json')).sort()
-  .flatMap((f) => JSON.parse(fs.readFileSync(path.join(packDir, f), 'utf8')).questions) };
+// питання й відповіді «Цікавих фактів» (fc-01-answer)
+const data = { questions: withAnswers(fs.readdirSync(packDir).filter((f) => f.endsWith('.json')).sort()
+  .flatMap((f) => JSON.parse(fs.readFileSync(path.join(packDir, f), 'utf8')).questions)) };
 const outDir = opts.out ? path.resolve(opts.out) : path.join(root, 'public/audio', opts.lang === 'uk' ? '' : opts.lang);
 const style = GEMINI_STYLES[opts.lang];
 

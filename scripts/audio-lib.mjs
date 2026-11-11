@@ -2,7 +2,7 @@
 // Рушії: Piper (локально, безкоштовно) і Azure F0 (безкоштовний рівень, ключ у .env).
 
 import { createHash } from 'node:crypto';
-import { speechText } from '../src/lib/speech.js';
+import { answerId, speechText } from '../src/lib/speech.js';
 import { Mp3Encoder } from '@breezystack/lamejs';
 
 export const MP3_KBPS = 32; // моно, 32 кбіт/с — для мови досить (~25 КБ на питання)
@@ -110,6 +110,12 @@ export function listAudioIds(dir, fs) {
  * Які питання озвучити. existing — Set уже готових id.
  * force — перегенерувати все; only — лише ці id.
  */
+/** Питання разом з відповідями «Цікавих фактів» — їх теж озвучуємо (id: fc-01-answer). */
+export const withAnswers = (questions) => [
+  ...questions,
+  ...questions.filter((q) => q.type === 'quiz' && q.answer).map((q) => ({ id: answerId(q.id), text: q.answer })),
+];
+
 export function planJobs(questions, existing, { force = false, only = null, stressed = false, dict = {} } = {}) {
   // --stressed: перегенерувати лише питання зі словами зі словника вимови
   const want = stressed ? new Set(stressedIds(questions, dict)) : only ? new Set(only) : null;

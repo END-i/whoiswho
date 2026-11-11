@@ -19,7 +19,7 @@
   import Avatar from './components/Avatar.svelte';
   import Confetti from './components/Confetti.svelte';
   import audioList from 'virtual:audio-ids';
-  import { pickVoice } from './lib/speech.js';
+  import { pickVoice, answerId } from './lib/speech.js';
   import { createWakeLock, supported as wakeSupported } from './lib/wakelock.js';
   import { onDestroy, untrack } from 'svelte';
   import { downloadAll, cachedCount, clearAudio, megabytes } from './lib/audiocache.js';
@@ -118,16 +118,18 @@
   loadVoices();
   synth?.addEventListener?.('voiceschanged', loadVoices);
   const voice = $derived(pickVoice(voices, settings.lang));
-  const sound = $derived({ ids: audioIds, start: audioList.start?.[settings.lang] || {}, voiceOn: settings.voice, voice, lang: settings.lang, auto: settings.autoRead });
+  const sound = $derived({ ids: audioIds, start: audioList.start?.[settings.lang] || {}, voiceOn: settings.voice, voice, lang: settings.lang, auto: settings.autoRead, sfx: settings.sounds });
   // Озвучка для офлайну: у фоні під час першого запуску, далі — лише нове;
   // лише мовою інтерфейсу й лише для вибраного набору (усі набори — десятки мегабайтів)
+  // усі записи набору: питання й відповіді «Цікавих фактів»
+  const packAudioIds = (pack) => pack.questions.flatMap((q) => (q.answer ? [q.id, answerId(q.id)] : [q.id]));
   const offlineIds = () => {
     const ids = audioByLang[settings.lang], pack = packs[game?.pack ?? settings.pack];
-    return pack ? pack.questions.map((q) => q.id).filter((id) => ids.has(id)) : [];
+    return pack ? packAudioIds(pack).filter((id) => ids.has(id)) : [];
   };
   const offlineKey = () => `${settings.lang}|${game?.pack ?? settings.pack}`;
   // записано все для вибраного набору й мови — голос браузера не потрібен; і скільки мегабайтів качати
-  const audioFull = $derived.by(() => { settings.lang; game?.pack; const p = packs[game?.pack ?? settings.pack]; return !!p && offlineIds().length === p.questions.length; });
+  const audioFull = $derived.by(() => { settings.lang; game?.pack; const p = packs[game?.pack ?? settings.pack]; return !!p && offlineIds().length === packAudioIds(p).length; });
   const audioMb = $derived.by(() => { settings.lang; game?.pack; settings.pack; return megabytes(offlineIds(), audioList.size?.[settings.lang]); });
   let audioTotal = $state(0);
   let audioDone = $state(0);

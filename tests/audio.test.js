@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { speechText, audioUrl, pickVoice, listenMode, playQuestion, questionAudio, resetQuestionAudio, startUrl, preloadQuestion } from '../src/lib/speech.js';
-import { listAudioIds, planJobs, ssml, piperEngine, azureEngine, edgeEngine, geminiEngine, geminiRequest, geminiBatch, geminiMp3, textHash, updateManifest, staleAudio, checkPronunciation, applyPronunciation, stressedIds, pcmToMp3, retryDelay, isDailyQuota, GEMINI_STYLE, GEMINI_STYLES, runJobs, fatal, parseArgs, parseEnv, piperText, numberWords, parseWav, wavToMp3, voiceStart, trimLead, STARTS, updateStarts } from '../scripts/audio-lib.mjs';
+import { listAudioIds, planJobs, ssml, piperEngine, azureEngine, edgeEngine, geminiEngine, geminiRequest, geminiBatch, geminiMp3, textHash, updateManifest, staleAudio, checkPronunciation, applyPronunciation, stressedIds, pcmToMp3, retryDelay, isDailyQuota, GEMINI_STYLE, GEMINI_STYLES, runJobs, fatal, parseArgs, parseEnv, piperText, numberWords, parseWav, wavToMp3, voiceStart, trimLead, STARTS, updateStarts, withAnswers } from '../scripts/audio-lib.mjs';
 import { audioIdsPlugin, VIRTUAL_ID } from '../scripts/vite-audio-plugin.mjs';
 import { mkdtempSync, mkdirSync, writeFileSync as wf, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -162,6 +162,12 @@ test('voiceStart: де починається голос — з запасом 0
   const f = new Float32Array(1000); f.fill(0.5, 200);
   assert.equal(voiceStart(f, rate, { full: 1 }), 0.15, 'Float32 з браузера');
   assert.equal(trimLead(s, rate).length, 750);
+});
+
+test('withAnswers: відповіді «Цікавих фактів» теж озвучуються, з id fc-01-answer', () => {
+  const qs = [{ id: 'fc-01', type: 'quiz', text: 'Чи…?', answer: 'Ні, це міф.' }, { id: 'gs-01', type: 'guess', text: 'Що…?' }, { id: 'fc-02', type: 'quiz', text: 'x' }];
+  assert.deepEqual(withAnswers(qs).map((q) => q.id), ['fc-01', 'gs-01', 'fc-02', 'fc-01-answer']);
+  assert.deepEqual(planJobs(withAnswers(qs), new Set(['fc-01', 'gs-01', 'fc-02'])), [{ id: 'fc-01-answer', text: 'Ні, це міф.' }]);
 });
 
 test('updateStarts: щойно записані файли — без тиші, їхні позиції забуваємо', () => {

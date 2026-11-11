@@ -149,3 +149,44 @@ test('звук: «Правильно» — мелодія, «Ні» — «ва-�
   expect(await played(page)).toHaveLength(3);
 });
 
+
+test('«Цікаві факти»: після «Показати відповідь» відповідь звучить сама; «Слухати» — теж відповідь', async ({ page }) => {
+  await page.addInitScript(fakeVoice);
+  await fresh(page);
+  await setPlayers(page, ['Оля', 'Тарас']);
+  await page.getByRole('switch', { name: 'Голос браузера' }).check();
+  await page.getByRole('button', { name: /Почати гру/ }).click();
+  await page.getByRole('button', { name: /Граємо!/ }).click();
+  await openQuestion(page, 'Цікаві факти', 'facts', 'fc-03');
+  await expect.poll(() => page.evaluate(() => window.__spoken.map((x) => x.text))).toEqual(['Скільки ніг у павука?']);
+  await page.getByRole('button', { name: /Показати відповідь/ }).click();
+  const answer = 'Вісім. Тому павук — не комаха: у комах шість ніг.';
+  await expect.poll(() => page.evaluate(() => window.__spoken.map((x) => x.text))).toEqual(['Скільки ніг у павука?', answer]);
+  await page.getByRole('button', { name: 'Прослухати питання' }).click();
+  await expect.poll(() => page.evaluate(() => window.__spoken.at(-1).text)).toBe(answer);
+});
+
+test('таймер у «Покажи!»: 30 с, останні 5 с тикає, наприкінці — сигнал «Час вийшов»; повторний тап — стоп', async ({ page }) => {
+  await page.clock.install();
+  await page.addInitScript(trackSfx);
+  await startGame(page, ['Оля', 'Тарас']);
+  await openQuestion(page, 'Покажи!', 'show', 'sh-01');
+  const timer = page.getByRole('button', { name: '⏱ Таймер 30 с' });
+  await timer.click();
+  await expect(page.locator('.timer')).toHaveText('⏱ 0:30 · Стоп');
+  await page.clock.runFor(20_000);
+  await expect(page.locator('.timer')).toHaveText('⏱ 0:10 · Стоп');
+  expect(await played(page)).toEqual([]);
+  await page.clock.runFor(10_500);
+  await expect(page.locator('.timer')).toHaveText('⏰ Час вийшов! Ще раз?');
+  expect(await played(page)).toEqual(['tick', 'tick', 'tick', 'tick', 'tick', 'end']);
+  // ще раз — і стоп
+  await page.locator('.timer').click();
+  await page.clock.runFor(3_000);
+  await page.locator('.timer').click();
+  await expect(page.locator('.timer')).toHaveText('⏱ Таймер 30 с');
+  // у питаннях-розмовах таймера немає
+  await page.getByRole('button', { name: /Далі/ }).click();
+  await openQuestion(page, 'Відкрийся', 'open', 'op-02');
+  await expect(page.locator('.timer')).toHaveCount(0);
+});

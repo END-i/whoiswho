@@ -17,6 +17,14 @@ test('tones: бал — три висхідні ноти; «ні» — дві в
   assert.deepEqual(tones('nope'), []);
 });
 
+test('tones: таймер — коротке «тік» і подвійний сигнал наприкінці', () => {
+  const t = tones('tick');
+  assert.equal(t.length, 1); assert.ok(t[0].dur <= 0.06, 'тік короткий');
+  const e = tones('end');
+  assert.equal(e.length, 2); assert.ok(e[1].start > e[0].start + e[0].dur, 'два окремі сигнали');
+  assert.ok(render('end').length > render('tick').length);
+});
+
 // домінантна частота відрізка — за кількістю переходів через нуль
 const freqOf = (pcm, from, to) => {
   let z = 0;
