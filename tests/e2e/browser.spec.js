@@ -74,32 +74,38 @@ test('голос вимкнений — кнопки 🔊 немає, навіт
   await expect(page.getByRole('button', { name: 'Прослухати питання' })).toHaveCount(0);
 });
 
-// Підставний AudioContext: рахує запущені ноти
-const fakeAudio = () => {
-  window.__notes = [];
-  window.AudioContext = class {
-    constructor() { this.currentTime = 0; this.destination = {}; }
-    resume() {}
-    createOscillator() { const o = { frequency: {}, connect() {}, stop() {}, start: () => window.__notes.push(o.frequency.value) }; return o; }
-    createGain() { return { gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} }; }
+// Записує, які звуки гри грали через <audio> (у плеєра звуку є data-sfx)
+const trackSfx = () => {
+  window.__sfx = [];
+  const play = HTMLMediaElement.prototype.play;
+  window.__sfxEl = {};
+  HTMLMediaElement.prototype.play = function (...args) {
+    if (this.dataset.sfx) { window.__sfx.push(this.dataset.sfx); window.__sfxEl[this.dataset.sfx] = this; }
+    return play.apply(this, args);
   };
 };
-const notes = (page) => page.evaluate(() => window.__notes);
+const played = (page) => page.evaluate(() => window.__sfx);
 
-test('звук: «Правильно» — висхідна мелодія з трьох нот, «Ні» — одна; без балів і з вимкненими звуками — тиша', async ({ page }) => {
-  await page.addInitScript(fakeAudio);
+test('звук: «Правильно» — мелодія, «Ні» — «ва-ва», пропуск — «шух»; усе через <audio> (грає й у беззвучному режимі iPhone); вимкнені звуки — тиша', async ({ page }) => {
+  await page.addInitScript(trackSfx);
   await startGame(page, ['Оля', 'Тарас'], { scoring: true });
   await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
   await page.getByRole('button', { name: /Правильно/ }).click();
-  await expect.poll(() => notes(page)).toEqual([784, 988, 1319]);
+  await expect.poll(() => played(page)).toEqual(['point']);
+  // браузер справді декодує наш WAV: тривалість мелодії ≈ 0,5 с
+  const dur = await page.evaluate(() => new Promise((ok) => {
+    const a = window.__sfxEl.point;
+    if (a.readyState >= 1) ok(a.duration); else a.addEventListener('loadedmetadata', () => ok(a.duration), { once: true });
+  }));
+  expect(dur).toBeGreaterThan(0.45); expect(dur).toBeLessThan(0.55);
   await page.getByRole('button', { name: 'До категорій' }).click();
   await openQuestion(page, 'Вгадай', 'guess', 'gs-04');
   await page.getByRole('button', { name: /Неправильно/ }).click();
-  await expect.poll(async () => (await notes(page)).length).toBe(4);
-  // пропуск — без звуку
+  await expect.poll(() => played(page)).toEqual(['point', 'miss']);
   await page.getByRole('button', { name: 'До категорій' }).click();
   await openQuestion(page, 'Вгадай', 'guess', 'gs-06');
   await page.getByRole('button', { name: 'Пропустити' }).click();
+  await expect.poll(() => played(page)).toEqual(['point', 'miss', 'skip']);
   // вимкнути звуки
   await page.getByRole('button', { name: 'Меню' }).click();
   await page.getByRole('button', { name: /Гравці й налаштування/ }).click();
@@ -109,5 +115,6 @@ test('звук: «Правильно» — висхідна мелодія з т
   await openQuestion(page, 'Вгадай', 'guess', 'gs-08');
   await page.getByRole('button', { name: /Правильно/ }).click();
   await page.waitForTimeout(200);
-  expect((await notes(page)).length).toBe(4);
+  expect(await played(page)).toHaveLength(3);
 });
+

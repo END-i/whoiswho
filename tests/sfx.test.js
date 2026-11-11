@@ -1,39 +1,89 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { tones, playSfx, resetSfx } from '../src/lib/sfx.js';
+import { tones, render, wav, playSfx, resetSfx, SFX_RATE } from '../src/lib/sfx.js';
 
-class FakeCtx {
-  static made = 0;
-  constructor() { FakeCtx.made++; this.currentTime = 10; this.destination = {}; this.log = []; }
-  resume() { this.resumed = true; }
-  createOscillator() { const o = { frequency: {}, connect: () => {}, start: (t) => this.log.push(['start', o.frequency.value, t]), stop: () => {} }; return o; }
-  createGain() { return { gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect: () => {} }; }
-}
-
-test('tones: бал — три висхідні ноти, «ні» — одна тиха й низька', () => {
+test('tones: бал — три висхідні ноти; «ні» — дві вниз і сповзають; пропуск — короткий тихий шум', () => {
   const p = tones('point');
   assert.equal(p.length, 3);
   assert.ok(p[0].freq < p[1].freq && p[1].freq < p[2].freq, 'мелодія йде вгору');
   const m = tones('miss');
-  assert.equal(m.length, 1);
-  assert.ok(m[0].freq < p[0].freq && m[0].gain < p[0].gain, 'тихіше й нижче');
+  assert.equal(m.length, 2);
+  assert.ok(m[1].freq < m[0].freq, 'друга нота нижча');
+  assert.ok(m.every((n) => n.slide < n.freq), 'кожна сповзає вниз');
+  assert.ok(m.every((n) => n.slide >= 300), 'не нижче 300 Гц — чути на динаміку телефона');
+  const s = tones('skip');
+  assert.equal(s.length, 1); assert.equal(s[0].noise, true);
+  assert.ok(s[0].gain < m[0].gain && s[0].dur < 0.2, 'тихий і короткий');
   assert.deepEqual(tones('nope'), []);
 });
 
-test('playSfx: запускає ноти у правильний час; спільний контекст створюється один раз', () => {
-  resetSfx(); FakeCtx.made = 0;
-  assert.equal(playSfx('point', { AudioContextClass: FakeCtx }), 3);
-  assert.equal(playSfx('miss', { AudioContextClass: FakeCtx }), 1);
-  assert.equal(FakeCtx.made, 1);
-  const ctx = new FakeCtx();
-  playSfx('point', { ctx });
-  assert.deepEqual(ctx.log.map(([, f, t]) => [f, +(t - 10).toFixed(2)]), [[784, 0], [988, 0.1], [1319, 0.2]]);
-  assert.equal(ctx.resumed, true);
+// домінантна частота відрізка — за кількістю переходів через нуль
+const freqOf = (pcm, from, to) => {
+  let z = 0;
+  for (let i = from + 1; i < to; i++) if ((pcm[i - 1] < 0) !== (pcm[i] < 0)) z++;
+  return (z / 2) / ((to - from) / SFX_RATE);
+};
+
+test('render: довжина за останньою нотою, частоти як у нотах, без перевантаження', () => {
+  const pcm = render('point');
+  assert.equal(pcm.length, Math.ceil(0.5 * SFX_RATE) + 1);
+  const at = (t) => Math.floor(t * SFX_RATE);
+  assert.ok(Math.abs(freqOf(pcm, at(0.01), at(0.09)) - 784) < 40);
+  assert.ok(Math.abs(freqOf(pcm, at(0.25), at(0.4)) - 1319) < 60);
+  assert.ok(Math.max(...pcm.map(Math.abs)) <= 32767);
+  const miss = render('miss');
+  assert.ok(freqOf(miss, at(0.25), at(0.35)) < freqOf(miss, at(0.01), at(0.1)), '«ва-ва» іде вниз');
+  assert.deepEqual(render('skip'), render('skip'), 'шум детермінований');
+  assert.ok(render('skip').some((v) => v !== 0));
+  assert.equal(render('nope').length, 1);
 });
 
-test('playSfx: вимкнено, немає Web Audio чи помилка — тиша без падіння', () => {
+test('wav: правильний заголовок PCM 16 біт моно', () => {
+  const bytes = wav(Int16Array.of(1, -1, 300));
+  const v = new DataView(bytes.buffer);
+  const s = (o, n) => String.fromCharCode(...bytes.slice(o, o + n));
+  assert.equal(s(0, 4), 'RIFF'); assert.equal(s(8, 4), 'WAVE'); assert.equal(s(36, 4), 'data');
+  assert.equal(v.getUint32(4, true), 36 + 6);
+  assert.equal(v.getUint16(22, true), 1); assert.equal(v.getUint32(24, true), SFX_RATE); assert.equal(v.getUint16(34, true), 16);
+  assert.equal(v.getUint32(40, true), 6);
+  assert.equal(v.getInt16(48, true), 300);
+  assert.equal(bytes.length, 50);
+});
+
+class FakeAudio {
+  static made = [];
+  constructor(src) { this.src = src; this.dataset = {}; this.plays = 0; FakeAudio.made.push(this); }
+  play() { this.plays++; return Promise.resolve(); }
+}
+const FakeURL = { createObjectURL: (blob) => `blob:${blob.size}:${blob.type}` };
+
+test('playSfx: WAV через <audio>; плеєр на звук створюється раз і грає з початку', () => {
+  resetSfx(); FakeAudio.made = [];
+  assert.equal(playSfx('point', { Audio: FakeAudio, URL: FakeURL }), true);
+  assert.equal(playSfx('point', { Audio: FakeAudio, URL: FakeURL }), true);
+  assert.equal(playSfx('miss', { Audio: FakeAudio, URL: FakeURL }), true);
+  assert.equal(FakeAudio.made.length, 2);
+  const [p, m] = FakeAudio.made;
+  assert.equal(p.plays, 2); assert.equal(p.currentTime, 0); assert.equal(p.dataset.sfx, 'point'); assert.equal(m.dataset.sfx, 'miss');
+  assert.equal(p.src, `blob:${wav(render('point')).length}:audio/wav`);
+});
+
+test('playSfx: вимкнено, немає <audio>, невідомий звук, помилка чи заборона браузера — тиша без падіння', async () => {
   resetSfx();
-  assert.equal(playSfx('point', { enabled: false, AudioContextClass: FakeCtx }), 0);
-  assert.equal(playSfx('point', { AudioContextClass: undefined }), 0);
-  assert.equal(playSfx('point', { ctx: { currentTime: 0, createOscillator() { throw new Error('closed'); } } }), 0);
+  assert.equal(playSfx('point', { enabled: false, Audio: FakeAudio, URL: FakeURL }), false);
+  assert.equal(playSfx('point', { Audio: undefined, URL: FakeURL }), false);
+  assert.equal(playSfx('point', { Audio: FakeAudio, URL: {} }), false);
+  assert.equal(playSfx('nope', { Audio: FakeAudio, URL: FakeURL }), false);
+  assert.equal(playSfx('point', { Audio: class { constructor() { throw new Error('no'); } }, URL: FakeURL }), false);
+  resetSfx();
+  // браузер не дозволив (Promise відхилено) — помилка тихо ковтається
+  const Rejecting = class extends FakeAudio { play() { return Promise.reject(new Error('NotAllowedError')); } };
+  assert.equal(playSfx('skip', { Audio: Rejecting, URL: FakeURL }), true);
+  await new Promise((r) => setTimeout(r, 0));
+  resetSfx();
+  // старі браузери: play() без Promise
+  assert.equal(playSfx('skip', { Audio: class extends FakeAudio { play() {} }, URL: FakeURL }), true);
+  resetSfx();
+  // значення за замовчуванням — глобальні Audio/URL (у Node Audio немає)
+  assert.equal(playSfx('point'), false);
 });

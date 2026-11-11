@@ -157,7 +157,8 @@
   function finish(num, outcome, answerer) {
     game = finishCard(game, catId, num, outcome, answerer);
     selected = null;
-    if (outcome === 'correct' || outcome === 'wrong') playSfx(outcome === 'correct' ? 'point' : 'miss', { enabled: settings.sounds });
+    const sfx = { correct: 'point', wrong: 'miss', skipped: 'skip' }[outcome];
+    if (sfx) playSfx(sfx, { enabled: settings.sounds });
     if (outcome === 'correct') {
       toast = `+1 бал — ${orderPlayers[answerer]?.name}`;
       party++;
