@@ -5,6 +5,7 @@
   import { loadAll, saveAll, newId } from './lib/storage.js';
   import { clampTpl, migrateTemplate } from './lib/templates.js';
   import { assignColors } from './lib/theme.js';
+  import { toggleFavorite, favoriteQuestions, cleanFavorites } from './lib/favorites.js';
   import Setup from './screens/Setup.svelte';
   import Rules from './screens/Rules.svelte';
   import Categories from './screens/Categories.svelte';
@@ -63,7 +64,7 @@
   })();
 
   let players = $state(init.players);
-  let settings = $state({ lang: cleanLang(saved.settings?.lang), pack: packOf(saved.settings?.pack), audience: saved.settings?.audience === 'kids' ? 'kids' : 'family', scoring: saved.settings?.scoring ?? true, voice: !!saved.settings?.voice, sounds: saved.settings?.sounds ?? true, autoRead: saved.settings?.autoRead !== false, offline: saved.settings?.offline === true });
+  let settings = $state({ lang: cleanLang(saved.settings?.lang), pack: packOf(saved.settings?.pack), audience: saved.settings?.audience === 'kids' ? 'kids' : 'family', scoring: saved.settings?.scoring ?? true, voice: !!saved.settings?.voice, sounds: saved.settings?.sounds ?? true, autoRead: saved.settings?.autoRead !== false, offline: saved.settings?.offline === true, onlyFav: saved.settings?.onlyFav === true });
   // набори, правила яких уже показували (раніше — просто true для сімейного)
   setLang(cleanLang(saved.settings?.lang));
   $effect(() => setLang(settings.lang));
@@ -77,6 +78,7 @@
   let catId = $state(init.catId);
   let selected = $state(init.selected);
   let history = $state(cleanHistory(saved.history));
+  let favorites = $state(cleanFavorites(saved.favorites)); // ❤️ на картках
   // набір поточної гри, а без гри — вибраний у налаштуваннях
   const data = $derived(packs[game?.pack ?? settings.pack] ?? null);
   const byId = $derived(new Map(data ? data.questions.map((q) => [q.id, q]) : []));
@@ -171,7 +173,7 @@
   $effect(() => {
     saveAll({
       players: $state.snapshot(players), settings: $state.snapshot(settings), rulesSeen, lastDeck,
-      names: $state.snapshot(names), game: $state.snapshot(game), history: $state.snapshot(history), ui: { screen, catId, selected },
+      names: $state.snapshot(names), game: $state.snapshot(game), history: $state.snapshot(history), favorites: $state.snapshot(favorites), ui: { screen, catId, selected },
     });
   });
 
@@ -183,13 +185,21 @@
   });
 
   // ---------- дії ----------
+  // питання нової гри: усі з набору або лише ❤️ улюблені (якщо їх немає — усі)
+  function gameQuestions(pack, audience) {
+    const all = byAudience(packs[pack].questions, audience);
+    const fav = settings.onlyFav ? favoriteQuestions(all, favorites) : [];
+    return fav.length ? fav : all;
+  }
+  const favCount = $derived(favoriteQuestions(packs[settings.pack]?.questions || [], favorites).length);
+  const like = (id) => (favorites = toggleFavorite(favorites, id));
   function start() {
     for (const p of players) names[p.id] = p.name.trim();
     if (!game) {
       const pack = settings.pack, audience = packs[pack].meta.pack.kids ? settings.audience : 'family';
       game = newGame({
         players: players.map((p) => ({ id: p.id, name: p.name.trim() })), pack, audience, scoring: settings.scoring,
-        questions: byAudience(packs[pack].questions, audience), prevDeck: lastDeck,
+        questions: gameQuestions(pack, audience), prevDeck: lastDeck,
       });
       lastDeck = game.deck;
       screen = rulesSeen.includes(pack) ? 'categories' : 'rules';
@@ -256,7 +266,7 @@
     </section>
   {:else if screen === 'setup'}
     <Setup bind:players bind:settings packs={packOrder.map((id) => packs[id].meta.pack)} gamePack={game?.pack} inGame={!!game} onstart={start} historyCount={history.length} onhistory={openHistory} showInstall={installKind !== 'installed'} oninstall={openInstall} onabout={openAbout} voiceAvailable={!!voice} audioCount={audioIds.size} wakeLock={wakeSupported()}
-      audioFull={audioFull} audio={{ total: audioTotal, done: audioDone, busy: audioBusy, mb: audioMb, fetch: fetchAudio, remove: removeAudio }} />
+      {favCount} audioFull={audioFull} audio={{ total: audioTotal, done: audioDone, busy: audioBusy, mb: audioMb, fetch: fetchAudio, remove: removeAudio }} />
   {:else if screen === 'rules'}
     <Rules rules={data.meta.rules} again={!!rulesFrom}
       onok={() => { if (!rulesSeen.includes(game.pack)) rulesSeen = [...rulesSeen, game.pack]; screen = rulesFrom || 'categories'; rulesFrom = null; }} />
@@ -272,7 +282,7 @@
     <TopBar players={orderPlayers} {game} onmenu={() => (sheet = 'menu')} onscores={() => (sheet = 'scores')}
       back={screen === 'grid' ? () => { catId = null; screen = 'categories'; } : null} />
     {#if screen === 'grid' && category}
-      <Grid {category} index={data.categories.indexOf(category)} {game} players={orderPlayers} {byId} roleNames={data.meta.pack.roleNames}
+      <Grid {category} index={data.categories.indexOf(category)} {game} players={orderPlayers} {byId} roleNames={data.meta.pack.roleNames} {favorites} onlike={like}
         scoringCategories={data.meta.scoringCategories} {sound} bind:selected onfinish={finish} />
     {:else}
       <Categories categories={data.categories} {game} onpick={(id) => { catId = id; screen = 'grid'; }} />

@@ -6,7 +6,7 @@
   import { onDestroy, untrack } from 'svelte';
   import { t } from '../lib/lang.svelte.js';
 
-  let { question, category, colors, number, game, players, scoring, sound = {}, roleNames = {}, onfinish } = $props();
+  let { question, category, colors, number, game, players, scoring, sound = {}, roleNames = {}, liked = false, onlike = () => {}, onfinish } = $props();
   let revealed = $state(false);
   // після «Показати відповідь» у «Цікавих фактах» кнопка й автоозвучка читають відповідь
   const answerItem = $derived(question.answer ? { id: answerId(question.id), text: question.answer } : null);
@@ -82,6 +82,7 @@
       <div class="badges">
         <span class="badge">{t(`type.${question.type}`)}</span>
         {#if scoring}<span class="badge pts">{rated ? t('card.pointsUpTo', { n: POINTS.rate.at(-1) }) : t('card.points', { n: POINTS.right })}</span>{/if}
+        <button class="like" class:on={liked} onclick={onlike} aria-pressed={liked} aria-label={t('card.like')}>{liked ? '❤️' : '🤍'}</button>
         {#if mode}
           <button class="listen" class:playing onclick={toggle} aria-label={playing ? t('card.stop') : t('card.listen')}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path class="spk" d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z" />
@@ -213,8 +214,10 @@
   .badges { display: flex; gap: 6px; align-items: center; margin-bottom: 14px; }
   .badge { white-space: nowrap; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .05em; background: color-mix(in srgb, var(--c1) 18%, var(--card)); color: color-mix(in srgb, var(--c2) 45%, var(--ink)); padding: 5px 10px; border-radius: 10px; }
   .badge.pts { background: #FFC23D; color: #5a3a00; }
-  .listen {
-    margin-left: auto; display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px 0 10px;
+  .like { margin-left: auto; width: 44px; height: 44px; flex: none; border-radius: 22px; border: 2px solid var(--line); background: var(--card); font-size: 20px; }
+  .like.on { border-color: #E8467A; animation: pop .35s cubic-bezier(.2, 1.8, .4, 1); }
+  @keyframes pop { from { transform: scale(.6); } }
+  .listen { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px 0 10px;
     border-radius: 22px; border: 2px solid var(--line); background: var(--card); font-weight: 900; font-size: 14px; color: var(--ink);
   }
   .listen svg { width: 22px; height: 22px; }

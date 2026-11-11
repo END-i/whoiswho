@@ -307,3 +307,27 @@ test('«↩ Скасувати» після пропуску теж є; післ
   await page.getByRole('button', { name: /Повернутися до гри/ }).click();
   await expect(page.getByRole('button', { name: '↩ Скасувати' })).toHaveCount(0);
 });
+
+test('❤️ улюблені: позначка на картці зберігається; «Лише улюблені» — нова гра лише з них', async ({ page }) => {
+  await startGame(page, ['Оля', 'Тарас']);
+  await openQuestion(page, 'Відкрийся', 'open', 'op-02');
+  const like = page.getByRole('button', { name: 'Сподобалось' });
+  await expect(like).toHaveAttribute('aria-pressed', 'false');
+  await like.click();
+  await expect(like).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: /Далі/ }).click();
+  await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
+  await page.getByRole('button', { name: 'Сподобалось' }).click();
+  await page.getByRole('button', { name: /Далі/ }).click();
+  await page.reload();
+  expect((await saved(page)).favorites).toEqual(['op-02', 'gs-01']);
+  // нова гра лише з улюблених
+  await page.getByRole('button', { name: 'Меню' }).click();
+  await page.getByRole('button', { name: /Нова гра/ }).click();
+  await page.getByRole('switch', { name: 'Лише улюблені' }).check();
+  await expect(page.getByText('❤️ Лише улюблені (2)')).toBeVisible();
+  await page.getByRole('button', { name: /Почати гру/ }).click();
+  await expect(page.locator('.cat .title')).toHaveText(['Вгадай', 'Відкрийся']);
+  const deck = (await saved(page)).game.deck;
+  expect(Object.values(deck).flat().sort()).toEqual(['gs-01', 'op-02']);
+});

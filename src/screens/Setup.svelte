@@ -9,7 +9,7 @@
 
   // players — масив { id, name, photo, template } ($state у App, змінюється на місці)
   // packs — описи наборів (meta.pack) у порядку показу; gamePack — набір поточної гри
-  let { players = $bindable(), settings = $bindable(), packs = [], gamePack = null, inGame, onstart, historyCount = 0, onhistory = () => {}, showInstall = false, oninstall = () => {}, onabout = () => {}, voiceAvailable = false, audioCount = 0, audioFull = false, wakeLock = true, audio = null } = $props();
+  let { players = $bindable(), settings = $bindable(), packs = [], gamePack = null, inGame, onstart, historyCount = 0, onhistory = () => {}, showInstall = false, oninstall = () => {}, onabout = () => {}, voiceAvailable = false, audioCount = 0, favCount = 0, audioFull = false, wakeLock = true, audio = null } = $props();
   let photoFor = $state(null);
 
   const MIN = 2;
@@ -118,6 +118,12 @@
       </button>
     {/each}
   </div>
+  {#if favCount && !inGame}
+    <label class="opt sw fav">
+      <span><span class="lbl">{t('setup.onlyFav', { n: favCount })}</span><small>{t('setup.onlyFavHint')}</small></span>
+      <input type="checkbox" role="switch" bind:checked={settings.onlyFav} aria-label={t('setup.onlyFavLabel')} />
+    </label>
+  {/if}
   {#if inGame}<p class="note">{t('setup.packLocked')}</p>{/if}
 </section>
 
