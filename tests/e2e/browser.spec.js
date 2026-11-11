@@ -73,3 +73,41 @@ test('голос вимкнений — кнопки 🔊 немає, навіт
   await openQuestion(page, 'Вгадай', 'guess', 'gs-04');
   await expect(page.getByRole('button', { name: 'Прослухати питання' })).toHaveCount(0);
 });
+
+// Підставний AudioContext: рахує запущені ноти
+const fakeAudio = () => {
+  window.__notes = [];
+  window.AudioContext = class {
+    constructor() { this.currentTime = 0; this.destination = {}; }
+    resume() {}
+    createOscillator() { const o = { frequency: {}, connect() {}, stop() {}, start: () => window.__notes.push(o.frequency.value) }; return o; }
+    createGain() { return { gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} }; }
+  };
+};
+const notes = (page) => page.evaluate(() => window.__notes);
+
+test('звук: «Правильно» — висхідна мелодія з трьох нот, «Ні» — одна; без балів і з вимкненими звуками — тиша', async ({ page }) => {
+  await page.addInitScript(fakeAudio);
+  await startGame(page, ['Оля', 'Тарас'], { scoring: true });
+  await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
+  await page.getByRole('button', { name: /Правильно/ }).click();
+  await expect.poll(() => notes(page)).toEqual([784, 988, 1319]);
+  await page.getByRole('button', { name: 'До категорій' }).click();
+  await openQuestion(page, 'Вгадай', 'guess', 'gs-04');
+  await page.getByRole('button', { name: /Неправильно/ }).click();
+  await expect.poll(async () => (await notes(page)).length).toBe(4);
+  // пропуск — без звуку
+  await page.getByRole('button', { name: 'До категорій' }).click();
+  await openQuestion(page, 'Вгадай', 'guess', 'gs-06');
+  await page.getByRole('button', { name: 'Пропустити' }).click();
+  // вимкнути звуки
+  await page.getByRole('button', { name: 'Меню' }).click();
+  await page.getByRole('button', { name: /Гравці й налаштування/ }).click();
+  await page.getByRole('switch', { name: 'Звуки' }).uncheck();
+  await page.getByRole('button', { name: /Повернутися до гри/ }).click();
+  await page.getByRole('button', { name: 'До категорій' }).click();
+  await openQuestion(page, 'Вгадай', 'guess', 'gs-08');
+  await page.getByRole('button', { name: /Правильно/ }).click();
+  await page.waitForTimeout(200);
+  expect((await notes(page)).length).toBe(4);
+});

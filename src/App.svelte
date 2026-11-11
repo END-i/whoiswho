@@ -20,6 +20,7 @@
   import { createWakeLock, supported as wakeSupported } from './lib/wakelock.js';
   import { onDestroy } from 'svelte';
   import { downloadAll, cachedCount, clearAudio } from './lib/audiocache.js';
+  import { playSfx } from './lib/sfx.js';
 
   // Питання читаються один раз під час старту; реактивність тут не потрібна.
   const { data, errors } = (() => {
@@ -53,7 +54,7 @@
   })();
 
   let players = $state(init.players);
-  let settings = $state({ audience: saved.settings?.audience === 'kids' ? 'kids' : 'family', scoring: saved.settings?.scoring ?? true, voice: !!saved.settings?.voice });
+  let settings = $state({ audience: saved.settings?.audience === 'kids' ? 'kids' : 'family', scoring: saved.settings?.scoring ?? true, voice: !!saved.settings?.voice, sounds: saved.settings?.sounds ?? true });
   let rulesSeen = $state(!!saved.rulesSeen);
   let lastDeck = $state(saved.lastDeck || null); // колода минулої гри — щоб номери не повторювались
   let names = $state(saved.names || {});          // id → ім'я всіх, хто будь-коли грав
@@ -134,6 +135,7 @@
   function finish(num, outcome, answerer) {
     game = finishCard(game, catId, num, outcome, answerer);
     selected = null;
+    if (outcome === 'correct' || outcome === 'wrong') playSfx(outcome === 'correct' ? 'point' : 'miss', { enabled: settings.sounds });
     if (outcome === 'correct') {
       toast = `+1 бал — ${orderPlayers[answerer]?.name}`;
       party++;

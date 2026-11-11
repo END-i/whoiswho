@@ -97,6 +97,10 @@
     <span><span class="lbl">⭐ Режим з балами</span><small>Після кожної картки — «правильно чи ні», за «правильно» бал. Можна ввімкнути й посеред гри</small></span>
     <input type="checkbox" role="switch" bind:checked={settings.scoring} />
   </label>
+  <label class="opt sw">
+    <span><span class="lbl">🔔 Звуки</span><small>Дзвіночок, коли зараховано бал</small></span>
+    <input type="checkbox" role="switch" bind:checked={settings.sounds} aria-label="Звуки" />
+  </label>
   <label class="opt sw" class:off={!voiceAvailable}>
     <span><span class="lbl">🔈 Голос браузера</span><small>{voiceAvailable
       ? `Читати питання вголос там, де немає записаної озвучки${audioCount ? ` (записано: ${audioCount})` : ''}`
