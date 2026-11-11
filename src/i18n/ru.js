@@ -217,6 +217,7 @@ export default {
   'history.list': 'Игры',
   'history.unfinished': 'не завершена',
   'history.noScoring': 'Без баллов',
+  'history.ahead': 'Впереди: {names}',
   'history.noWinners': 'Без победителей',
   'history.cards': 'карточек: {n}',
   'history.clear': '🗑️ Очистить историю',

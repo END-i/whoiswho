@@ -8,6 +8,8 @@
   let { history, players, packs = {}, onback, onclear } = $props();
   const board = $derived(leaderboard(history));
   // фото й шаблон беремо в поточного гравця з тим самим id, якщо він ще є
+  // незавершена гра переможця не має, але видно, хто був попереду
+  const leaders = (g) => g.players.filter((p) => p.place === 1 && p.score > 0).map((p) => p.name);
   const face = (id, name) => players.find((p) => p.id === id) || { id, name };
   const date = (iso) => {
     const d = new Date(iso);
@@ -43,7 +45,8 @@
         <div class="top"><span class="date">{date(g.date)}</span>
           <span class="tags">{#if packs[g.pack] && g.pack !== 'family'}<span class="tag pk">{packs[g.pack].emoji} {packs[g.pack].title}</span>{/if}{#if !g.finished}<span class="tag">{t('history.unfinished')}</span>{/if}</span></div>
         <p class="win">
-          {#if !g.scoring}{t('history.noScoring')}{:else if g.winners.length}🥇 {g.players.filter((p) => g.winners.includes(p.id)).map((p) => p.name).join(', ')}{:else}{t('history.noWinners')}{/if}
+          {#if !g.scoring}{t('history.noScoring')}{:else if g.winners.length}🥇 {g.players.filter((p) => g.winners.includes(p.id)).map((p) => p.name).join(', ')}
+          {:else if !g.finished && leaders(g).length}{t('history.ahead', { names: leaders(g).join(', ') })}{:else}{t('history.noWinners')}{/if}
         </p>
         <p class="scores">{g.players.map((p) => `${p.name} ${p.score}`).join(' · ')}</p>
         <p class="cards">{t('history.cards', { n: g.cards.answered + g.cards.skipped })}</p>

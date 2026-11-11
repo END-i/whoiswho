@@ -60,6 +60,7 @@ test('історія: дві гри → загальний рахунок; не�
   await expect(board.nth(0)).toContainText('Оля'); await expect(board.nth(0)).toContainText('1перемог');
   await expect(board.nth(1)).toContainText('Тарас');
   await expect(page.getByText('не завершена')).toHaveCount(1);
+  await expect(page.getByText('Попереду: Тарас')).toBeVisible(); // незавершена — без переможця, але з лідером
   await page.getByRole('button', { name: /Очистити історію/ }).click();
   await expect(page.getByText(/Тут з'являться завершені ігри/)).toBeVisible();
   await page.getByRole('button', { name: 'Назад' }).click();
