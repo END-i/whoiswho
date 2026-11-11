@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { listAudioIds, staleAudio, MANIFEST } from '../scripts/audio-lib.mjs';
-import { allQuestions } from './packs.js';
+import { allQuestions, allRuQuestions } from './packs.js';
 
 const read = (f) => JSON.parse(fs.readFileSync(new URL(f, import.meta.url), 'utf8'));
 
@@ -12,4 +12,12 @@ test('озвучка public/audio не застаріла: кожен файл �
   const dir = new URL('../public/audio/', import.meta.url).pathname;
   const stale = staleAudio(allQuestions, listAudioIds(dir, fs), read(`../public/audio/${MANIFEST}`), read('../src/data/pronunciation.json').words);
   assert.deepEqual(stale, [], `Перезапиши: npm run audio -- --engine gemini --force --only ${stale.map((s) => s.id).join(',')}`);
+});
+
+test('російська озвучка public/audio/ru не застаріла', () => {
+  const dir = new URL('../public/audio/ru/', import.meta.url).pathname;
+  const ids = listAudioIds(dir, fs);
+  if (!ids.length) return;
+  const stale = staleAudio(allRuQuestions, ids, read(`../public/audio/ru/${MANIFEST}`));
+  assert.deepEqual(stale, [], `Перезапиши: npm run audio -- --engine gemini --lang ru --force --only ${stale.map((s) => s.id).join(',')}`);
 });

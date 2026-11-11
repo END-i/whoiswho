@@ -1,4 +1,5 @@
-// Vite-плагін: список готових файлів озвучки (public/audio/{id}.mp3) як модуль `virtual:audio-ids`.
+// Vite-плагін: список готових файлів озвучки як модуль `virtual:audio-ids`: { uk: [...], ru: [...] }
+// (public/audio/{id}.mp3 і public/audio/ru/{id}.mp3).
 // Кнопка «Прослухати» показується лише там, де файл справді є, без мережевих запитів.
 import nodeFs from 'node:fs';
 import { listAudioIds } from './audio-lib.mjs';
@@ -6,9 +7,12 @@ import { listAudioIds } from './audio-lib.mjs';
 export const VIRTUAL_ID = 'virtual:audio-ids';
 const RESOLVED = '\0' + VIRTUAL_ID;
 
-// fakeIds — лише для e2e (E2E_AUDIO_IDS): список id без справжніх файлів, mp3 віддає Playwright.
-export function audioIdsPlugin(dir, fs = nodeFs, fakeIds = '') {
-  const ids = () => (fakeIds ? String(fakeIds).split(',').filter(Boolean).sort() : listAudioIds(dir, fs));
+// fake — лише для e2e (E2E_AUDIO_IDS, E2E_AUDIO_IDS_RU): { uk, ru } — списки id без справжніх файлів, mp3 віддає Playwright.
+export function audioIdsPlugin(dir, fs = nodeFs, fake = {}) {
+  const list = (s) => String(s).split(',').filter(Boolean).sort();
+  const ids = () => (fake.uk || fake.ru
+    ? { uk: list(fake.uk || ''), ru: list(fake.ru || '') }
+    : { uk: listAudioIds(dir, fs), ru: listAudioIds(`${dir}/ru`, fs) });
   return {
     name: 'whoiswho-audio-ids',
     resolveId: (x) => (x === VIRTUAL_ID ? RESOLVED : null),

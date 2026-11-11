@@ -27,3 +27,10 @@ test('версія в package.json — semver, і CHANGELOG починаєтьс
   assert.ok(entries[0].items.length > 0);
   assert.equal(new Set(entries.map((e) => e.version)).size, entries.length, 'версії не повторюються');
 });
+
+test('CHANGELOG.ru.md: ті самі версії й дати, що й CHANGELOG.md, з тією самою кількістю пунктів', async () => {
+  const { readFileSync } = await import('node:fs');
+  const read = (f) => parseChangelog(readFileSync(new URL(`../${f}`, import.meta.url), 'utf8'));
+  const uk = read('CHANGELOG.md'), ru = read('CHANGELOG.ru.md');
+  assert.deepEqual(ru.map((v) => [v.version, v.date, v.items.length]), uk.map((v) => [v.version, v.date, v.items.length]));
+});

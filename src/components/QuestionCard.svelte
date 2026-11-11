@@ -13,7 +13,7 @@
     stop();
     playing = true;
     stop = playQuestion(question, mode, {
-      base: import.meta.env.BASE_URL, voice: sound.voice, synth: globalThis.speechSynthesis, Utterance: globalThis.SpeechSynthesisUtterance,
+      base: import.meta.env.BASE_URL, lang: sound.lang, voice: sound.voice, synth: globalThis.speechSynthesis, Utterance: globalThis.SpeechSynthesisUtterance,
       makeAudio: (url) => new Audio(url), onend: () => (playing = false),
     });
   }

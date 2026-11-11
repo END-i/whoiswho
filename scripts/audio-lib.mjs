@@ -200,6 +200,8 @@ export function edgeEngine({ run, voice = 'uk-UA-PolinaNeural', rate = '-5%', bi
 
 // ---------- Gemini TTS ----------
 export const GEMINI_STYLE = 'тепло й весело, як ведучий сімейної гри для дітей, чітко й не поспішаючи';
+/** Стиль читання мовою питань (моделі 3.x отримують його в speech_metadata.style). */
+export const GEMINI_STYLES = { uk: GEMINI_STYLE, ru: 'тепло и весело, как ведущий семейной игры для детей, чётко и не спеша' };
 export const GEMINI_MODEL = 'gemini-3.8-flash-tts';
 export const GEMINI_VOICE = 'Achird'; // вибір 11.11: чоловічий, привітний
 
@@ -362,13 +364,14 @@ export async function runJobs(jobs, engine, { outFile, cleanup = () => {}, log =
   return { done, failed, stopped: [] };
 }
 
-/** Аргументи: --engine edge|gemini|azure|piper --voice назва --model шлях --speaker N --force --stressed --batch --only a,b --list --out тека */
+/** Аргументи: --engine edge|gemini|azure|piper --lang uk|ru --voice назва --model шлях --speaker N --force --stressed --batch --only a,b --list --out тека */
 export function parseArgs(argv) {
-  const o = { engine: 'edge', voice: null, model: null, speaker: null, force: false, stressed: false, batch: false, only: null, list: false, out: null };
+  const o = { engine: 'edge', lang: 'uk', voice: null, model: null, speaker: null, force: false, stressed: false, batch: false, only: null, list: false, out: null };
   for (let k = 0; k < argv.length; k++) {
     const a = argv[k];
     if (a === '--engine') o.engine = argv[++k];
     else if (a === '--model') o.model = argv[++k];
+    else if (a === '--lang') o.lang = argv[++k];
     else if (a === '--voice') o.voice = argv[++k];
     else if (a === '--out') o.out = argv[++k];
     else if (a === '--speaker') { o.speaker = Number(argv[++k]); if (!Number.isInteger(o.speaker) || o.speaker < 0) throw new Error('--speaker — номер голосу: 0, 1, 2…'); }
@@ -381,6 +384,7 @@ export function parseArgs(argv) {
   }
   if (!['edge', 'gemini', 'azure', 'piper'].includes(o.engine)) throw new Error(`Невідомий рушій: ${o.engine} (є edge, gemini, azure і piper)`);
   if (o.batch && o.engine !== 'gemini') throw new Error('--batch працює лише з --engine gemini');
+  if (!GEMINI_STYLES[o.lang]) throw new Error(`Невідома мова: ${o.lang} (є ${Object.keys(GEMINI_STYLES).join(', ')})`);
   return o;
 }
 

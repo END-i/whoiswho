@@ -20,7 +20,7 @@ export default defineConfig({
   },
   plugins: [
     svelte(),
-    audioIdsPlugin(new URL('./public/audio', import.meta.url).pathname, undefined, process.env.E2E_AUDIO_IDS),
+    audioIdsPlugin(new URL('./public/audio', import.meta.url).pathname, undefined, { uk: process.env.E2E_AUDIO_IDS, ru: process.env.E2E_AUDIO_IDS_RU }),
     VitePWA({
       registerType: 'prompt', // нова версія — повідомлення «Оновити»; збережена гра в localStorage не губиться
       injectRegister: false,      // реєструємо самі в main.js

@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { speechText, audioUrl, pickUkVoice, listenMode, playQuestion } from '../src/lib/speech.js';
-import { listAudioIds, planJobs, ssml, piperEngine, azureEngine, edgeEngine, geminiEngine, geminiRequest, geminiBatch, geminiMp3, textHash, updateManifest, staleAudio, checkPronunciation, applyPronunciation, stressedIds, pcmToMp3, retryDelay, isDailyQuota, GEMINI_STYLE, runJobs, fatal, parseArgs, parseEnv, piperText, numberWords, parseWav, wavToMp3 } from '../scripts/audio-lib.mjs';
+import { speechText, audioUrl, pickVoice, listenMode, playQuestion } from '../src/lib/speech.js';
+import { listAudioIds, planJobs, ssml, piperEngine, azureEngine, edgeEngine, geminiEngine, geminiRequest, geminiBatch, geminiMp3, textHash, updateManifest, staleAudio, checkPronunciation, applyPronunciation, stressedIds, pcmToMp3, retryDelay, isDailyQuota, GEMINI_STYLE, GEMINI_STYLES, runJobs, fatal, parseArgs, parseEnv, piperText, numberWords, parseWav, wavToMp3 } from '../scripts/audio-lib.mjs';
 import { audioIdsPlugin, VIRTUAL_ID } from '../scripts/vite-audio-plugin.mjs';
-import { mkdtempSync, writeFileSync as wf, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync as wf, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -23,13 +23,17 @@ test('speechText: справжні питання не змінюються, к�
   for (const q of raw.questions) assert.equal(speechText(q.text), q.text.charAt(0).toUpperCase() + q.text.slice(1), q.id);
 });
 
-test('audioUrl і pickUkVoice', () => {
+test('audioUrl і pickVoice: українська — audio/, російська — audio/ru/; голос потрібної мови', () => {
   assert.equal(audioUrl('gs-01'), '/audio/gs-01.mp3');
   assert.equal(audioUrl('a b', '/game'), '/game/audio/a%20b.mp3');
-  assert.equal(pickUkVoice([{ lang: 'en-US' }, { lang: 'uk-UA', name: 'Lesya' }]).name, 'Lesya');
-  assert.equal(pickUkVoice([{ lang: 'uk_UA' }]).lang, 'uk_UA');
-  assert.equal(pickUkVoice([{ lang: 'ukr' }]), null);
-  assert.equal(pickUkVoice(undefined), null);
+  assert.equal(audioUrl('gs-01', '/', 'ru'), '/audio/ru/gs-01.mp3');
+  const voices = [{ lang: 'en-US' }, { lang: 'uk-UA', name: 'Lesya' }, { lang: 'ru-RU', name: 'Milena' }];
+  assert.equal(pickVoice(voices).name, 'Lesya');
+  assert.equal(pickVoice(voices, 'ru').name, 'Milena');
+  assert.equal(pickVoice([{ lang: 'uk_UA' }]).lang, 'uk_UA');
+  assert.equal(pickVoice([{ lang: 'ukr' }]), null);
+  assert.equal(pickVoice([{ lang: 'uk-UA' }], 'ru'), null);
+  assert.equal(pickVoice(undefined), null);
 });
 
 // ---------- план ----------
@@ -290,10 +294,10 @@ test('runJobs: помилка одного не зупиняє решту, ти�
 // ---------- аргументи й .env ----------
 
 test('parseArgs', () => {
-  assert.deepEqual(parseArgs([]), { engine: 'edge', voice: null, model: null, speaker: null, force: false, stressed: false, batch: false, only: null, list: false, out: null });
+  assert.deepEqual(parseArgs([]), { engine: 'edge', lang: 'uk', voice: null, model: null, speaker: null, force: false, stressed: false, batch: false, only: null, list: false, out: null });
   assert.equal(parseArgs(['--engine', 'gemini', '--out', '/tmp/s']).out, '/tmp/s');
   assert.deepEqual(parseArgs(['--engine', 'azure', '--force', '--only', 'a,b', '--list', '--speaker', '1', '--voice', 'uk-UA-OstapNeural']),
-    { engine: 'azure', voice: 'uk-UA-OstapNeural', model: null, speaker: 1, force: true, stressed: false, batch: false, only: ['a', 'b'], list: true, out: null });
+    { engine: 'azure', lang: 'uk', voice: 'uk-UA-OstapNeural', model: null, speaker: 1, force: true, stressed: false, batch: false, only: ['a', 'b'], list: true, out: null });
   assert.equal(parseArgs(['--engine', 'piper']).engine, 'piper');
   assert.throws(() => parseArgs(['--speaker', 'x']), /номер голосу/);
   assert.equal(parseArgs(['--model', 'x.onnx']).model, 'x.onnx');
@@ -341,6 +345,8 @@ test('playQuestion: голос браузера — український, тр
   assert.equal(spoken[0].text, "Чи з'їв б?"); assert.equal(spoken[0].lang, 'uk-UA');
   assert.equal(spoken[0].voice.name, 'Lesya'); assert.ok(spoken[0].rate < 1);
   stop(); assert.equal(synth.c, 2);
+  playQuestion({ id: 'q', text: 'Кто из нас?' }, 'voice', { synth, Utterance, voice: null, lang: 'ru' });
+  assert.equal(spoken[1].lang, 'ru-RU', 'голос браузера — мовою інтерфейсу');
 });
 
 test('playQuestion: без режиму — нічого, і без synth не падає', () => {
@@ -368,14 +374,17 @@ test('vite-плагін: virtual:audio-ids містить id з теки озв�
   assert.ok(resolved.startsWith('\0'));
   assert.equal(p.resolveId('other'), null);
   assert.equal(p.load('other'), null);
-  assert.equal(p.load(resolved), 'export default ["am-02","gs-01"];');
+  mkdirSync(join(dir, 'ru')); wf(join(dir, 'ru', 'gs-01.mp3'), '');
+  assert.equal(p.load(resolved), 'export default {"uk":["am-02","gs-01"],"ru":["gs-01"]};');
   rmSync(dir, { recursive: true });
-  assert.equal(audioIdsPlugin(join(dir, 'nope')).load(resolved), 'export default [];');
+  assert.equal(audioIdsPlugin(join(dir, 'nope')).load(resolved), 'export default {"uk":[],"ru":[]};');
 });
 
 test('vite-плагін: E2E_AUDIO_IDS підміняє список (лише для e2e)', () => {
-  const p = audioIdsPlugin('/nope', { readdirSync: () => ['real.mp3'] }, 'gs-02,gs-01,');
-  assert.equal(p.load(p.resolveId(VIRTUAL_ID)), 'export default ["gs-01","gs-02"];');
+  const p = audioIdsPlugin('/nope', { readdirSync: () => ['real.mp3'] }, { uk: 'gs-02,gs-01,' });
+  assert.equal(p.load(p.resolveId(VIRTUAL_ID)), 'export default {"uk":["gs-01","gs-02"],"ru":[]};');
+  const r = audioIdsPlugin('/nope', { readdirSync: () => [] }, { ru: 'gs-01' });
+  assert.equal(r.load(r.resolveId(VIRTUAL_ID)), 'export default {"uk":[],"ru":["gs-01"]};');
 });
 
 test('vite-плагін у dev: зміна в теці озвучки інвалідує модуль, інші файли — ні', () => {
@@ -528,4 +537,12 @@ test('маніфест озвучки: відбиток тексту, оновл
   const m2 = updateManifest({}, [{ id: 'a', text: 'Перше' }], ['a']);
   assert.deepEqual(staleAudio([{ id: 'a', text: 'Перше' }], ['a'], m2, { 'перше': 'пе\u0301рше' }), [{ id: 'a', reason: 'текст змінився' }]);
   assert.deepEqual(staleAudio([{ id: 'a', text: 'Перше' }], ['a'], m2), []);
+});
+
+test('--lang: українська за замовчуванням, російська зі своїм стилем читання; невідома мова — помилка', () => {
+  assert.equal(parseArgs(['--engine', 'gemini', '--lang', 'ru']).lang, 'ru');
+  assert.throws(() => parseArgs(['--lang', 'en']), /Невідома мова: en/);
+  assert.equal(GEMINI_STYLES.uk, GEMINI_STYLE);
+  assert.match(GEMINI_STYLES.ru, /весело/);
+  assert.ok(!/[іїєґ]/.test(GEMINI_STYLES.ru), 'стиль для російської — російською');
 });

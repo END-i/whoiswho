@@ -1,11 +1,12 @@
 <script>
-  import { t } from '../lib/lang.svelte.js';
+  import { t, i18n } from '../lib/lang.svelte.js';
   import { formatVersion, parseChangelog } from '../lib/version.js';
   import changelog from '../../CHANGELOG.md?raw';
+  import changelogRu from '../../CHANGELOG.ru.md?raw';
 
   let { onback } = $props();
   const version = formatVersion({ version: __APP_VERSION__, date: __BUILD_DATE__, commit: __COMMIT__ });
-  const news = parseChangelog(changelog).slice(0, 2);
+  const news = $derived(parseChangelog(i18n.lang === 'ru' ? changelogRu : changelog).slice(0, 2));
   let checking = $state(false);
   let checked = $state('');
   async function check() {

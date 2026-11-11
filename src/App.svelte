@@ -19,9 +19,9 @@
   import Avatar from './components/Avatar.svelte';
   import Confetti from './components/Confetti.svelte';
   import audioList from 'virtual:audio-ids';
-  import { pickUkVoice } from './lib/speech.js';
+  import { pickVoice } from './lib/speech.js';
   import { createWakeLock, supported as wakeSupported } from './lib/wakelock.js';
-  import { onDestroy } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
   import { downloadAll, cachedCount, clearAudio } from './lib/audiocache.js';
   import { playSfx } from './lib/sfx.js';
   import { t, setLang } from './lib/lang.svelte.js';
@@ -109,35 +109,48 @@
   const category = $derived(data?.categories.find((c) => c.id === catId));
 
   // ---------- озвучка ----------
-  const audioIds = new Set(audioList);
-  let ukVoice = $state(null);
+  // id питань із записаною озвучкою — окремо для кожної мови
+  const audioByLang = { uk: new Set(audioList.uk || []), ru: new Set(audioList.ru || []) };
+  const audioIds = $derived(audioByLang[settings.lang]);
   const synth = globalThis.speechSynthesis;
-  const findVoice = () => (ukVoice = pickUkVoice(synth?.getVoices?.()));
-  findVoice();
-  synth?.addEventListener?.('voiceschanged', findVoice);
-  const sound = $derived({ ids: audioIds, voiceOn: settings.voice, voice: ukVoice });
-  // Озвучка для офлайну: у фоні під час першого запуску, далі — лише нове
+  let voices = $state.raw([]);
+  const loadVoices = () => (voices = synth?.getVoices?.() || []);
+  loadVoices();
+  synth?.addEventListener?.('voiceschanged', loadVoices);
+  const voice = $derived(pickVoice(voices, settings.lang));
+  const sound = $derived({ ids: audioIds, voiceOn: settings.voice, voice, lang: settings.lang });
+  // Озвучка для офлайну: у фоні під час першого запуску, далі — лише нове; лише мовою інтерфейсу
   let audioDone = $state(0);
   let audioBusy = $state(false);
   const cacheDeps = { caches: globalThis.caches, fetch: globalThis.fetch?.bind(globalThis), base: import.meta.env.BASE_URL };
   async function fetchAudio() {
-    if (audioBusy || !audioIds.size || !cacheDeps.caches) return;
+    const lang = settings.lang, ids = [...audioByLang[lang]];
+    if (audioBusy || !ids.length || !cacheDeps.caches) return;
     audioBusy = true;
-    const r = await downloadAll([...audioIds], { ...cacheDeps, onProgress: (d) => (audioDone = d) });
-    audioDone = r.done; audioBusy = false;
+    const r = await downloadAll(ids, { ...cacheDeps, lang, onProgress: (d) => { if (settings.lang === lang) audioDone = d; } });
+    audioBusy = false;
+    if (settings.lang === lang) audioDone = r.done; else syncAudio(); // мову змінили під час завантаження
   }
   async function removeAudio() {
     if (!confirm(t('app.removeAudio'))) return;
     await clearAudio(cacheDeps); audioDone = 0;
   }
-  if (audioIds.size && cacheDeps.caches) {
-    cachedCount([...audioIds], cacheDeps).then((n) => { audioDone = n; if (n < audioIds.size && navigator.onLine !== false) fetchAudio(); });
+  function syncAudio() {
+    const lang = settings.lang, ids = [...audioByLang[lang]];
+    audioDone = 0;
+    if (!ids.length || !cacheDeps.caches) return;
+    cachedCount(ids, { ...cacheDeps, lang }).then((n) => {
+      if (settings.lang !== lang) return;
+      audioDone = n;
+      if (n < ids.length && navigator.onLine !== false) fetchAudio();
+    });
   }
+  $effect(() => { settings.lang; untrack(syncAudio); });
 
   // ---------- екран не гасне під час гри ----------
   const wake = createWakeLock();
   $effect(() => { wake.set(screen === 'categories' || screen === 'grid'); });
-  onDestroy(() => { wake.dispose(); synth?.removeEventListener?.('voiceschanged', findVoice); window.removeEventListener('beforeinstallprompt', onBeforeInstall); window.removeEventListener('whoiswho:update', onUpdate); });
+  onDestroy(() => { wake.dispose(); synth?.removeEventListener?.('voiceschanged', loadVoices); window.removeEventListener('beforeinstallprompt', onBeforeInstall); window.removeEventListener('whoiswho:update', onUpdate); });
   const orderPlayers = $derived(game ? game.order.map((id) => players.find((p) => p.id === id)).filter(Boolean) : players);
 
   $effect(() => {
@@ -216,7 +229,7 @@
       <ul>{#each errors as e}<li>{e}</li>{/each}</ul>
     </section>
   {:else if screen === 'setup'}
-    <Setup bind:players bind:settings packs={packOrder.map((id) => packs[id].meta.pack)} gamePack={game?.pack} inGame={!!game} onstart={start} historyCount={history.length} onhistory={openHistory} showInstall={installKind !== 'installed'} oninstall={openInstall} onabout={openAbout} voiceAvailable={!!ukVoice} audioCount={audioIds.size} wakeLock={wakeSupported()}
+    <Setup bind:players bind:settings packs={packOrder.map((id) => packs[id].meta.pack)} gamePack={game?.pack} inGame={!!game} onstart={start} historyCount={history.length} onhistory={openHistory} showInstall={installKind !== 'installed'} oninstall={openInstall} onabout={openAbout} voiceAvailable={!!voice} audioCount={audioIds.size} wakeLock={wakeSupported()}
       audio={{ total: audioIds.size, done: audioDone, busy: audioBusy, fetch: fetchAudio, remove: removeAudio }} />
   {:else if screen === 'rules'}
     <Rules rules={data.meta.rules} again={!!rulesFrom}

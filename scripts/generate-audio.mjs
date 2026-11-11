@@ -16,18 +16,21 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { listAudioIds, planJobs, checkPronunciation, geminiBatch, updateManifest, MANIFEST, piperEngine, azureEngine, edgeEngine, geminiEngine, runJobs, parseArgs, parseEnv } from './audio-lib.mjs';
+import { GEMINI_STYLES, listAudioIds, planJobs, checkPronunciation, geminiBatch, updateManifest, MANIFEST, piperEngine, azureEngine, edgeEngine, geminiEngine, runJobs, parseArgs, parseEnv } from './audio-lib.mjs';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 // усі набори питань: озвучка спільна, id питань між наборами не повторюються
-const packDir = path.join(root, 'src/data/packs');
+// --lang ru: тексти з src/data/packs/ru, файли в public/audio/ru
+const opts = parseArgs(process.argv.slice(2));
+const packDir = path.join(root, 'src/data/packs', opts.lang === 'uk' ? '' : opts.lang);
 const data = { questions: fs.readdirSync(packDir).filter((f) => f.endsWith('.json')).sort()
   .flatMap((f) => JSON.parse(fs.readFileSync(path.join(packDir, f), 'utf8')).questions) };
-const opts = parseArgs(process.argv.slice(2));
-const outDir = opts.out ? path.resolve(opts.out) : path.join(root, 'public/audio');
+const outDir = opts.out ? path.resolve(opts.out) : path.join(root, 'public/audio', opts.lang === 'uk' ? '' : opts.lang);
+const style = GEMINI_STYLES[opts.lang];
 
 // словник вимови: слова, які голос наголошує неправильно (див. README, «Озвучка»)
-const dict = JSON.parse(fs.readFileSync(path.join(root, 'src/data/pronunciation.json'), 'utf8')).words;
+// словник наголосів — лише для українських текстів
+const dict = opts.lang === 'uk' ? JSON.parse(fs.readFileSync(path.join(root, 'src/data/pronunciation.json'), 'utf8')).words : {};
 const dictErrors = checkPronunciation(dict);
 if (dictErrors.length) { console.error(`Помилки у src/data/pronunciation.json:\n${dictErrors.join('\n')}`); process.exit(1); }
 const jobs = planJobs(data.questions, new Set(listAudioIds(outDir, fs)), { ...opts, dict });
@@ -49,7 +52,7 @@ function run(cmd, args, stdin) {
 
 const env = { ...parseEnv(fs.existsSync(path.join(root, '.env')) ? fs.readFileSync(path.join(root, '.env'), 'utf8') : ''), ...process.env };
 const engine = opts.engine === 'gemini'
-  ? geminiEngine({ key: env.GEMINI_API_KEY, voice: opts.voice || undefined, model: opts.model || env.GEMINI_MODEL || undefined, fetch, writeFile: fs.writeFileSync, log: (m) => console.log(m) })
+  ? geminiEngine({ key: env.GEMINI_API_KEY, style, voice: opts.voice || undefined, model: opts.model || env.GEMINI_MODEL || undefined, fetch, writeFile: fs.writeFileSync, log: (m) => console.log(m) })
   : opts.engine === 'edge'
   ? edgeEngine({ run, voice: opts.voice || undefined, bin: env.EDGE_TTS_BIN || 'edge-tts' })
   : opts.engine === 'azure'
@@ -65,7 +68,7 @@ fs.mkdirSync(outDir, { recursive: true });
 console.log(`Озвучую ${jobs.length} питань (${opts.engine})…`);
 const outFile = (id) => path.join(outDir, `${id}.mp3`);
 const { done, failed, stopped } = opts.batch
-  ? await geminiBatch(jobs, { key: env.GEMINI_API_KEY, voice: opts.voice || undefined, model: opts.model || env.GEMINI_MODEL || undefined, fetch, writeFile: fs.writeFileSync, outFile, log: (m) => console.log(m) })
+  ? await geminiBatch(jobs, { key: env.GEMINI_API_KEY, style, voice: opts.voice || undefined, model: opts.model || env.GEMINI_MODEL || undefined, fetch, writeFile: fs.writeFileSync, outFile, log: (m) => console.log(m) })
   : await runJobs(jobs, engine, {
   outFile,
   cleanup: (f) => fs.rmSync(f, { force: true }),

@@ -31,3 +31,33 @@ test('мова змінюється й посеред гри: меню й під
   await expect(page.getByRole('heading', { name: 'Выбери категорию' })).toBeVisible();
   await expect(page.getByText('Сейчас ходит')).toBeVisible();
 });
+
+test('гра російською: категорії й питання російською, 🔊 грає файл з audio/ru, а де його немає — кнопки немає', async ({ page }) => {
+  const hits = [];
+  const MP3 = Buffer.from('ID3\u0003\u0000\u0000\u0000\u0000\u0000\u0000', 'binary');
+  await page.route('**/audio/**/*.mp3', (r) => { hits.push(new URL(r.request().url()).pathname); r.fulfill({ status: 200, contentType: 'audio/mpeg', body: MP3 }); });
+  await fresh(page);
+  await lang(page, 'Русский').click();
+  await setPlayers(page, ['Оля', 'Тарас']);
+  await page.getByRole('button', { name: /Начать игру/ }).click();
+  await expect(page.getByText('Сядьте в круг. Телефон передаём налево — по часовой стрелке.')).toBeVisible();
+  await page.getByRole('button', { name: /Играем!/ }).click();
+  await expect(page.locator('.cat .title').first()).toHaveText('Угадай');
+  const s = await page.evaluate(() => JSON.parse(localStorage.getItem('whoiswho.v2')));
+  await page.locator('.cat', { hasText: 'Угадай' }).first().click();
+  await page.getByRole('button', { name: `Карта ${s.game.deck.guess.indexOf('gs-01') + 1}`, exact: true }).click();
+  const card = page.getByRole('dialog');
+  await expect(card.getByText('Что игрок слева любит есть больше всего?')).toBeVisible();
+  await expect(card.locator('.who').nth(1)).toContainText('игрок слева');
+  hits.length = 0;
+  await card.getByRole('button', { name: 'Прослушать вопрос' }).click();
+  await expect.poll(() => hits).toContain('/audio/ru/gs-01.mp3');
+  expect(hits).not.toContain('/audio/gs-01.mp3');
+  // am-02 озвучено лише українською (E2E_AUDIO_IDS_RU=gs-01) — російською кнопки немає
+  await card.getByRole('button', { name: /Пропустить/ }).click();
+  await page.getByRole('button', { name: 'К категориям' }).click();
+  await page.locator('.cat', { hasText: 'Что о тебе знают' }).click();
+  await page.getByRole('button', { name: `Карта ${s.game.deck.aboutme.indexOf('am-02') + 1}`, exact: true }).click();
+  await expect(page.getByRole('dialog').getByText('Что ты больше всего любишь делать в выходные?')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Прослушать вопрос' })).toHaveCount(0);
+});
