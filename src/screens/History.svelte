@@ -1,6 +1,7 @@
 <script>
   import Avatar from '../components/Avatar.svelte';
   import { leaderboard } from '../lib/history.js';
+  import { t, i18n } from '../lib/lang.svelte.js';
 
   // packs — { id: meta.pack }, щоб підписати, з якого набору гра
   let { history, players, packs = {}, onback, onclear } = $props();
@@ -14,41 +15,41 @@
 </script>
 
 <header>
-  <button class="icon" onclick={onback} aria-label="Назад">←</button>
-  <h1>🏆 Історія ігор</h1>
+  <button class="icon" onclick={onback} aria-label={t('common.back')}>←</button>
+  <h1>{t('history.title')}</h1>
 </header>
 
 {#if !history.length}
-  <p class="empty">Тут з'являться завершені ігри: хто переміг і скільки балів. Зіграйте першу! 🎲</p>
+  <p class="empty">{t('history.empty')}</p>
 {:else}
-  <h2>Загальний рахунок</h2>
-  <ol class="board" aria-label="Загальний рахунок">
+  <h2>{t('history.board')}</h2>
+  <ol class="board" aria-label={t('history.board')}>
     {#each board as e (e.id)}
       <li class:lead={e.place === 1 && e.wins > 0}>
         <span class="place">{e.place}</span>
         <Avatar player={face(e.id, e.name)} size={42} ring={e.place === 1 && e.wins > 0} />
-        <span class="name">{e.name}<small>ігор: {e.games}</small></span>
-        <span class="num"><b>{e.wins}</b><small>перемог</small></span>
-        <span class="num"><b>{e.points}</b><small>балів</small></span>
+        <span class="name">{e.name}<small>{t('history.games', { n: e.games })}</small></span>
+        <span class="num"><b>{e.wins}</b><small>{t('history.wins', { n: e.wins })}</small></span>
+        <span class="num"><b>{e.points}</b><small>{t('history.points', { n: e.points })}</small></span>
       </li>
     {/each}
   </ol>
 
-  <h2>Ігри</h2>
+  <h2>{t('history.list')}</h2>
   <ul class="games">
     {#each history as g (g.id)}
       <li>
         <div class="top"><span class="date">{date(g.date)}</span>
-          <span class="tags">{#if packs[g.pack] && g.pack !== 'family'}<span class="tag pk">{packs[g.pack].emoji} {packs[g.pack].title}</span>{/if}{#if !g.finished}<span class="tag">не завершена</span>{/if}</span></div>
+          <span class="tags">{#if packs[g.pack] && g.pack !== 'family'}<span class="tag pk">{packs[g.pack].emoji} {packs[g.pack].title}</span>{/if}{#if !g.finished}<span class="tag">{t('history.unfinished')}</span>{/if}</span></div>
         <p class="win">
-          {#if !g.scoring}Без балів{:else if g.winners.length}🥇 {g.players.filter((p) => g.winners.includes(p.id)).map((p) => p.name).join(', ')}{:else}Без переможців{/if}
+          {#if !g.scoring}{t('history.noScoring')}{:else if g.winners.length}🥇 {g.players.filter((p) => g.winners.includes(p.id)).map((p) => p.name).join(', ')}{:else}{t('history.noWinners')}{/if}
         </p>
         <p class="scores">{g.players.map((p) => `${p.name} ${p.score}`).join(' · ')}</p>
-        <p class="cards">карток: {g.cards.answered + g.cards.skipped}</p>
+        <p class="cards">{t('history.cards', { n: g.cards.answered + g.cards.skipped })}</p>
       </li>
     {/each}
   </ul>
-  <button class="clear" onclick={onclear}>🗑️ Очистити історію</button>
+  <button class="clear" onclick={onclear}>{t('history.clear')}</button>
 {/if}
 
 <style>

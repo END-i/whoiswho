@@ -3,6 +3,7 @@
   import { roles } from '../lib/state.js';
   import { listenMode, playQuestion } from '../lib/speech.js';
   import { onDestroy } from 'svelte';
+  import { t } from '../lib/lang.svelte.js';
 
   let { question, category, colors, number, game, players, scoring, sound = {}, roleNames = {}, onfinish } = $props();
   const mode = $derived(listenMode(question.id, sound));
@@ -38,15 +39,15 @@
   let tipOpen = $state(false);
 
   function roleText(role) {
-    return roleNames[role] ?? { self: 'твоя черга', left: 'гравець ліворуч', right: 'гравець праворуч', pick: 'на твій вибір' }[role];
+    return roleNames[role] ?? t(`role.${role}`);
   }
   // питання на «ти» до того, чия черга: відповідає інший — замість нього
   const instead = $derived(question.form === 'you');
   const aboutRole = $derived(question.about === 'answerer' ? question.answerer : question.about);
-  const TYPE = { open: 'Розкажи', choice: 'Вибери', activity: 'Покажи', guess: 'Вгадай', who: 'Хто з нас?', quiz: 'Факт' };
+
 </script>
 
-<div class="overlay" role="dialog" aria-modal="true" aria-label="Картка {number}">
+<div class="overlay" role="dialog" aria-modal="true" aria-label={t('card.label', { n: number })}>
   <article class="card" style="--c1:{colors[0]}; --c2:{colors[1]}; --t:{colors[2] || '#fff'}">
     <div class="band">
       <span class="emoji" aria-hidden="true">{category.emoji}</span>
@@ -56,30 +57,30 @@
 
     <div class="body">
       <div class="badges">
-        <span class="badge">{TYPE[question.type]}</span>
-        {#if scoring}<span class="badge pts">⭐ +1 бал</span>{/if}
-        {#if mode}<button class="listen" class:playing onclick={listen} aria-label="Прослухати питання">🔊</button>{/if}
+        <span class="badge">{t(`type.${question.type}`)}</span>
+        {#if scoring}<span class="badge pts">{t('card.point')}</span>{/if}
+        {#if mode}<button class="listen" class:playing onclick={listen} aria-label={t('card.listen')}>🔊</button>{/if}
       </div>
 
       {#if question.type === 'who'}
-        <div class="all"><span>👆</span> Усі разом: на рахунок «три» покажіть пальцем!</div>
+        <div class="all"><span>👆</span> {t('card.whoAll')}</div>
       {:else if !need}
         <div class="people" class:pair={showAbout}>
           <div class="who"><Avatar player={players[answerer]} size={56} ring />
-            <span><small>Відповідає</small><b>{players[answerer].name}</b><em>{roleText(question.answerer)}</em></span></div>
+            <span><small>{t('card.answers')}</small><b>{players[answerer].name}</b><em>{roleText(question.answerer)}</em></span></div>
           {#if showAbout}
             <span class="arrow" aria-hidden="true">→</span>
             <div class="who"><Avatar player={players[about]} size={56} ring />
-              <span><small>{instead ? 'Замість кого' : 'Про кого'}</small><b>{players[about].name}</b><em>{roleText(aboutRole)}</em></span></div>
+              <span><small>{instead ? t('card.insteadOf') : t('card.about')}</small><b>{players[about].name}</b><em>{roleText(aboutRole)}</em></span></div>
           {/if}
         </div>
         {#if instead && showAbout}
-          <p class="instead">Відповідай так, ніби ти — {players[about].name}. {players[about].name} каже, чи влучно.</p>
+          <p class="instead">{t('card.insteadHint', { name: players[about].name })}</p>
         {/if}
       {/if}
 
       {#if need}
-        <p class="ask">{need === 'answerer' ? 'Хто відповідатиме?' : 'Про кого буде питання?'}</p>
+        <p class="ask">{need === 'answerer' ? t('card.pickAnswerer') : t('card.pickAbout')}</p>
         <div class="chips">
           {#each players as p, k}
             {#if k !== i && !(need === 'about' && k === answerer)}
@@ -87,50 +88,50 @@
             {/if}
           {/each}
         </div>
-        <button class="skip" onclick={() => onfinish('skipped', null)}>Пропустити</button>
+        <button class="skip" onclick={() => onfinish('skipped', null)}>{t('card.skip')}</button>
       {:else}
         <p class="q">{question.text}</p>
 
         {#if question.tip}
           <button class="tip" aria-expanded={tipOpen} onclick={() => (tipOpen = !tipOpen)}>
-            <span>💡 Підказка для дорослих</span><span aria-hidden="true">{tipOpen ? '▴' : '▾'}</span>
+            <span>{t('card.tip')}</span><span aria-hidden="true">{tipOpen ? '▴' : '▾'}</span>
           </button>
           {#if tipOpen}<p class="tiptext">{question.tip}</p>{/if}
         {/if}
 
         {#if isQuiz && !revealed}
-          <button class="chunky light wide" onclick={() => (revealed = true)}>👀 Показати відповідь</button>
+          <button class="chunky light wide" onclick={() => (revealed = true)}>{t('card.reveal')}</button>
         {:else}
         {#if isQuiz}
-          <div class="answer" role="status"><small>Відповідь</small><p>{question.answer}</p></div>
+          <div class="answer" role="status"><small>{t('card.answer')}</small><p>{question.answer}</p></div>
         {/if}
         {#if !scoring}
-          <button class="chunky ok wide" onclick={() => onfinish('answered', answerer)}>✅ Далі</button>
+          <button class="chunky ok wide" onclick={() => onfinish('answered', answerer)}>{t('card.next')}</button>
         {:else if isWho}
           {#if !voting}
-            <button class="chunky ok wide" onclick={() => (voting = true)}>👆 Показали — хто переміг?</button>
+            <button class="chunky ok wide" onclick={() => (voting = true)}>{t('card.shown')}</button>
           {:else}
-            <p class="check">На кого показала більшість? Йому чи їй — <b>+1 бал</b></p>
+            <p class="check">{t('card.majority')} <b>{t('card.plusOne')}</b></p>
             <div class="chips">
               {#each players as p, k}
                 <button class="chip" onclick={() => onfinish('correct', k)}><Avatar player={p} size={40} /><span>{p.name}</span></button>
               {/each}
             </div>
-            <button class="chunky light wide" onclick={() => onfinish('wrong', null)}>🤝 Нічия — без балів</button>
+            <button class="chunky light wide" onclick={() => onfinish('wrong', null)}>{t('card.tie')}</button>
           {/if}
         {:else}
           <p class="check">
-            {#if isGuess}Перевіряє <b>{players[about].name}</b>: вгадали?
-            {:else if isQuiz}Чи збіглася відповідь <b>{players[answerer].name}</b> з правильною?
-            {:else}Усі разом: зарахувати відповідь <b>{players[answerer].name}</b>?{/if}
+            {#if isGuess}{t('card.checks')} <b>{players[about].name}</b>{t('card.checksQ')}
+            {:else if isQuiz}{t('card.quizCheck1')} <b>{players[answerer].name}</b> {t('card.quizCheck2')}
+            {:else}{t('card.accept')} <b>{players[answerer].name}</b>?{/if}
           </p>
           <div class="row">
-            <button class="chunky ok" onclick={() => onfinish('correct', answerer)}>✅ {isGuess || isQuiz ? 'Правильно' : 'Зараховано'}</button>
-            <button class="chunky no" onclick={() => onfinish('wrong', answerer)}>❌ {isGuess || isQuiz ? 'Неправильно' : 'Ні'}</button>
+            <button class="chunky ok" onclick={() => onfinish('correct', answerer)}>✅ {isGuess || isQuiz ? t('card.right') : t('card.accepted')}</button>
+            <button class="chunky no" onclick={() => onfinish('wrong', answerer)}>❌ {isGuess || isQuiz ? t('card.wrong') : t('card.no')}</button>
           </div>
         {/if}
         {/if}
-        <button class="skip" onclick={() => onfinish('skipped', null)}>Пропустити — без відповіді</button>
+        <button class="skip" onclick={() => onfinish('skipped', null)}>{t('card.skipLong')}</button>
       {/if}
     </div>
   </article>

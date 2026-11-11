@@ -1,4 +1,5 @@
 <script>
+  import { t } from '../lib/lang.svelte.js';
   import Avatar from './Avatar.svelte';
 
   let { players, game, onmenu, onscores, back = null } = $props();
@@ -6,19 +7,19 @@
 </script>
 
 <div class="bar">
-  {#if back}<button class="icon" onclick={back} aria-label="До категорій">←</button>{/if}
+  {#if back}<button class="icon" onclick={back} aria-label={t('top.back')}>←</button>{/if}
   <div class="turn">
     {#key p?.id}
       <span class="pop"><Avatar player={p} size={46} ring /></span>
     {/key}
-    <span class="txt"><small>Зараз хід</small><b>{p?.name}</b></span>
+    <span class="txt"><small>{t('top.turn')}</small><b>{p?.name}</b></span>
   </div>
-  {#if game.scoring}<button class="icon" onclick={onscores} aria-label="Бали">🏆</button>{/if}
-  <button class="icon" onclick={onmenu} aria-label="Меню">☰</button>
+  {#if game.scoring}<button class="icon" onclick={onscores} aria-label={t('menu.scores')}>🏆</button>{/if}
+  <button class="icon" onclick={onmenu} aria-label={t('menu.title')}>☰</button>
 </div>
 
 {#if game.scoring}
-  <button class="board" onclick={onscores} aria-label="Бали: {players.map((x) => `${x.name} ${game.scores[x.id] || 0}`).join(', ')}">
+  <button class="board" onclick={onscores} aria-label={t('top.board', { list: players.map((x) => `${x.name} ${game.scores[x.id] || 0}`).join(', ') })}>
     {#each players as x, k (x.id)}
       <span class="pl" class:now={k === game.turn}>
         <Avatar player={x} size={30} />

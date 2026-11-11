@@ -1,4 +1,5 @@
 <script>
+  import { t } from '../lib/lang.svelte.js';
   let { title, onclose, children } = $props();
 </script>
 
@@ -6,7 +7,7 @@
 <div class="sheet" role="dialog" aria-modal="true" aria-label={title}>
   <header>
     <h2>{title}</h2>
-    <button class="x" onclick={onclose} aria-label="Закрити">✕</button>
+    <button class="x" onclick={onclose} aria-label={t('common.close')}>✕</button>
   </header>
   {@render children()}
 </div>

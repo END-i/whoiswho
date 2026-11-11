@@ -1,31 +1,32 @@
 <script>
   import { remaining, total } from '../lib/state.js';
   import { categoryColor } from '../lib/theme.js';
+  import { t } from '../lib/lang.svelte.js';
 
   let { categories, game, onpick } = $props();
   // Категорії без питань після фільтра аудиторії не показуємо.
   const visible = $derived(categories.filter((c) => total(game, c.id)));
 </script>
 
-<h1 class="lead">Вибери категорію</h1>
+<h1 class="lead">{t('cats.title')}</h1>
 
 {#if game.restarted?.length}
   {@const names = categories.filter((c) => game.restarted.includes(c.id)).map((c) => `«${c.title}»`)}
-  <p class="again" role="status">🔁 {names.join(', ')}: усі питання вже були в минулих іграх — граємо їх по колу знову.</p>
+  <p class="again" role="status">🔁 {t('cats.again', { names: names.join(', ') })}</p>
 {/if}
 
 <div class="grid">
   {#each visible as c, k (c.id)}
     {@const left = remaining(game, c.id)}
     {@const all = total(game, c.id)}
-    {@const [c1, c2, t] = categoryColor(c.id, categories.indexOf(c))}
+    {@const [c1, c2, ink] = categoryColor(c.id, categories.indexOf(c))}
     <button class="cat" class:done={!left} disabled={!left} onclick={() => onpick(c.id)}
-      style="--c1:{c1}; --c2:{c2}; --t:{t}; animation-delay:{k * 40}ms" aria-label="{c.title}. {left ? `Залишилось ${left}` : 'Пройдено'}">
+      style="--c1:{c1}; --c2:{c2}; --t:{ink}; animation-delay:{k * 40}ms" aria-label="{c.title}. {left ? t('cats.left', { n: left }) : t('cats.doneLabel')}">
       <span class="emoji" aria-hidden="true">{c.emoji}</span>
       <span class="title">{c.title}</span>
       <span class="desc">{c.description}</span>
       <span class="meter" aria-hidden="true"><i style="width:{(left / all) * 100}%"></i></span>
-      <span class="left">{left ? `${left} з ${all}` : 'пройдено ✓'}</span>
+      <span class="left">{left ? t('common.of', { a: left, b: all }) : t('cats.done')}</span>
     </button>
   {/each}
 </div>

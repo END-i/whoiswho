@@ -3,7 +3,8 @@
   import Sheet from '../components/Sheet.svelte';
   import PhotoEditor from '../components/PhotoEditor.svelte';
   import { newId } from '../lib/storage.js';
-  import { plural } from '../lib/plural.js';
+  import { t } from '../lib/lang.svelte.js';
+  import { LANGS, LANG_NAMES } from '../lib/i18n.js';
 
   // players — масив { id, name, photo, template } ($state у App, змінюється на місці)
   // packs — описи наборів (meta.pack) у порядку показу; gamePack — набір поточної гри
@@ -19,18 +20,18 @@
   const fits = $derived(players.length >= pack.minPlayers && players.length <= pack.maxPlayers);
   const canStart = $derived(fits && !empty);
   const limit = $derived(pack.minPlayers === pack.maxPlayers
-    ? `рівно ${pack.maxPlayers} ${plural(pack.maxPlayers, ['гравець', 'гравці', 'гравців'])}`
-    : `від ${pack.minPlayers} до ${pack.maxPlayers} гравців`);
+    ? t('setup.limitExact', { n: pack.maxPlayers })
+    : t('setup.limitRange', { min: pack.minPlayers, max: pack.maxPlayers }));
 
-  const ADULT_Q = 'Набір 18+ — лише для дорослих. Усім гравцям уже є 18 років?';
+  const ADULT_Q = () => t('setup.adultConfirm');
   function choosePack(p) {
     if (p.id === settings.pack) return;
-    if (p.adults && !confirm(ADULT_Q)) return;
+    if (p.adults && !confirm(ADULT_Q())) return;
     settings.pack = p.id;
   }
   // 18+ — підтвердження ще й перед кожною новою грою: телефон міг перейти до дітей
   function start() {
-    if (!inGame && pack.adults && !confirm(ADULT_Q)) return;
+    if (!inGame && pack.adults && !confirm(ADULT_Q())) return;
     onstart();
   }
 
@@ -41,12 +42,12 @@
   }
   function remove(i) {
     if (players.length <= MIN) return;
-    const who = players[i].name.trim() || `гравця ${i + 1}`;
-    if (inGame && !confirm(`Прибрати ${who} з гри? Його бали лишаться в підсумку.`)) return;
+    const who = players[i].name.trim() || t('setup.playerGen', { n: i + 1 });
+    if (inGame && !confirm(t('setup.removeConfirm', { who }))) return;
     players.splice(i, 1);
   }
   function clearPhotos() {
-    if (!confirm('Видалити фото й шаблони всіх гравців? Їх буде стерто з цього телефона.')) return;
+    if (!confirm(t('setup.clearPhotosConfirm'))) return;
     for (const p of players) { p.photo = null; p.template = null; p.tplPos = { x: 0, y: 0, s: 1 }; }
   }
   function move(i, d) {
@@ -60,54 +61,54 @@
   }));
 </script>
 
-{#if showInstall && !inGame}<button class="installbar" onclick={oninstall}>📲 Встанови гру на телефон — працює без інтернету <b>→</b></button>{/if}
+{#if showInstall && !inGame}<button class="installbar" onclick={oninstall}>{t('setup.installBar')} <b>→</b></button>{/if}
 <header class="hero">
   <div class="logo" aria-hidden="true"><span>🙋</span><span>❓</span><span>💛</span></div>
-  <h1>{inGame ? 'Гравці й налаштування' : 'Хто є хто'}</h1>
-  <p>{inGame ? 'Можна міняти імена, фото, порядок, додавати й прибирати гравців.' : 'Гра, щоб дізнатися одне про одного більше'}</p>
+  <h1>{inGame ? t('setup.titleInGame') : t('app.title')}</h1>
+  <p>{inGame ? t('setup.subtitleInGame') : t('setup.subtitle')}</p>
 </header>
 
 <section class="panel">
-  <h2>Хто де сидить?</h2>
+  <h2>{t('setup.seats')}</h2>
   <div class="circle" aria-hidden="true">
     <svg viewBox="0 0 100 100" class="ring">
       <defs><marker id="arrowhead" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="tip" /></marker></defs>
       <circle cx="50" cy="50" r="38" />
       <path class="arc" d="M 63.0 14.29 A 38 38 0 0 1 82.91 31" marker-end="url(#arrowhead)" />
     </svg>
-    <span class="hint">телефон іде<br />за стрілкою ↻</span>
+    <span class="hint">{t('setup.arrow1')}<br />{t('setup.arrow2')}</span>
     {#each seats as s, i (s.p.id)}
       <span class="seat" style="left:{s.x}%; top:{s.y}%"><Avatar player={s.p} size={players.length > 6 ? 36 : 42} /><b>{s.p.name.trim() || i + 1}</b></span>
     {/each}
   </div>
-  <p class="lead">Запиши імена <b>за годинниковою стрілкою</b>, як ви сидите. Наступний у списку сидить <b>ліворуч</b> від попереднього.</p>
+  <p class="lead">{t('setup.lead1')} <b>{t('setup.lead2')}</b>{t('setup.lead3')} <b>{t('setup.lead4')}</b> {t('setup.lead5')}</p>
 
   <ol class="players">
     {#each players as p, i (p.id)}
       <li>
         <span class="no">{i + 1}</span>
-        <button class="ph" onclick={() => (photoFor = i)} aria-label="Фото для {p.name || `гравця ${i + 1}`}">
+        <button class="ph" onclick={() => (photoFor = i)} aria-label={t('setup.photoFor', { name: p.name || t('setup.playerGen', { n: i + 1 }) })}>
           <Avatar player={p} size={50} /><span class="cam" aria-hidden="true">📷</span>
         </button>
-        <input bind:value={p.name} placeholder="Ім'я {i + 1}" maxlength="16" autocomplete="off" enterkeyhint="next" aria-label="Ім'я гравця {i + 1}" />
+        <input bind:value={p.name} placeholder={t('setup.namePh', { n: i + 1 })} maxlength="16" autocomplete="off" enterkeyhint="next" aria-label={t('setup.nameLabel', { n: i + 1 })} />
         <div class="ord">
-          <button onclick={() => move(i, -1)} disabled={i === 0} aria-label="Перемістити вище">▲</button>
-          <button onclick={() => move(i, 1)} disabled={i === players.length - 1} aria-label="Перемістити нижче">▼</button>
+          <button onclick={() => move(i, -1)} disabled={i === 0} aria-label={t('setup.up')}>▲</button>
+          <button onclick={() => move(i, 1)} disabled={i === players.length - 1} aria-label={t('setup.down')}>▼</button>
         </div>
-        <button class="del" onclick={() => remove(i)} disabled={players.length <= MIN} aria-label="Прибрати гравця {i + 1}">✕</button>
+        <button class="del" onclick={() => remove(i)} disabled={players.length <= MIN} aria-label={t('setup.removeLabel', { n: i + 1 })}>✕</button>
       </li>
     {/each}
   </ol>
-  {#if players.length < MAX}<button class="add" onclick={add}>＋ Додати гравця <small>({players.length} з {MAX})</small></button>{/if}
+  {#if players.length < MAX}<button class="add" onclick={add}>{t('setup.add')} <small>({t('common.of', { a: players.length, b: MAX })})</small></button>{/if}
   {#if players.some((p) => p.photo)}
-    <button class="clearph" onclick={clearPhotos}>🗑️ Видалити всі фото</button>
+    <button class="clearph" onclick={clearPhotos}>{t('setup.clearPhotos')}</button>
   {/if}
-  {#if dups.length}<p class="warn">⚠️ Однакові імена: {dups.join(', ')}. Можна й так, але буде легко сплутати.</p>{/if}
+  {#if dups.length}<p class="warn">{t('setup.dups', { names: dups.join(', ') })}</p>{/if}
 </section>
 
 <section class="panel packs">
-  <h2>Набір питань</h2>
-  <div class="packlist" role="radiogroup" aria-label="Набір питань">
+  <h2>{t('setup.packs')}</h2>
+  <div class="packlist" role="radiogroup" aria-label={t('setup.packs')}>
     {#each packs as p (p.id)}
       <button role="radio" class="pack" class:on={pack.id === p.id} aria-checked={pack.id === p.id} disabled={inGame} onclick={() => choosePack(p)}>
         <span class="pe" aria-hidden="true">{p.emoji}</span>
@@ -115,55 +116,63 @@
       </button>
     {/each}
   </div>
-  {#if inGame}<p class="note">Набір можна змінити лише в новій грі.</p>{/if}
+  {#if inGame}<p class="note">{t('setup.packLocked')}</p>{/if}
 </section>
 
 <section class="panel opts">
-  {#if pack.kids}
   <div class="opt">
-    <span class="lbl">Хто грає</span>
-    <div class="seg" role="radiogroup" aria-label="Аудиторія">
-      <button role="radio" aria-checked={settings.audience === 'family'} class:on={settings.audience === 'family'} disabled={inGame} onclick={() => (settings.audience = 'family')}>👨‍👩‍👧 Уся родина</button>
-      <button role="radio" aria-checked={settings.audience === 'kids'} class:on={settings.audience === 'kids'} disabled={inGame} onclick={() => (settings.audience = 'kids')}>🧒 Лише діти</button>
+    <span class="lbl">{t('lang.label')}</span>
+    <div class="seg" role="radiogroup" aria-label={t('lang.label')}>
+      {#each LANGS as l}
+        <button role="radio" lang={l} aria-checked={settings.lang === l} class:on={settings.lang === l} onclick={() => (settings.lang = l)}>{LANG_NAMES[l]}</button>
+      {/each}
     </div>
   </div>
-  {#if inGame}<p class="note">Аудиторію можна змінити лише в новій грі.</p>{/if}
+  {#if pack.kids}
+  <div class="opt">
+    <span class="lbl">{t('setup.whoPlays')}</span>
+    <div class="seg" role="radiogroup" aria-label={t('setup.audience')}>
+      <button role="radio" aria-checked={settings.audience === 'family'} class:on={settings.audience === 'family'} disabled={inGame} onclick={() => (settings.audience = 'family')}>{t('setup.audFamily')}</button>
+      <button role="radio" aria-checked={settings.audience === 'kids'} class:on={settings.audience === 'kids'} disabled={inGame} onclick={() => (settings.audience = 'kids')}>{t('setup.audKids')}</button>
+    </div>
+  </div>
+  {#if inGame}<p class="note">{t('setup.audLocked')}</p>{/if}
   {/if}
   <label class="opt sw">
-    <span><span class="lbl">⭐ Режим з балами</span><small>Після кожної картки — «правильно чи ні», за «правильно» бал. Можна ввімкнути й посеред гри</small></span>
+    <span><span class="lbl">{t('setup.scoring')}</span><small>{t('setup.scoringHint')}</small></span>
     <input type="checkbox" role="switch" bind:checked={settings.scoring} />
   </label>
   <label class="opt sw">
-    <span><span class="lbl">🔔 Звуки</span><small>Мелодія за бал, «ва-ва» на «Ні», «шух» на пропуск</small></span>
-    <input type="checkbox" role="switch" bind:checked={settings.sounds} aria-label="Звуки" />
+    <span><span class="lbl">{t('setup.sounds')}</span><small>{t('setup.soundsHint')}</small></span>
+    <input type="checkbox" role="switch" bind:checked={settings.sounds} aria-label={t('setup.soundsLabel')} />
   </label>
   <label class="opt sw" class:off={!voiceAvailable}>
-    <span><span class="lbl">🔈 Голос браузера</span><small>{voiceAvailable
-      ? `Читати питання вголос там, де немає записаної озвучки${audioCount ? ` (записано: ${audioCount})` : ''}`
-      : 'На цьому телефоні немає українського голосу — кнопка недоступна'}</small></span>
-    <input type="checkbox" role="switch" bind:checked={settings.voice} disabled={!voiceAvailable} aria-label="Голос браузера" />
+    <span><span class="lbl">{t('setup.voice')}</span><small>{voiceAvailable
+      ? t('setup.voiceHint') + (audioCount ? t('setup.voiceRecorded', { n: audioCount }) : '')
+      : t('setup.voiceNone')}</small></span>
+    <input type="checkbox" role="switch" bind:checked={settings.voice} disabled={!voiceAvailable} aria-label={t('setup.voiceLabel')} />
   </label>
   {#if audio?.total}
     <div class="opt audio">
-      <span><span class="lbl">🎧 Озвучка для офлайну</span>
-        <small>{audio.done >= audio.total ? `Готово: ${audio.total} з ${audio.total}` : audio.busy ? `Завантажую… ${audio.done} з ${audio.total}` : `Завантажено ${audio.done} з ${audio.total}`}</small>
+      <span><span class="lbl">{t('setup.offline')}</span>
+        <small>{audio.done >= audio.total ? t('setup.offlineDone', { n: audio.total }) : audio.busy ? t('setup.offlineBusy', { a: audio.done, b: audio.total }) : t('setup.offlinePart', { a: audio.done, b: audio.total })}</small>
         <span class="bar" aria-hidden="true"><i style="width:{(audio.done / audio.total) * 100}%"></i></span>
       </span>
-      {#if audio.done < audio.total}<button class="mini" onclick={audio.fetch} disabled={audio.busy}>Завантажити</button>
-      {:else}<button class="mini danger" onclick={audio.remove}>Видалити</button>{/if}
+      {#if audio.done < audio.total}<button class="mini" onclick={audio.fetch} disabled={audio.busy}>{t('setup.download')}</button>
+      {:else}<button class="mini danger" onclick={audio.remove}>{t('setup.delete')}</button>{/if}
     </div>
   {/if}
-  {#if !wakeLock}<p class="note">💡 Телефон може гаснути під час гри. Вимкни автоблокування в налаштуваннях телефона на час гри.</p>{/if}
+  {#if !wakeLock}<p class="note">{t('setup.noWake')}</p>{/if}
 </section>
 
-{#if !fits}<p class="warn" role="status">У наборі «{pack.title}» грають {limit}. {players.length > pack.maxPlayers ? 'Прибери зайвих.' : 'Додай гравців.'}</p>{/if}
-<button class="chunky start" disabled={!canStart} onclick={start}>{inGame ? '▶ Повернутися до гри' : '🎲 Почати гру'}</button>
-{#if empty}<p class="hint2">Заповни всі імена, щоб почати.</p>{/if}
-{#if historyCount && !inGame}<button class="hist" onclick={onhistory}>🏆 Історія ігор ({historyCount})</button>{/if}
-<button class="about" onclick={onabout}>ℹ️ Про гру · версія {__APP_VERSION__}</button>
+{#if !fits}<p class="warn" role="status">{t('setup.limit', { pack: pack.title, limit })} {players.length > pack.maxPlayers ? t('setup.tooMany') : t('setup.tooFew')}</p>{/if}
+<button class="chunky start" disabled={!canStart} onclick={start}>{inGame ? t('setup.back') : t('setup.start')}</button>
+{#if empty}<p class="hint2">{t('setup.fillNames')}</p>{/if}
+{#if historyCount && !inGame}<button class="hist" onclick={onhistory}>{t('setup.history', { n: historyCount })}</button>{/if}
+<button class="about" onclick={onabout}>{t('setup.about', { v: __APP_VERSION__ })}</button>
 
 {#if photoFor !== null}
-  <Sheet title="Фото: {players[photoFor].name || `гравець ${photoFor + 1}`}" onclose={() => (photoFor = null)}>
+  <Sheet title={t('setup.photoTitle', { name: players[photoFor].name || t('setup.playerNom', { n: photoFor + 1 }) })} onclose={() => (photoFor = null)}>
     <PhotoEditor bind:player={players[photoFor]} />
   </Sheet>
 {/if}

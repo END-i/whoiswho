@@ -2,6 +2,7 @@
   import Avatar from './Avatar.svelte';
   import { TEMPLATES, dragTpl, TPL_DEFAULT } from '../lib/templates.js';
   import { squarePhoto } from '../lib/photos.js';
+  import { t } from '../lib/lang.svelte.js';
 
   let { player = $bindable() } = $props();
   let busy = $state(false);
@@ -14,7 +15,7 @@
     if (!file) return;
     busy = true; error = '';
     try { player.photo = await squarePhoto(file); }
-    catch { error = 'Не вдалося прочитати фото. Спробуй інше.'; }
+    catch { error = t('photo.error'); }
     finally { busy = false; }
   }
   function choose(id) {
@@ -35,48 +36,48 @@
     drag = { x: e.clientX, y: e.clientY };
   }
   const up = () => (drag = null);
-  const groups = [['fun', 'Веселі'], ['serious', 'Серйозні']];
+  const groups = ['fun', 'serious'];
 </script>
 
 <div class="preview">
-  <div class="stage" class:movable={!!player.template} role="img" aria-label="Прев'ю фото{player.template ? ', шаблон можна посунути пальцем' : ''}"
+  <div class="stage" class:movable={!!player.template} role="img" aria-label={t(player.template ? 'photo.previewMovable' : 'photo.preview')}
     onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={up}>
     <Avatar {player} size={SIZE} />
   </div>
-  {#if busy}<p class="hint">Стискаю фото…</p>{/if}
+  {#if busy}<p class="hint">{t('photo.busy')}</p>{/if}
   {#if error}<p class="err">{error}</p>{/if}
   {#if player.template}
     <div class="adjust">
-      <button class="mini" onclick={() => (player.tplPos = { ...TPL_DEFAULT })}>↺ На місце</button>
-      <button class="mini danger" onclick={() => choose(player.template)}>✕ Прибрати шаблон</button>
+      <button class="mini" onclick={() => (player.tplPos = { ...TPL_DEFAULT })}>{t('photo.reset')}</button>
+      <button class="mini danger" onclick={() => choose(player.template)}>{t('photo.removeTpl')}</button>
     </div>
-    <p class="hint">Тягни шаблон пальцем, щоб посунути. Ще раз натисни на вибраний шаблон — і він зникне.</p>
+    <p class="hint">{t('photo.dragHint')}</p>
   {/if}
 </div>
 
 <div class="row">
-  <label class="btn">📷 Камера<input type="file" accept="image/*" capture="user" onchange={onfile} /></label>
-  <label class="btn">🖼️ Галерея<input type="file" accept="image/*" onchange={onfile} /></label>
-  {#if player.photo}<button class="btn ghost" onclick={() => (player.photo = null)}>Прибрати фото</button>{/if}
+  <label class="btn">{t('photo.camera')}<input type="file" accept="image/*" capture="user" onchange={onfile} /></label>
+  <label class="btn">{t('photo.gallery')}<input type="file" accept="image/*" onchange={onfile} /></label>
+  {#if player.photo}<button class="btn ghost" onclick={() => (player.photo = null)}>{t('photo.removePhoto')}</button>{/if}
 </div>
 
-{#each groups as [kind, title]}
-  <h3>{title} шаблони</h3>
+{#each groups as kind}
+  <h3>{t(`photo.group.${kind}`)}</h3>
   <div class="tpls">
     {#if kind === 'fun'}
       <button class="tpl" class:on={!player.template} aria-pressed={!player.template} onclick={() => choose(null)}>
-        <Avatar player={{ ...player, template: null }} size={56} /><span>Без шаблону</span>
+        <Avatar player={{ ...player, template: null }} size={56} /><span>{t('photo.noTpl')}</span>
       </button>
     {/if}
-    {#each TEMPLATES.filter((t) => t.kind === kind) as t (t.id)}
-      <button class="tpl" class:on={player.template === t.id} aria-pressed={player.template === t.id} onclick={() => choose(t.id)}>
-        <Avatar player={{ ...player, template: t.id, tplPos: TPL_DEFAULT }} size={56} /><span>{t.name}</span>
+    {#each TEMPLATES.filter((x) => x.kind === kind) as tpl (tpl.id)}
+      <button class="tpl" class:on={player.template === tpl.id} aria-pressed={player.template === tpl.id} onclick={() => choose(tpl.id)}>
+        <Avatar player={{ ...player, template: tpl.id, tplPos: TPL_DEFAULT }} size={56} /><span>{t(`tpl.${tpl.id}`)}</span>
       </button>
     {/each}
   </div>
 {/each}
 
-<p class="hint">Фото залишається тільки на цьому телефоні.</p>
+<p class="hint">{t('photo.local')}</p>
 
 <style>
   .preview { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px 0 8px; }

@@ -1,12 +1,13 @@
 <script>
+  import { t } from '../lib/lang.svelte.js';
   let { rules, onok, again = false } = $props();
   // Схема: кожне правило — крок з великою іконкою. Іконки — за порядком кроків у meta.rules.
   const ICONS = ['🔄', '🃏', '👀', '⭐', '💬', '🎲'];
 </script>
 
 <header>
-  <h1>Як грати</h1>
-  <p>Коротко, у {rules.length} кроках</p>
+  <h1>{t('rules.title')}</h1>
+  <p>{t('rules.steps', { n: rules.length })}</p>
 </header>
 
 <ol class="flow">
@@ -17,7 +18,7 @@
     </li>
   {/each}
 </ol>
-<button class="chunky ok" onclick={onok}>{again ? '← Назад до гри' : '🎲 Граємо!'}</button>
+<button class="chunky ok" onclick={onok}>{again ? t('rules.back') : t('rules.play')}</button>
 
 <style>
   header { text-align: center; margin: 4px 0 12px; }

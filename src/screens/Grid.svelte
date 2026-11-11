@@ -1,6 +1,7 @@
 <script>
   import { isUsed, questionAt, remaining, total } from '../lib/state.js';
   import { categoryColor } from '../lib/theme.js';
+  import { t } from '../lib/lang.svelte.js';
   import QuestionCard from '../components/QuestionCard.svelte';
 
   // selected піднято в App: відкрита картка переживає перезавантаження сторінки
@@ -9,7 +10,7 @@
   const all = $derived(total(game, category.id));
   const numbers = $derived(Array.from({ length: all }, (_, k) => k + 1));
   const question = $derived(selected ? byId.get(questionAt(game, category.id, selected)) : null);
-  const [c1, c2, t] = $derived(categoryColor(category.id, index));
+  const [c1, c2, ink] = $derived(categoryColor(category.id, index));
   let flipping = $state(null);
 
   function choose(num) {
@@ -20,19 +21,19 @@
   }
 </script>
 
-<header style="--c1:{c1}; --c2:{c2}; --t:{t}">
+<header style="--c1:{c1}; --c2:{c2}; --t:{ink}">
   <span class="emoji" aria-hidden="true">{category.emoji}</span>
   <div>
     <h1>{category.title}</h1>
-    <p>Тягни будь-яку карту · залишилось <b>{remaining(game, category.id)}</b> з {all}</p>
+    <p>{t('grid.pick')} <b>{remaining(game, category.id)}</b> {t('grid.of', { n: all })}</p>
   </div>
 </header>
 
-<div class="deck" role="group" aria-label="Карти категорії «{category.title}»" style="--c1:{c1}; --c2:{c2}">
+<div class="deck" role="group" aria-label={t('grid.deck', { title: category.title })} style="--c1:{c1}; --c2:{c2}">
   {#each numbers as n}
     {@const used = isUsed(game, category.id, n)}
     <button class="card" class:used class:flip={flipping === n} disabled={used || !!flipping}
-      aria-label={used ? `Карта ${n}, вже була` : `Карта ${n}`} onclick={() => choose(n)} style="animation-delay:{(n % 10) * 25}ms">
+      aria-label={used ? t('grid.cardUsed', { n }) : t('grid.card', { n })} onclick={() => choose(n)} style="animation-delay:{(n % 10) * 25}ms">
       <span class="inner">
         <span class="back"><span class="num">{n}</span></span>
         <span class="face">{used ? '✓' : '?'}</span>
@@ -43,7 +44,7 @@
 
 {#if question}
   {#key selected}
-    <QuestionCard {question} {category} colors={[c1, c2, t]} number={selected} {game} {players} {sound} {roleNames}
+    <QuestionCard {question} {category} colors={[c1, c2, ink]} number={selected} {game} {players} {sound} {roleNames}
       scoring={game.scoring && scoringCategories.includes(category.id)}
       onfinish={(outcome, answerer) => onfinish(selected, outcome, answerer)} />
   {/key}

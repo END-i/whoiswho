@@ -1,4 +1,5 @@
 <script>
+  import { t } from '../lib/lang.svelte.js';
   import { formatVersion, parseChangelog } from '../lib/version.js';
   import changelog from '../../CHANGELOG.md?raw';
 
@@ -8,27 +9,27 @@
   let checking = $state(false);
   let checked = $state('');
   async function check() {
-    if (!window.__checkUpdate) { checked = 'Оновлення перевіряються, коли гра встановлена й відкрита з інтернетом.'; return; }
+    if (!window.__checkUpdate) { checked = t('about.noSw'); return; }
     checking = true;
-    try { await window.__checkUpdate(); checked = "Якщо є нова версія — унизу з'явиться кнопка «Оновити»."; }
-    catch { checked = 'Не вдалося перевірити — немає інтернету?'; }
+    try { await window.__checkUpdate(); checked = t('about.checked'); }
+    catch { checked = t('about.offline'); }
     finally { checking = false; }
   }
 </script>
 
 <header>
-  <button class="icon" onclick={onback} aria-label="Назад">←</button>
-  <h1>ℹ️ Про гру</h1>
+  <button class="icon" onclick={onback} aria-label={t('common.back')}>←</button>
+  <h1>{t('about.title')}</h1>
 </header>
 
 <section class="ver">
   <img src="/icons/icon-192.png" alt="" width="64" height="64" />
-  <div><b>Хто є хто</b><span data-testid="version">Версія {version}</span></div>
+  <div><b>{t('app.title')}</b><span data-testid="version">{t('about.version', { v: version })}</span></div>
 </section>
-<button class="chunky light wide" onclick={check} disabled={checking}>{checking ? 'Перевіряю…' : '🔄 Перевірити оновлення'}</button>
+<button class="chunky light wide" onclick={check} disabled={checking}>{checking ? t('about.checking') : t('about.check')}</button>
 {#if checked}<p class="note">{checked}</p>{/if}
 
-<h2>Що нового</h2>
+<h2>{t('about.news')}</h2>
 {#each news as n}
   <section class="news">
     <b>{n.version}{n.date ? ` — ${n.date}` : ''}</b>
@@ -36,14 +37,14 @@
   </section>
 {/each}
 
-<h2>Приватність</h2>
-<p class="txt">Імена, фото й історія ігор зберігаються лише на цьому телефоні. Нічого нікуди не надсилається, акаунтів і реклами немає.</p>
+<h2>{t('about.privacy')}</h2>
+<p class="txt">{t('about.privacyText')}</p>
 
-<h2>Подяки й ліцензії</h2>
+<h2>{t('about.credits')}</h2>
 <ul class="txt">
-  <li>Шрифт <b>Nunito</b> — SIL Open Font License 1.1.</li>
-  <li>Озвучка — нейронний голос Microsoft (Поліна).</li>
-  <li>Код гри — <a href="https://github.com/END-i/whoiswho" target="_blank" rel="noopener">github.com/END-i/whoiswho</a>.</li>
+  <li>{t('about.font')} <b>Nunito</b> — SIL Open Font License 1.1.</li>
+  <li>{t('about.voice')}</li>
+  <li>{t('about.code')} <a href="https://github.com/END-i/whoiswho" target="_blank" rel="noopener">github.com/END-i/whoiswho</a>.</li>
 </ul>
 
 <style>

@@ -1,47 +1,48 @@
 <script>
+  import { t } from '../lib/lang.svelte.js';
   let { kind, canPrompt = false, oninstall, onback } = $props();
   // kind — результат platform(): ios-safari | ios-other | android | desktop | installed
 </script>
 
 <header>
-  <button class="icon" onclick={onback} aria-label="Назад">←</button>
-  <h1>📲 Встановити гру</h1>
+  <button class="icon" onclick={onback} aria-label={t('common.back')}>←</button>
+  <h1>{t('install.title')}</h1>
 </header>
-<p class="lead">Після встановлення гра відкривається з головного екрана, як звичайний застосунок, і працює без інтернету.</p>
+<p class="lead">{t('install.lead')}</p>
 
 {#if kind === 'installed'}
-  <p class="done">✅ Гру вже встановлено — ти зараз у ній.</p>
+  <p class="done">{t('install.done')}</p>
 {:else}
   {#if canPrompt}
-    <button class="chunky ok wide" onclick={oninstall}>📲 Встановити</button>
+    <button class="chunky ok wide" onclick={oninstall}>{t('install.button')}</button>
   {/if}
 
   <div class="platforms">
-  <section class:mine={kind === 'ios-safari' || kind === 'ios-other'} aria-label="iPhone та iPad">
-    <h2>📱 iPhone та iPad</h2>
-    {#if kind === 'ios-other'}<p class="warn">Встановити можна лише з <b>Safari</b>: відкрий цю сторінку в Safari.</p>{/if}
+  <section class:mine={kind === 'ios-safari' || kind === 'ios-other'} aria-label={t('install.ios')}>
+    <h2>📱 {t('install.ios')}</h2>
+    {#if kind === 'ios-other'}<p class="warn">{t('install.iosOther')}</p>{/if}
     <ol>
-      <li>Відкрий гру в <b>Safari</b>.</li>
-      <li>Натисни <b>«Поділитися»</b> <span class="key">⎋↑</span> — квадрат зі стрілкою внизу екрана.</li>
-      <li>Прокрути список і вибери <b>«На початковий екран»</b>.</li>
-      <li>Натисни <b>«Додати»</b>.</li>
+      <li>{t('install.open')} <b>Safari</b>.</li>
+      <li>{t('install.ios2a')} <b>{t('install.ios2b')}</b> <span class="key">⎋↑</span> {t('install.ios2c')}</li>
+      <li>{t('install.ios3a')} <b>{t('install.ios3b')}</b>.</li>
+      <li>{t('install.ios4a')} <b>{t('install.ios4b')}</b>.</li>
     </ol>
   </section>
 
   <section class:mine={kind === 'android'} aria-label="Android">
     <h2>🤖 Android</h2>
     <ol>
-      <li>Відкрий гру в <b>Chrome</b>.</li>
-      <li>Натисни меню <span class="key">⋮</span> угорі праворуч.</li>
-      <li>Вибери <b>«Встановити застосунок»</b> або <b>«Додати на головний екран»</b>.</li>
-      <li>Підтверди <b>«Встановити»</b>.</li>
+      <li>{t('install.open')} <b>Chrome</b>.</li>
+      <li>{t('install.and2a')} <span class="key">⋮</span> {t('install.and2b')}</li>
+      <li>{t('install.and3a')} <b>{t('install.and3b')}</b> {t('install.or')} <b>{t('install.and3c')}</b>.</li>
+      <li>{t('install.and4a')} <b>{t('install.and4b')}</b>.</li>
     </ol>
   </section>
 
   </div>
 
   {#if kind === 'desktop'}
-    <p class="note">💻 На комп'ютері в Chrome чи Edge — значок встановлення в адресному рядку справа.</p>
+    <p class="note">{t('install.desktop')}</p>
   {/if}
 {/if}
 

@@ -24,11 +24,18 @@
   import { onDestroy } from 'svelte';
   import { downloadAll, cachedCount, clearAudio } from './lib/audiocache.js';
   import { playSfx } from './lib/sfx.js';
+  import { t, setLang } from './lib/lang.svelte.js';
+  import { cleanLang } from './lib/i18n.js';
 
-  // Набори питань читаються один раз під час старту: кожен файл у src/data/packs — окремий набір.
-  const files = import.meta.glob('./data/packs/*.json', { eager: true, import: 'default' });
-  const { packs, order: packOrder, errors } = loadPacks(Object.fromEntries(Object.entries(files).map(([f, d]) => [f.split('/').pop(), d])));
-  const packOf = (id) => (packs[id] ? id : 'family');
+  // Набори питань читаються один раз під час старту: кожен файл у src/data/packs — окремий набір,
+  // у src/data/packs/ru — той самий набір російською (ті самі id); немає перекладу — українською.
+  const byName = (files) => Object.fromEntries(Object.entries(files).map(([f, d]) => [f.split('/').pop(), d]));
+  const ukFiles = byName(import.meta.glob('./data/packs/*.json', { eager: true, import: 'default' }));
+  const ruFiles = byName(import.meta.glob('./data/packs/ru/*.json', { eager: true, import: 'default' }));
+  const LOADED = { uk: loadPacks(ukFiles), ru: loadPacks({ ...ukFiles, ...ruFiles }) };
+  const errors = [...new Set([...LOADED.uk.errors, ...LOADED.ru.errors])];
+  const packOrder = LOADED.uk.order;
+  const packOf = (id) => (LOADED.uk.packs[id] ? id : 'family');
 
   // ---------- відновлення після перезавантаження ----------
   const saved = loadAll() || {};
@@ -44,7 +51,7 @@
       { id: newId(), name: '', photo: null, template: null, tplPos: clampTpl() },
       { id: newId(), name: '', photo: null, template: null, tplPos: clampTpl() },
     ];
-    const pack = packs[packOf(saved.game?.pack)];
+    const pack = LOADED.uk.packs[packOf(saved.game?.pack)];
     const game = pack ? restoreGame(saved.game, pack.questions.map((q) => q.id), players) : null;
     const ui = saved.ui || {};
     let screen = game && SCREENS.includes(ui.screen) ? ui.screen : 'setup';
@@ -56,8 +63,12 @@
   })();
 
   let players = $state(init.players);
-  let settings = $state({ pack: packOf(saved.settings?.pack), audience: saved.settings?.audience === 'kids' ? 'kids' : 'family', scoring: saved.settings?.scoring ?? true, voice: !!saved.settings?.voice, sounds: saved.settings?.sounds ?? true });
+  let settings = $state({ lang: cleanLang(saved.settings?.lang), pack: packOf(saved.settings?.pack), audience: saved.settings?.audience === 'kids' ? 'kids' : 'family', scoring: saved.settings?.scoring ?? true, voice: !!saved.settings?.voice, sounds: saved.settings?.sounds ?? true });
   // набори, правила яких уже показували (раніше — просто true для сімейного)
+  setLang(settings.lang);
+  $effect(() => setLang(settings.lang));
+  // набори мовою інтерфейсу; id і порядок однакові для всіх мов
+  const packs = $derived(LOADED[settings.lang].packs);
   let rulesSeen = $state(saved.rulesSeen === true ? ['family'] : Array.isArray(saved.rulesSeen) ? saved.rulesSeen : []);
   let lastDeck = $state(saved.lastDeck || null); // колода минулої гри — щоб номери не повторювались
   let names = $state(saved.names || {});          // id → ім'я всіх, хто будь-коли грав
@@ -116,7 +127,7 @@
     audioDone = r.done; audioBusy = false;
   }
   async function removeAudio() {
-    if (!confirm('Видалити завантажену озвучку з цього телефона? Без інтернету кнопка 🔊 тоді не працюватиме.')) return;
+    if (!confirm(t('app.removeAudio'))) return;
     await clearAudio(cacheDeps); audioDone = 0;
   }
   if (audioIds.size && cacheDeps.caches) {
@@ -168,7 +179,7 @@
     const sfx = { correct: 'point', wrong: 'miss', skipped: 'skip' }[outcome];
     if (sfx) playSfx(sfx, { enabled: settings.sounds });
     if (outcome === 'correct') {
-      toast = `+1 бал — ${orderPlayers[answerer]?.name}`;
+      toast = t('app.toastPoint', { name: orderPlayers[answerer]?.name });
       party++;
       clearTimeout(toastTimer); toastTimer = setTimeout(() => (toast = null), 2000);
     }
@@ -182,18 +193,18 @@
   }
   function newGameAsk() {
     if (game && !game.over) {
-      if (!confirm('Почати нову гру? Поточна гра збережеться в історії, картки перемішаються заново.')) return;
+      if (!confirm(t('app.newGameConfirm'))) return;
       history = addRecord(history, gameRecord($state.snapshot(game), names, { finished: false }));
     }
     game = null; catId = null; selected = null; sheet = null; screen = 'setup';
   }
   function endAsk() {
     sheet = null;
-    if (confirm('Завершити гру? Вона збережеться в історії, а продовжити її вже не вийде.')) finishGame();
+    if (confirm(t('app.endConfirm'))) finishGame();
   }
   function openHistory() { historyFrom = screen; sheet = null; screen = 'history'; }
   function clearHistory() {
-    if (confirm('Очистити всю історію ігор? Загальна таблиця теж зникне.')) history = [];
+    if (confirm(t('app.clearHistory'))) history = [];
   }
   const go = (s) => { sheet = null; screen = s; };
 </script>
@@ -201,7 +212,7 @@
 <main>
   {#if errors.length}
     <section class="errors">
-      <h1>Помилка в наборах питань</h1>
+      <h1>{t('app.dataError')}</h1>
       <ul>{#each errors as e}<li>{e}</li>{/each}</ul>
     </section>
   {:else if screen === 'setup'}
@@ -232,24 +243,24 @@
 
 {#if toast}<div class="toast" role="status">🎉 {toast}</div>{/if}
 {#if updateReady}
-  <div class="update" role="alert"><span>✨ Є нова версія гри</span><button onclick={() => window.__applyUpdate?.()}>Оновити</button></div>
+  <div class="update" role="alert"><span>{t('app.update')}</span><button onclick={() => window.__applyUpdate?.()}>{t('app.updateBtn')}</button></div>
 {/if}
 {#key party}{#if party}<Confetti />{/if}{/key}
 
 {#if sheet === 'menu'}
-  <Sheet title="Меню" onclose={() => (sheet = null)}>
+  <Sheet title={t('menu.title')} onclose={() => (sheet = null)}>
     <nav class="menu">
-      <button onclick={() => { rulesFrom = screen; go('rules'); }}><span>📜</span>Правила</button>
-      <button onclick={() => go('setup')}><span>👥</span>Гравці й налаштування</button>
-      <button onclick={openHistory}><span>🏆</span>Історія ігор</button>
-      {#if installKind !== 'installed'}<button onclick={openInstall}><span>📲</span>Як встановити</button>{/if}
-      <button onclick={openAbout}><span>ℹ️</span>Про гру · {__APP_VERSION__}</button>
-      <button onclick={endAsk}><span>🏁</span>Завершити гру</button>
-      <button class="danger" onclick={newGameAsk}><span>🔄</span>Нова гра</button>
+      <button onclick={() => { rulesFrom = screen; go('rules'); }}><span>📜</span>{t('menu.rules')}</button>
+      <button onclick={() => go('setup')}><span>👥</span>{t('menu.players')}</button>
+      <button onclick={openHistory}><span>🏆</span>{t('menu.history')}</button>
+      {#if installKind !== 'installed'}<button onclick={openInstall}><span>📲</span>{t('menu.install')}</button>{/if}
+      <button onclick={openAbout}><span>ℹ️</span>{t('menu.about', { v: __APP_VERSION__ })}</button>
+      <button onclick={endAsk}><span>🏁</span>{t('menu.end')}</button>
+      <button class="danger" onclick={newGameAsk}><span>🔄</span>{t('menu.new')}</button>
     </nav>
   </Sheet>
 {:else if sheet === 'scores'}
-  <Sheet title="Бали" onclose={() => (sheet = null)}>
+  <Sheet title={t('menu.scores')} onclose={() => (sheet = null)}>
     <ol class="scores">
       {#each orderPlayers.map((p) => ({ p, s: game.scores[p.id] || 0 })).sort((a, b) => b.s - a.s) as row}
         <li><Avatar player={row.p} size={40} /><span>{row.p.name}</span><b>{row.s}</b></li>

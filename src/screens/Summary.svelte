@@ -2,12 +2,13 @@
   import Avatar from '../components/Avatar.svelte';
   import Confetti from '../components/Confetti.svelte';
   import { rank, winners, podium } from '../lib/ranking.js';
+  import { t } from '../lib/lang.svelte.js';
 
   let { game, players, names = {}, onnew, onhistory } = $props();
   // Поточні гравці + ті, кого прибрали посеред гри (з позначкою)
   const ranked = $derived(rank([
     ...players.filter((p) => game.order.includes(p.id)).map((p) => ({ id: p.id, p, gone: false, score: game.scores[p.id] || 0 })),
-    ...Object.keys(game.gone || {}).map((id) => ({ id, p: { id, name: game.gone[id] || names[id] || 'Гравець' }, gone: true, score: game.scores[id] || 0 })),
+    ...Object.keys(game.gone || {}).map((id) => ({ id, p: { id, name: game.gone[id] || names[id] || t('summary.player') }, gone: true, score: game.scores[id] || 0 })),
   ]));
   const won = $derived(winners(ranked));
   const steps = $derived(podium(ranked));
@@ -20,19 +21,19 @@
 {#if won.length}<Confetti />{/if}
 <header>
   <span class="big" aria-hidden="true">{won.length ? '🎉' : '🤝'}</span>
-  <h1>Гра завершена!</h1>
-  {#if game.scoring && won.length > 1}<p class="sub">Нічия! Перше місце ділять: {won.map((w) => w.p.name).join(', ')}</p>{/if}
+  <h1>{t('summary.title')}</h1>
+  {#if game.scoring && won.length > 1}<p class="sub">{t('summary.tie', { names: won.map((w) => w.p.name).join(', ') })}</p>{/if}
 </header>
 
 <div class="stats">
-  <div style="--c:#2AA660"><b>{game.stats.answered}</b><span>відповіли</span></div>
-  <div style="--c:#795EDD"><b>{game.stats.skipped}</b><span>пропустили</span></div>
-  <div style="--c:#E66E18"><b>{total}</b><span>карток</span></div>
+  <div style="--c:#2AA660"><b>{game.stats.answered}</b><span>{t('summary.answered')}</span></div>
+  <div style="--c:#795EDD"><b>{game.stats.skipped}</b><span>{t('summary.skipped')}</span></div>
+  <div style="--c:#E66E18"><b>{total}</b><span>{t('summary.cards', { n: total })}</span></div>
 </div>
 
 {#if game.scoring}
   {#if steps.length}
-    <div class="podium" aria-label="П'єдестал">
+    <div class="podium" aria-label={t('summary.podium')}>
       {#each order as g (g.place)}
         <div class="step s{g.place}">
           <div class="faces">{#each g.players as e (e.id)}<Avatar player={e.p} size={g.place === 1 ? 64 : 50} ring={g.place === 1} />{/each}</div>
@@ -42,23 +43,23 @@
       {/each}
     </div>
   {:else}
-    <p class="msg">Ніхто не набрав балів — цього разу без переможців. 🤝</p>
+    <p class="msg">{t('summary.zero')}</p>
   {/if}
   <ol class="table">
     {#each ranked as row (row.id)}
       <li class:gone={row.gone}>
         <span class="place">{row.place}</span><Avatar player={row.p} size={40} />
-        <span class="name">{row.p.name}{#if row.gone} <small>(вийшов з гри)</small>{/if}</span><b>{row.score}</b>
+        <span class="name">{row.p.name}{#if row.gone} <small>{t('summary.gone')}</small>{/if}</span><b>{row.score}</b>
       </li>
     {/each}
   </ol>
 {:else}
-  <p class="msg">Тут немає переможців: ви просто дізналися одне про одного трохи більше. 💛</p>
+  <p class="msg">{t('summary.noScoring')}</p>
 {/if}
 
 <div class="btns">
-  <button class="chunky light" onclick={onhistory}>🏆 Історія</button>
-  <button class="chunky" onclick={onnew}>🎲 Нова гра</button>
+  <button class="chunky light" onclick={onhistory}>{t('summary.history')}</button>
+  <button class="chunky" onclick={onnew}>{t('summary.new')}</button>
 </div>
 
 <style>
