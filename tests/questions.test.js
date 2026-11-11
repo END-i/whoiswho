@@ -70,11 +70,23 @@ test("у текстах немає «навпроти» — такої ролі 
 
 test("guess-питання про іншого називають його роль словами", () => {
   const { questions } = load(raw);
-  const words = { left: /ліворуч/, right: /праворуч/, pick: /вибери будь-кого|на твій вибір/i, self: /той, чия черга/ };
+  // до того, чия черга, — на «ти» (form: you)
+  const words = { left: /ліворуч/, right: /праворуч/, pick: /вибери будь-кого|на твій вибір/i, self: /(^|[^а-яіїєґʼ'])(ти|тебе|тобі|твій|твоя|твоє|твої|твою)([^а-яіїєґʼ']|$)/i };
   for (const q of questions.filter((x) => x.type === 'guess')) {
     const target = q.about === 'answerer' ? q.answerer : q.about;
+    if (target === 'self') assert.equal(q.form, 'you', `${q.id}: питання про того, чия черга, — лише на «ти»`);
     assert.match(q.text, words[target], `${q.id}: «${q.text}» не каже, про кого (${target})`);
   }
+});
+
+test('валідатор: «той, чия черга» заборонено; form лише "you" і лише для питання до того, чия черга, з іншим, хто відповідає', () => {
+  const errs = (mut) => { const d = clone(); mut(d.questions.find((q) => q.id === 'am-01'), d); return validate(d); };
+  assert.deepEqual(errs(() => {}), []);
+  assert.ok(errs((q) => { q.text = 'Що любить той, чия черга?'; }).some((e) => /чия черга/.test(e)));
+  assert.ok(errs((q) => { q.form = 'they'; }).some((e) => /невідомий form/.test(e)));
+  assert.ok(errs((q) => { q.about = 'left'; }).some((e) => /form "you"/.test(e)));
+  assert.ok(errs((q) => { q.answerer = 'self'; q.about = 'left'; }).some((e) => /form "you"/.test(e)));
+  assert.deepEqual(errs((q) => { delete q.form; }), [], 'без form — звичайне питання');
 });
 
 test('валідатор: структура файлу і категорії', () => {

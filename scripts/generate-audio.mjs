@@ -16,7 +16,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { listAudioIds, planJobs, checkPronunciation, geminiBatch, piperEngine, azureEngine, edgeEngine, geminiEngine, runJobs, parseArgs, parseEnv } from './audio-lib.mjs';
+import { listAudioIds, planJobs, checkPronunciation, geminiBatch, updateManifest, MANIFEST, piperEngine, azureEngine, edgeEngine, geminiEngine, runJobs, parseArgs, parseEnv } from './audio-lib.mjs';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const data = JSON.parse(fs.readFileSync(path.join(root, 'src/data/questions.json'), 'utf8'));
@@ -68,5 +68,9 @@ const { done, failed, stopped } = opts.batch
   cleanup: (f) => fs.rmSync(f, { force: true }),
   log: (m) => console.log(m),
 });
+// маніфест: які файли з якого тексту записані (тест tests/audio-sync.test.js ловить застарілу озвучку)
+const manifestFile = path.join(outDir, MANIFEST);
+const manifest = fs.existsSync(manifestFile) ? JSON.parse(fs.readFileSync(manifestFile, 'utf8')) : {};
+fs.writeFileSync(manifestFile, JSON.stringify(updateManifest(manifest, jobs, done), null, 2) + '\n');
 console.log(`Готово: ${done.length}. Помилок: ${failed.length}.${stopped.length ? ` Зупинено, не озвучено ще ${stopped.length}.` : ''}`);
 process.exit(failed.length ? 1 : 0);

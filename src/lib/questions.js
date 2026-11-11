@@ -64,6 +64,10 @@ export function validate(raw) {
     if (q.type === 'guess' && !isAboutOther(q)) errors.push(`${where}: у guess той, хто відповідає, і той, про кого питання, мають бути різними`);
     // Імен у тексті немає: роль пишемо словами («гравець ліворуч»), тож фігурних дужок бути не може.
     if (/[{}]/.test(q.text)) errors.push(`${where}: у тексті є «{…}» — імена не підставляються, пиши роль словами`);
+    // «той, чия черга» звучить заплутано: до того, чия черга, звертаємось на «ти» (form: 'you')
+    if (/чия черга/i.test(q.text)) errors.push(`${where}: «той, чия черга» — заплутано; звертайся на «ти» й постав form: "you"`);
+    if (raw0.form !== undefined && raw0.form !== 'you') errors.push(`${where}: невідомий form «${raw0.form}» (є лише "you")`);
+    if (raw0.form === 'you' && (q.about !== 'self' || q.answerer === 'self')) errors.push(`${where}: form "you" — питання до того, чия черга (about: self), а відповідає інший`);
   });
   return errors;
 }

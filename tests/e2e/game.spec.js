@@ -51,18 +51,30 @@ test('«Вгадай»: підпис називає, хто відповідає
   await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
   const card = page.getByRole('dialog');
   await expect(card.locator('.who').nth(0)).toContainText('Оля');
-  await expect(card.locator('.who').nth(0)).toContainText('той, чия черга');
+  await expect(card.locator('.who').nth(0)).toContainText('твоя черга');
   await expect(card.locator('.who').nth(1)).toContainText('Тарас');
   await expect(card.locator('.who').nth(1)).toContainText('гравець ліворуч');
 });
 
-test('«Що про тебе знають»: відповідає гравець праворуч про того, чия черга', async ({ page }) => {
+test('«Що про тебе знають»: питання на «ти», сусід відповідає замість того, чия черга', async ({ page }) => {
   await startGame(page);
-  await openQuestion(page, 'Що про тебе знають', 'aboutme', 'am-02'); // answerer: left
+  await openQuestion(page, 'Що про тебе знають', 'aboutme', 'am-17'); // answerer: left
   const card = page.getByRole('dialog');
+  await expect(card.getByText('Чим ти займаєшся, коли нудно?')).toBeVisible();
+  await expect(card.locator('.who').nth(0)).toContainText('Відповідає');
   await expect(card.locator('.who').nth(0)).toContainText('Тарас');
+  await expect(card.locator('.who').nth(1)).toContainText('Замість кого');
   await expect(card.locator('.who').nth(1)).toContainText('Оля');
-  await expect(card.locator('.who').nth(1)).toContainText('той, чия черга');
+  await expect(card.locator('.who').nth(1)).toContainText('твоя черга');
+  await expect(card.locator('.instead')).toHaveText('Відповідай так, ніби ти — Оля. Оля каже, чи влучно.');
+});
+
+test('звичайне «Вгадай» — підпис «Про кого», без підказки «замість»', async ({ page }) => {
+  await startGame(page);
+  await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
+  const card = page.getByRole('dialog');
+  await expect(card.locator('.who').nth(1)).toContainText('Про кого');
+  await expect(card.locator('.instead')).toHaveCount(0);
 });
 
 test('«на твій вибір»: спершу вибір гравця (без себе), потім питання', async ({ page }) => {

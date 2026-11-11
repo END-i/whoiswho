@@ -1,6 +1,7 @@
 // Ядро генерації аудіо (без побічних ефектів на рівні модуля — тестується в Node).
 // Рушії: Piper (локально, безкоштовно) і Azure F0 (безкоштовний рівень, ключ у .env).
 
+import { createHash } from 'node:crypto';
 import { speechText } from '../src/lib/speech.js';
 import { Mp3Encoder } from '@breezystack/lamejs';
 
@@ -100,6 +101,35 @@ export function planJobs(questions, existing, { force = false, only = null, stre
     .filter((q) => !want || want.has(q.id))
     .filter((q) => force || stressed || !existing.has(q.id))
     .map((q) => ({ id: q.id, text: applyPronunciation(speechText(q.text), dict) }));
+}
+
+// ---- Маніфест озвучки: id → відбиток тексту, з якого записано файл. Так видно застарілу озвучку. ----
+
+export const MANIFEST = 'manifest.json';
+/** Відбиток тексту, який читає голос (після speechText і словника вимови). */
+export const textHash = (spoken) => createHash('sha1').update(spoken).digest('hex').slice(0, 12);
+
+/** Записати в маніфест щойно озвучені питання. jobs — з planJobs, done — їхні id. */
+export function updateManifest(manifest, jobs, done) {
+  const out = { ...manifest };
+  for (const j of jobs) if (done.includes(j.id)) out[j.id] = textHash(j.text);
+  return Object.fromEntries(Object.entries(out).sort(([a], [b]) => a.localeCompare(b)));
+}
+
+/**
+ * Застаріла озвучка: файл є, а текст змінився (чи файл не записаний у маніфест).
+ * existing — id готових файлів; повертає [{ id, reason }].
+ */
+export function staleAudio(questions, existing, manifest, dict = {}) {
+  const byId = new Map(questions.map((q) => [q.id, q]));
+  const out = [];
+  for (const id of existing) {
+    const q = byId.get(id);
+    if (!q) out.push({ id, reason: 'питання вже немає' });
+    else if (!manifest[id]) out.push({ id, reason: 'немає в маніфесті' });
+    else if (manifest[id] !== textHash(applyPronunciation(speechText(q.text), dict))) out.push({ id, reason: 'текст змінився' });
+  }
+  return out;
 }
 
 // ---- Словник вимови: слово → те саме слово з наголосом (U+0301 після наголошеної голосної) ----

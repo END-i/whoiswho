@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { speechText, audioUrl, pickUkVoice, listenMode, playQuestion } from '../src/lib/speech.js';
-import { listAudioIds, planJobs, ssml, piperEngine, azureEngine, edgeEngine, geminiEngine, geminiRequest, geminiBatch, geminiMp3, checkPronunciation, applyPronunciation, stressedIds, pcmToMp3, retryDelay, isDailyQuota, GEMINI_STYLE, runJobs, fatal, parseArgs, parseEnv, piperText, numberWords, parseWav, wavToMp3 } from '../scripts/audio-lib.mjs';
+import { listAudioIds, planJobs, ssml, piperEngine, azureEngine, edgeEngine, geminiEngine, geminiRequest, geminiBatch, geminiMp3, textHash, updateManifest, staleAudio, checkPronunciation, applyPronunciation, stressedIds, pcmToMp3, retryDelay, isDailyQuota, GEMINI_STYLE, runJobs, fatal, parseArgs, parseEnv, piperText, numberWords, parseWav, wavToMp3 } from '../scripts/audio-lib.mjs';
 import { audioIdsPlugin, VIRTUAL_ID } from '../scripts/vite-audio-plugin.mjs';
 import { mkdtempSync, writeFileSync as wf, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -509,4 +509,22 @@ test('geminiBatch: пакет не вдався, помилка API, задов�
   assert.deepEqual((await geminiBatch([{ id: 'a', text: 'x' }], { key: 'K', fetch: quick.fetch, writeFile() {}, outFile: (id) => id, poll: 0 })).done, ['a']);
   assert.equal(parseArgs(['--engine', 'gemini', '--batch']).batch, true);
   assert.throws(() => parseArgs(['--batch']), /лише з --engine gemini/);
+});
+
+test('маніфест озвучки: відбиток тексту, оновлення лише для озвучених, застаріле видно', () => {
+  assert.equal(textHash('Привіт'), textHash('Привіт'));
+  assert.notEqual(textHash('Привіт'), textHash('Привіт!'));
+  assert.match(textHash('x'), /^[0-9a-f]{12}$/);
+  const jobs = [{ id: 'b', text: 'Друге' }, { id: 'a', text: 'Перше' }, { id: 'c', text: 'Третє' }];
+  const m = updateManifest({ z: 'old' }, jobs, ['b', 'a']);
+  assert.deepEqual(Object.keys(m), ['a', 'b', 'z'], 'відсортовано; c не озвучено — не записано');
+  assert.equal(m.a, textHash('Перше'));
+  const qs = [{ id: 'a', text: 'Перше' }, { id: 'b', text: 'Друге змінене' }, { id: 'd', text: 'Нове' }];
+  assert.deepEqual(staleAudio(qs, ['a', 'b', 'd', 'gone'], m), [
+    { id: 'b', reason: 'текст змінився' }, { id: 'd', reason: 'немає в маніфесті' }, { id: 'gone', reason: 'питання вже немає' },
+  ]);
+  // словник вимови входить у відбиток: додали наголос — файл застарів
+  const m2 = updateManifest({}, [{ id: 'a', text: 'Перше' }], ['a']);
+  assert.deepEqual(staleAudio([{ id: 'a', text: 'Перше' }], ['a'], m2, { 'перше': 'пе\u0301рше' }), [{ id: 'a', reason: 'текст змінився' }]);
+  assert.deepEqual(staleAudio([{ id: 'a', text: 'Перше' }], ['a'], m2), []);
 });

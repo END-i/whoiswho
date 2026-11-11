@@ -35,8 +35,10 @@
   let tipOpen = $state(false);
 
   function roleText(role) {
-    return { self: 'той, чия черга', left: 'гравець ліворуч', right: 'гравець праворуч', pick: 'на твій вибір' }[role];
+    return { self: 'твоя черга', left: 'гравець ліворуч', right: 'гравець праворуч', pick: 'на твій вибір' }[role];
   }
+  // питання на «ти» до того, чия черга: відповідає інший — замість нього
+  const instead = $derived(question.form === 'you');
   const aboutRole = $derived(question.about === 'answerer' ? question.answerer : question.about);
   const TYPE = { open: 'Розкажи', choice: 'Вибери', activity: 'Покажи', guess: 'Вгадай', who: 'Хто з нас?' };
 </script>
@@ -65,9 +67,12 @@
           {#if showAbout}
             <span class="arrow" aria-hidden="true">→</span>
             <div class="who"><Avatar player={players[about]} size={56} ring />
-              <span><small>Про кого</small><b>{players[about].name}</b><em>{roleText(aboutRole)}</em></span></div>
+              <span><small>{instead ? 'Замість кого' : 'Про кого'}</small><b>{players[about].name}</b><em>{roleText(aboutRole)}</em></span></div>
           {/if}
         </div>
+        {#if instead && showAbout}
+          <p class="instead">Відповідай так, ніби ти — {players[about].name}. {players[about].name} каже, чи влучно.</p>
+        {/if}
       {/if}
 
       {#if need}
@@ -149,6 +154,7 @@
   @keyframes pulse { 50% { transform: scale(1.1); } }
   .people { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
   .who { display: flex; gap: 10px; align-items: center; min-width: 0; }
+  .instead { margin: 0 0 8px; font-size: 15px; font-weight: 800; color: var(--dim); }
   .who span { display: flex; flex-direction: column; line-height: 1.1; min-width: 0; }
   .who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* Двоє людей — поруч: аватар над підписом, стрілка між ними */
