@@ -1,5 +1,6 @@
 # Тести на кожен push і pull request. Деплой робить Cloudflare Pages окремо (див. README).
 name: CI
+# ubuntu-24.04 закріплено: ubuntu-latest переходить на Ubuntu 26, а залежності WebKit для Playwright там ще не перевірені
 
 on:
   push:
@@ -13,10 +14,10 @@ concurrency:
 jobs:
   unit:
     name: Unit tests (100% coverage)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version-file: .node-version, cache: npm }
       - run: npm ci
       - run: npm run test:coverage
@@ -24,15 +25,15 @@ jobs:
 
   e2e:
     name: E2E (Chromium + WebKit)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version-file: .node-version, cache: npm }
       - run: npm ci
       - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:e2e
         env: { CI: '1' }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with: { name: playwright-traces, path: test-results/, retention-days: 7 }

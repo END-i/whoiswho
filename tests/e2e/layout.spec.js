@@ -65,6 +65,8 @@ for (const width of [320, 375, 390, 430]) {
     await startGame(page, ['Оля', 'Тарас'], { scoring: true });
     await openQuestion(page, 'Вгадай', 'guess', 'gs-01'); // з озвучкою — є кнопка «Слухати»
     await expect(page.locator('.listen')).toBeVisible();
+    // картка з'являється з анімацією (зменшена й повернута) — міряємо, коли вона вже на місці
+    await page.locator('[role=dialog] .card').evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished)));
     for (const name of [/Правильно/, /Неправильно/]) {
       const b = page.getByRole('button', { name }).first();
       const lines = await b.evaluate((el) => {
@@ -75,7 +77,8 @@ for (const width of [320, 375, 390, 430]) {
       expect(await b.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(18.67);
       expect(await b.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
       // і сама кнопка не вилазить за картку
-      expect(await b.evaluate((el) => el.getBoundingClientRect().right <= el.closest('.card').getBoundingClientRect().right - 8)).toBe(true);
+      const r = await b.evaluate((el) => ({ button: el.getBoundingClientRect().right, card: el.closest('.card').getBoundingClientRect().right, text: el.scrollWidth, box: el.clientWidth }));
+      expect(r.button, JSON.stringify(r)).toBeLessThanOrEqual(r.card - 8);
     }
     // значки над питанням — кожен в один рядок (поруч кнопка «Слухати»)
     for (const badge of await page.locator('.badge').all()) expect(await badge.evaluate((el) => el.scrollHeight <= 30)).toBe(true);

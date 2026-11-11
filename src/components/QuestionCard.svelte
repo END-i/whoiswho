@@ -232,8 +232,9 @@
   /* шрифт лишається великим (≥ 18,67 px — білий на кольоровому має читатися), тому на вужчих телефонах
      спершу ховаємо значок, а на найвужчих кнопки стають одна під одною — «Неправильно» не розривається */
   .row .chunky { padding: 0 8px; white-space: nowrap; }
-  @media (max-width: 420px) { .row .ico { display: none; } }
-  @media (max-width: 360px) { .row { grid-template-columns: 1fr; } }
+  /* межі із запасом: на Linux і Android шрифти ширші, ніж на iPhone */
+  @media (max-width: 460px) { .row .ico { display: none; } }
+  @media (max-width: 400px) { .row { grid-template-columns: 1fr; } }
   .chips + .wide { margin-top: 12px; }
   .chunky.ok { --c: var(--ok); --c2: var(--ok2); }
   .chunky.no { --c: var(--no); --c2: var(--no2); }
