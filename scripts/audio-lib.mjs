@@ -93,12 +93,46 @@ export function listAudioIds(dir, fs) {
  * Які питання озвучити. existing — Set уже готових id.
  * force — перегенерувати все; only — лише ці id.
  */
-export function planJobs(questions, existing, { force = false, only = null } = {}) {
-  const want = only ? new Set(only) : null;
+export function planJobs(questions, existing, { force = false, only = null, stressed = false, dict = {} } = {}) {
+  // --stressed: перегенерувати лише питання зі словами зі словника вимови
+  const want = stressed ? new Set(stressedIds(questions, dict)) : only ? new Set(only) : null;
   return questions
     .filter((q) => !want || want.has(q.id))
-    .filter((q) => force || !existing.has(q.id))
-    .map((q) => ({ id: q.id, text: speechText(q.text) }));
+    .filter((q) => force || stressed || !existing.has(q.id))
+    .map((q) => ({ id: q.id, text: applyPronunciation(speechText(q.text), dict) }));
+}
+
+// ---- Словник вимови: слово → те саме слово з наголосом (U+0301 після наголошеної голосної) ----
+
+const STRESS = '\u0301';
+const VOWELS = 'аеєиіїоуюяАЕЄИІЇОУЮЯ';
+const WORD = /[\p{L}\u0301'ʼ’]+/gu;
+
+/** Помилки у словнику: наголос рівно один, лише після голосної, і без нього слово те саме. */
+export function checkPronunciation(dict) {
+  const errors = [];
+  for (const [word, said] of Object.entries(dict)) {
+    const marks = [...said].filter((c) => c === STRESS).length;
+    if (word !== word.toLowerCase() || word.includes(STRESS)) errors.push(`«${word}»: ключ — слово малими літерами без наголосу`);
+    else if (said.replaceAll(STRESS, '').toLowerCase() !== word) errors.push(`«${word}»: «${said}» — це інше слово`);
+    else if (marks !== 1) errors.push(`«${word}»: потрібен рівно один наголос (U+0301), а є ${marks}`);
+    else if (!VOWELS.includes(said[said.indexOf(STRESS) - 1])) errors.push(`«${word}»: наголос має стояти після голосної`);
+  }
+  return errors;
+}
+
+/** Поставити наголоси за словником. Лише цілі слова, велика перша літера зберігається. */
+export function applyPronunciation(text, dict = {}) {
+  return text.replace(WORD, (w) => {
+    const said = dict[w.toLowerCase()];
+    if (!said) return w;
+    return w[0] !== w[0].toLowerCase() ? said[0].toUpperCase() + said.slice(1) : said;
+  });
+}
+
+/** Питання, у тексті яких є слова зі словника, — лише їх треба перегенерувати. */
+export function stressedIds(questions, dict = {}) {
+  return questions.filter((q) => applyPronunciation(q.text, dict) !== q.text).map((q) => q.id);
 }
 
 const xml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
@@ -234,9 +268,9 @@ export async function runJobs(jobs, engine, { outFile, cleanup = () => {}, log =
   return { done, failed };
 }
 
-/** Аргументи: --engine edge|gemini|azure|piper --voice назва --model шлях --speaker N --force --only a,b --list --out тека */
+/** Аргументи: --engine edge|gemini|azure|piper --voice назва --model шлях --speaker N --force --stressed --only a,b --list --out тека */
 export function parseArgs(argv) {
-  const o = { engine: 'edge', voice: null, model: null, speaker: null, force: false, only: null, list: false, out: null };
+  const o = { engine: 'edge', voice: null, model: null, speaker: null, force: false, stressed: false, only: null, list: false, out: null };
   for (let k = 0; k < argv.length; k++) {
     const a = argv[k];
     if (a === '--engine') o.engine = argv[++k];
@@ -245,6 +279,7 @@ export function parseArgs(argv) {
     else if (a === '--out') o.out = argv[++k];
     else if (a === '--speaker') { o.speaker = Number(argv[++k]); if (!Number.isInteger(o.speaker) || o.speaker < 0) throw new Error('--speaker — номер голосу: 0, 1, 2…'); }
     else if (a === '--force') o.force = true;
+    else if (a === '--stressed') o.stressed = true;
     else if (a === '--list') o.list = true;
     else if (a === '--only') o.only = String(argv[++k] || '').split(',').filter(Boolean);
     else throw new Error(`Невідомий аргумент: ${a}`);

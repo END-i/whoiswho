@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { speechText, audioUrl, pickUkVoice, listenMode, playQuestion } from '../src/lib/speech.js';
-import { listAudioIds, planJobs, ssml, piperEngine, azureEngine, edgeEngine, geminiEngine, geminiRequest, pcmToMp3, retryDelay, isDailyQuota, GEMINI_STYLE, runJobs, parseArgs, parseEnv, piperText, numberWords, parseWav, wavToMp3 } from '../scripts/audio-lib.mjs';
+import { listAudioIds, planJobs, ssml, piperEngine, azureEngine, edgeEngine, geminiEngine, geminiRequest, checkPronunciation, applyPronunciation, stressedIds, pcmToMp3, retryDelay, isDailyQuota, GEMINI_STYLE, runJobs, parseArgs, parseEnv, piperText, numberWords, parseWav, wavToMp3 } from '../scripts/audio-lib.mjs';
 import { audioIdsPlugin, VIRTUAL_ID } from '../scripts/vite-audio-plugin.mjs';
 import { mkdtempSync, writeFileSync as wf, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -276,10 +276,10 @@ test('runJobs: помилка одного не зупиняє решту, ти�
 // ---------- аргументи й .env ----------
 
 test('parseArgs', () => {
-  assert.deepEqual(parseArgs([]), { engine: 'edge', voice: null, model: null, speaker: null, force: false, only: null, list: false, out: null });
+  assert.deepEqual(parseArgs([]), { engine: 'edge', voice: null, model: null, speaker: null, force: false, stressed: false, only: null, list: false, out: null });
   assert.equal(parseArgs(['--engine', 'gemini', '--out', '/tmp/s']).out, '/tmp/s');
   assert.deepEqual(parseArgs(['--engine', 'azure', '--force', '--only', 'a,b', '--list', '--speaker', '1', '--voice', 'uk-UA-OstapNeural']),
-    { engine: 'azure', voice: 'uk-UA-OstapNeural', model: null, speaker: 1, force: true, only: ['a', 'b'], list: true, out: null });
+    { engine: 'azure', voice: 'uk-UA-OstapNeural', model: null, speaker: 1, force: true, stressed: false, only: ['a', 'b'], list: true, out: null });
   assert.equal(parseArgs(['--engine', 'piper']).engine, 'piper');
   assert.throws(() => parseArgs(['--speaker', 'x']), /номер голосу/);
   assert.equal(parseArgs(['--model', 'x.onnx']).model, 'x.onnx');
@@ -379,4 +379,42 @@ test('vite-плагін у dev: зміна в теці озвучки інвал
   handler('add', '/proj/src/App.svelte'); assert.equal(invalidated, 0);
   handler('add', '/proj/public/audio/x.mp3'); assert.equal(invalidated, 1);
   server.has = false; handler('add', '/proj/public/audio/y.mp3'); assert.equal(invalidated, 1);
+});
+
+const A = '\u0301';
+const DICT = { 'фарбу': `фа${A}рбу`, 'замок': `замо${A}к` };
+
+test('applyPronunciation: лише цілі слова зі словника, регістр першої літери зберігається', () => {
+  assert.equal(applyPronunciation('Хто купив фарбу?', DICT), `Хто купив фа${A}рбу?`);
+  assert.equal(applyPronunciation('Фарбу! ЗАМОК і замок', DICT), `Фа${A}рбу! Замо${A}к і замо${A}к`);
+  assert.equal(applyPronunciation('фарбувати замками', DICT), 'фарбувати замками', 'частини слів не чіпаємо');
+  assert.equal(applyPronunciation('Без словника'), 'Без словника');
+  assert.equal(applyPronunciation("м'ята", { "м'ята": `м'я${A}та` }), `м'я${A}та`, 'апостроф — частина слова');
+});
+
+test('checkPronunciation: рівно один наголос після голосної, те саме слово, ключ малими', () => {
+  assert.deepEqual(checkPronunciation(DICT), []);
+  const errs = checkPronunciation({ 'Фарбу': `фа${A}рбу`, 'фарба': `фа${A}рбу`, 'кіт': 'кіт', 'мама': `ма${A}ма${A}`, 'сон': `с${A}он`, [`то${A}`]: `то${A}` });
+  assert.equal(errs.length, 6);
+  assert.match(errs[0], /малими/); assert.match(errs[1], /інше слово/); assert.match(errs[2], /рівно один.*0/);
+  assert.match(errs[3], /рівно один.*2/); assert.match(errs[4], /після голосної/); assert.match(errs[5], /без наголосу/);
+});
+
+test('stressedIds і planJobs --stressed: лише питання зі словами зі словника, навіть якщо файл уже є', () => {
+  const qs = [{ id: 'a', text: 'Хто купив фарбу?' }, { id: 'b', text: 'Хто спить?' }, { id: 'c', text: 'Де замок?' }];
+  assert.deepEqual(stressedIds(qs, DICT), ['a', 'c']);
+  assert.deepEqual(stressedIds(qs), []);
+  const jobs = planJobs(qs, new Set(['a', 'b', 'c']), { stressed: true, dict: DICT });
+  assert.deepEqual(jobs.map((j) => j.id), ['a', 'c']);
+  assert.equal(jobs[0].text, `Хто купив фа${A}рбу?`);
+  // звичайний запуск теж ставить наголоси в нових файлах
+  assert.equal(planJobs(qs, new Set(['b', 'c']), { dict: DICT })[0].text, `Хто купив фа${A}рбу?`);
+  assert.equal(parseArgs(['--stressed']).stressed, true);
+});
+
+test('src/data/pronunciation.json: словник без помилок', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { words } = JSON.parse(readFileSync(new URL('../src/data/pronunciation.json', import.meta.url), 'utf8'));
+  assert.equal(typeof words, 'object');
+  assert.deepEqual(checkPronunciation(words), []);
 });

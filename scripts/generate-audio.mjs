@@ -7,7 +7,7 @@
 //   node scripts/generate-audio.mjs --engine azure                                    # Azure F0, ключі в .env
 //   node scripts/generate-audio.mjs --engine gemini --voice Leda --model gemini-3.8-flash-tts   # Gemini, ключ у .env
 //   node scripts/generate-audio.mjs --list                                            # що буде озвучено
-//   ... --force (перегенерувати все), --only gs-01,gs-02
+//   ... --force (перегенерувати все), --only gs-01,gs-02, --stressed (лише питання зі словами зі словника вимови)
 // Шлях до piper можна задати змінною PIPER_BIN. ffmpeg не потрібен: MP3 кодує lamejs.
 //
 // Уся логіка — у scripts/audio-lib.mjs (покрита тестами); тут лише файли й процеси.
@@ -15,14 +15,18 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { listAudioIds, planJobs, piperEngine, azureEngine, edgeEngine, geminiEngine, runJobs, parseArgs, parseEnv } from './audio-lib.mjs';
+import { listAudioIds, planJobs, checkPronunciation, piperEngine, azureEngine, edgeEngine, geminiEngine, runJobs, parseArgs, parseEnv } from './audio-lib.mjs';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const data = JSON.parse(fs.readFileSync(path.join(root, 'src/data/questions.json'), 'utf8'));
 const opts = parseArgs(process.argv.slice(2));
 const outDir = opts.out ? path.resolve(opts.out) : path.join(root, 'public/audio');
 
-const jobs = planJobs(data.questions, new Set(listAudioIds(outDir, fs)), opts);
+// словник вимови: слова, які голос наголошує неправильно (див. README, «Озвучка»)
+const dict = JSON.parse(fs.readFileSync(path.join(root, 'src/data/pronunciation.json'), 'utf8')).words;
+const dictErrors = checkPronunciation(dict);
+if (dictErrors.length) { console.error(`Помилки у src/data/pronunciation.json:\n${dictErrors.join('\n')}`); process.exit(1); }
+const jobs = planJobs(data.questions, new Set(listAudioIds(outDir, fs)), { ...opts, dict });
 if (opts.list || !jobs.length) {
   console.log(jobs.length ? jobs.map((j) => `${j.id}: ${j.text}`).join('\n') : 'Усе вже озвучено. Нових питань немає.');
   process.exit(0);
