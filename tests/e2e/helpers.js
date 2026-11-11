@@ -2,7 +2,7 @@ import { expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
 export const KEY = 'whoiswho.v2';
-export const QUESTIONS = JSON.parse(readFileSync(new URL('../../src/data/questions.json', import.meta.url)));
+export const QUESTIONS = JSON.parse(readFileSync(new URL('../../src/data/packs/family.json', import.meta.url)));
 export const byId = new Map(QUESTIONS.questions.map((q) => [q.id, q]));
 export const confirmAll = (page) => page.on('dialog', (d) => d.accept());
 

@@ -4,11 +4,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { listAudioIds, staleAudio, MANIFEST } from '../scripts/audio-lib.mjs';
+import { allQuestions } from './packs.js';
 
 const read = (f) => JSON.parse(fs.readFileSync(new URL(f, import.meta.url), 'utf8'));
 
 test('озвучка public/audio не застаріла: кожен файл записаний з поточного тексту питання', () => {
   const dir = new URL('../public/audio/', import.meta.url).pathname;
-  const stale = staleAudio(read('../src/data/questions.json').questions, listAudioIds(dir, fs), read(`../public/audio/${MANIFEST}`), read('../src/data/pronunciation.json').words);
+  const stale = staleAudio(allQuestions, listAudioIds(dir, fs), read(`../public/audio/${MANIFEST}`), read('../src/data/pronunciation.json').words);
   assert.deepEqual(stale, [], `Перезапиши: npm run audio -- --engine gemini --force --only ${stale.map((s) => s.id).join(',')}`);
 });

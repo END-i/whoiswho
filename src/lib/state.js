@@ -6,6 +6,7 @@
  * @typedef {Object} Game
  * @property {number} version
  * @property {string[]} order            id гравців за годинниковою стрілкою; order[i+1] сидить ліворуч від order[i]
+ * @property {string} pack                    набір питань (src/data/packs)
  * @property {'family'|'kids'} audience
  * @property {boolean} scoring
  * @property {number} turn               індекс в order того, чия черга
@@ -75,11 +76,11 @@ export function buildDeck(questions, prevDeck = null, rand = Math.random) {
 
 // ---------- гра ----------
 
-export function newGame({ players, audience = 'family', scoring = false, questions, prevDeck = null, restarted = [], rand = Math.random }) {
+export function newGame({ players, pack = 'family', audience = 'family', scoring = false, questions, prevDeck = null, restarted = [], rand = Math.random }) {
   return {
     version: VERSION,
     order: players.map((p) => p.id),
-    audience, scoring, turn: 0,
+    pack, audience, scoring, turn: 0,
     deck: buildDeck(questions, prevDeck, rand),
     used: {},
     scores: Object.fromEntries(players.map((p) => [p.id, 0])),
@@ -189,7 +190,7 @@ export function restoreGame(saved, questionIds, players) {
   }
   const turn = Number.isInteger(g.turn) && g.turn >= 0 && g.turn < g.order.length ? g.turn : 0;
   return {
-    version: VERSION, order: g.order, audience: g.audience === 'kids' ? 'kids' : 'family', scoring: !!g.scoring,
+    version: VERSION, order: g.order, pack: typeof g.pack === 'string' ? g.pack : 'family', audience: g.audience === 'kids' ? 'kids' : 'family', scoring: !!g.scoring,
     turn, deck, used, scores: { ...g.scores }, gone: { ...(g.gone || {}) },
     stats: { answered: +g.stats.answered || 0, skipped: +g.stats.skipped || 0 },
     over: !!g.over,

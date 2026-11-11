@@ -1,12 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { CATEGORY_COLORS, categoryColor, playerColor, PLAYER_COLORS, initial, contrast, luminance, TOKENS, INK } from '../src/lib/theme.js';
 
-const raw = JSON.parse(readFileSync(new URL('../src/data/questions.json', import.meta.url)));
+import { packFiles } from './packs.js';
 
-test('кожна категорія з questions.json має свій колір, кольори не повторюються', () => {
-  for (const c of raw.categories) assert.ok(CATEGORY_COLORS[c.id], c.id);
+test('кожна категорія кожного набору має свій колір, кольори не повторюються', () => {
+  for (const [name, p] of Object.entries(packFiles)) for (const c of p.categories) assert.ok(CATEGORY_COLORS[c.id], `${name}: ${c.id}`);
   const firsts = Object.values(CATEGORY_COLORS).map((p) => p[0]);
   assert.equal(new Set(firsts).size, firsts.length);
 });

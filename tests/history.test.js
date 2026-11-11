@@ -40,7 +40,7 @@ const names = { p1: 'Оля', p2: 'Тарас', p3: 'Мама' };
 test('gameRecord: гравці з місцями, переможці, картки', () => {
   const r = gameRecord(game(), names, { date: '2026-11-11T10:00:00Z', id: 'g1' });
   assert.deepEqual(r, {
-    id: 'g1', date: '2026-11-11T10:00:00Z', finished: true, scoring: true,
+    id: 'g1', date: '2026-11-11T10:00:00Z', finished: true, scoring: true, pack: 'family',
     players: [{ id: 'p1', name: 'Оля', score: 2, place: 1 }, { id: 'p2', name: 'Тарас', score: 1, place: 2 }],
     winners: ['p1'], cards: { answered: 3, skipped: 1 },
   });
@@ -58,6 +58,7 @@ test('gameRecord: гравці, що вийшли, теж у записі; бе�
   assert.equal(gameRecord(game({ stats: { answered: 0, skipped: 0 } }), names), null);
   assert.deepEqual(gameRecord(game({ stats: { skipped: 2 } }), names).cards, { answered: 0, skipped: 2 }, 'лише пропуски — гра все одно в історії');
   assert.equal(gameRecord(null, names), null);
+  assert.equal(gameRecord(game({ pack: 'friends' }), names).pack, 'friends', 'набір гри — у записі');
   assert.equal(gameRecord(game({ scores: undefined, gone: undefined, stats: { answered: 1 } }), {}).players[0].name, 'Гравець');
 });
 
@@ -70,6 +71,12 @@ test('addRecord: нове — першим, без дублів, обмежен�
   for (let k = 0; k < HISTORY_LIMIT + 5; k++) big = addRecord(big, { id: `g${k}` });
   assert.equal(big.length, HISTORY_LIMIT);
   assert.equal(big[0].id, `g${HISTORY_LIMIT + 4}`);
+});
+
+test('cleanHistory: старі записи без набору — сімейний', () => {
+  const [r] = cleanHistory([{ id: 'o', date: 'd', players: [] }]);
+  assert.equal(r.pack, 'family');
+  assert.equal(cleanHistory([{ id: 'o', date: 'd', players: [], pack: 'adults' }])[0].pack, 'adults');
 });
 
 test('cleanHistory: відкидає зламане, доповнює відсутнє', () => {

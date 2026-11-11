@@ -19,7 +19,10 @@ import path from 'node:path';
 import { listAudioIds, planJobs, checkPronunciation, geminiBatch, updateManifest, MANIFEST, piperEngine, azureEngine, edgeEngine, geminiEngine, runJobs, parseArgs, parseEnv } from './audio-lib.mjs';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const data = JSON.parse(fs.readFileSync(path.join(root, 'src/data/questions.json'), 'utf8'));
+// усі набори питань: озвучка спільна, id питань між наборами не повторюються
+const packDir = path.join(root, 'src/data/packs');
+const data = { questions: fs.readdirSync(packDir).filter((f) => f.endsWith('.json')).sort()
+  .flatMap((f) => JSON.parse(fs.readFileSync(path.join(packDir, f), 'utf8')).questions) };
 const opts = parseArgs(process.argv.slice(2));
 const outDir = opts.out ? path.resolve(opts.out) : path.join(root, 'public/audio');
 

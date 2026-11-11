@@ -2,7 +2,7 @@ import { test, expect } from './fixtures.js';
 import { readFileSync } from 'node:fs';
 import { startGame, openQuestion, saved, category } from './helpers.js';
 
-const { questions } = JSON.parse(readFileSync(new URL('../../src/data/questions.json', import.meta.url), 'utf8'));
+const { questions } = JSON.parse(readFileSync(new URL('../../src/data/packs/family.json', import.meta.url), 'utf8'));
 const count = (cat) => questions.filter((q) => q.category === cat && q.audience !== 'kids').length;
 const GUESS = count('guess'), WHO = count('who');
 

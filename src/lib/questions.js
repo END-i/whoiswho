@@ -1,4 +1,4 @@
-// Читання questions.json: значення за замовчуванням, перевірка схеми, фільтр аудиторії.
+// Набори питань (src/data/packs/*.json): значення за замовчуванням, перевірка схеми, фільтр аудиторії.
 // Без Svelte — щоб можна було тестувати в Node.
 
 export const TYPES = ['open', 'choice', 'activity', 'guess', 'who', 'quiz'];
@@ -21,6 +21,22 @@ export function isAboutOther(q) {
   return !(q.about === 'answerer' || q.about === q.answerer);
 }
 
+export const PACK_ORDER = ['family', 'couples', 'friends', 'adults'];
+export const MAX_PLAYERS = 8;
+
+/** Опис набору в meta.pack: id, назва, скільки гравців; kids — є фільтр «Лише діти»; adults — лише для 18+. */
+function packErrors(pack) {
+  if (!pack || typeof pack !== 'object') return ['Немає meta.pack — опису набору'];
+  const e = [];
+  if (typeof pack.id !== 'string' || !/^[a-z]+$/.test(pack.id)) e.push('meta.pack.id — латинські малі літери');
+  for (const f of ['emoji', 'title', 'description']) if (!pack[f]) e.push(`meta.pack.${f} порожній`);
+  const { minPlayers: lo, maxPlayers: hi } = pack;
+  if (!Number.isInteger(lo) || lo < 2) e.push('meta.pack.minPlayers — ціле число від 2');
+  else if (!Number.isInteger(hi) || hi < lo || hi > MAX_PLAYERS) e.push(`meta.pack.maxPlayers — від minPlayers до ${MAX_PLAYERS}`);
+  if (pack.kids && pack.adults) e.push('Набір не може бути водночас для дітей і 18+');
+  return e;
+}
+
 /** Повертає список помилок українською. Порожній список — усе гаразд. */
 export function validate(raw) {
   const errors = [];
@@ -31,6 +47,7 @@ export function validate(raw) {
     if (!meta.title) errors.push('meta.title порожній');
     if (!Array.isArray(meta.rules) || !meta.rules.length) errors.push('meta.rules має бути непорожнім списком');
     if (!Array.isArray(meta.scoringCategories)) errors.push('meta.scoringCategories має бути списком');
+    errors.push(...packErrors(meta.pack));
   }
   if (!Array.isArray(categories) || !categories.length) errors.push('categories має бути непорожнім списком');
   if (!Array.isArray(questions) || !questions.length) errors.push('questions має бути непорожнім списком');
@@ -58,6 +75,7 @@ export function validate(raw) {
     if (!TYPES.includes(q.type)) errors.push(`${where}: невідомий type «${q.type}»`);
     if (q.audience === 'adults') errors.push(`${where}: audience «adults» не підтримується — гра сімейна (дорослий режим у беклозі)`);
     else if (!AUDIENCES.includes(q.audience)) errors.push(`${where}: невідомий audience «${q.audience}»`);
+    else if (q.audience === 'kids' && !meta.pack?.kids) errors.push(`${where}: audience «kids» — лише в наборі з фільтром «Лише діти»`);
     if (!ROLES.includes(q.answerer)) errors.push(`${where}: невідомий answerer «${q.answerer}»`);
     if (!ABOUT.includes(q.about)) errors.push(`${where}: невідомий about «${q.about}»`);
     if (q.type === 'who' && (raw0.answerer || raw0.about)) errors.push(`${where}: у «Хто з нас» не задають answerer чи about`);
@@ -92,4 +110,26 @@ export function load(raw) {
 export function byAudience(questions, filter) {
   const ok = filter === 'kids' ? ['all', 'kids'] : ['all'];
   return questions.filter((q) => ok.includes(q.audience));
+}
+
+/**
+ * Усі набори разом. files — { назва файлу: вміст }. Повертає { packs: { id: дані }, order, errors }.
+ * Id питань не повторюються між наборами: озвучка в одній теці. Без сімейного набору гра не працює.
+ */
+export function loadPacks(files) {
+  const packs = {}, errors = [], owner = new Map();
+  for (const [name, raw] of Object.entries(files)) {
+    const errs = validate(raw);
+    if (errs.length) { errors.push(...errs.map((e) => `${name}: ${e}`)); continue; }
+    const id = raw.meta.pack.id;
+    if (packs[id]) { errors.push(`${name}: набір «${id}» уже є`); continue; }
+    for (const q of raw.questions) {
+      if (owner.has(q.id)) errors.push(`${name}: питання ${q.id} уже є в наборі «${owner.get(q.id)}»`);
+      else owner.set(q.id, id);
+    }
+    packs[id] = load(raw);
+  }
+  if (!packs.family && !errors.length) errors.push('Немає сімейного набору (family)');
+  const order = [...PACK_ORDER.filter((id) => packs[id]), ...Object.keys(packs).filter((id) => !PACK_ORDER.includes(id))];
+  return { packs, order, errors };
 }

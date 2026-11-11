@@ -16,7 +16,7 @@ export function gameRecord(game, names, { finished = true, date = new Date().toI
   const ranked = rank(ids.map((pid) => ({ id: pid, name: names[pid] || game.gone?.[pid] || 'Гравець', score: game.scores?.[pid] || 0 })));
   return {
     id: id || `${date}-${Math.random().toString(36).slice(2, 7)}`,
-    date, finished, scoring: !!game.scoring,
+    date, finished, scoring: !!game.scoring, pack: game.pack || 'family',
     players: ranked.map(({ id: pid, name, score, place }) => ({ id: pid, name, score, place })),
     // переможець — лише в завершеній грі з балами; покинута гра рахує ігри й бали, але не перемоги
     winners: game.scoring && finished ? winners(ranked).map((e) => e.id) : [],
@@ -35,7 +35,7 @@ export function cleanHistory(raw) {
   if (!Array.isArray(raw)) return [];
   return raw.filter((r) => r && typeof r.id === 'string' && typeof r.date === 'string' && Array.isArray(r.players)
     && r.players.every((p) => p && typeof p.id === 'string' && typeof p.name === 'string' && Number.isFinite(p.score) && Number.isInteger(p.place)))
-    .map((r) => ({ ...r, winners: Array.isArray(r.winners) ? r.winners : [], cards: r.cards || { answered: 0, skipped: 0 } }))
+    .map((r) => ({ ...r, pack: typeof r.pack === 'string' ? r.pack : 'family', winners: Array.isArray(r.winners) ? r.winners : [], cards: r.cards || { answered: 0, skipped: 0 } }))
     .slice(0, HISTORY_LIMIT);
 }
 

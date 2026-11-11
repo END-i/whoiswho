@@ -1,13 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { validate, load, byAudience, isAboutOther } from '../src/lib/questions.js';
+import { validate, load, byAudience, isAboutOther, loadPacks } from '../src/lib/questions.js';
+import { packFiles, family as raw } from './packs.js';
 
-const raw = JSON.parse(readFileSync(new URL('../src/data/questions.json', import.meta.url)));
 const clone = () => structuredClone(raw);
 
-test('справжній questions.json проходить перевірку', () => {
-  assert.deepEqual(validate(raw), []);
+test('усі набори з src/data/packs проходять перевірку, id питань не повторюються між наборами', () => {
+  for (const [name, p] of Object.entries(packFiles)) assert.deepEqual(validate(p), [], name);
+  assert.deepEqual(loadPacks(packFiles).errors, []);
 });
 
 test('кожна категорія має питання в обох фільтрах', () => {
@@ -133,4 +133,37 @@ test('валідатор: fieldDefaults можуть бути відсутні �
 
 test('load: помилка без списку errors теж читабельна', () => {
   assert.throws(() => load(null), /порожній/);
+});
+
+test('meta.pack: id, назва, кількість гравців, kids і adults разом не можна', () => {
+  const run = (mut) => { const d = clone(); mut(d.meta.pack, d); return validate(d); };
+  assert.deepEqual(run(() => {}), []);
+  assert.ok(run((p, d) => { delete d.meta.pack; }).some((e) => /Немає meta.pack/.test(e)));
+  assert.ok(run((p) => { p.id = 'Сім'; }).some((e) => /meta.pack.id/.test(e)));
+  assert.ok(run((p) => { p.title = ''; }).some((e) => /meta.pack.title/.test(e)));
+  assert.ok(run((p) => { p.minPlayers = 1; }).some((e) => /minPlayers/.test(e)));
+  assert.ok(run((p) => { p.maxPlayers = 9; }).some((e) => /maxPlayers/.test(e)));
+  assert.ok(run((p) => { p.maxPlayers = 1.5; }).some((e) => /maxPlayers/.test(e)));
+  assert.ok(run((p) => { p.adults = true; }).some((e) => /водночас/.test(e)));
+  assert.ok(run((p) => { delete p.kids; }).some((e) => /audience «kids» — лише/.test(e)), 'дитячі питання — лише в наборі з фільтром');
+});
+
+test('loadPacks: усі набори, порядок, повтор id питання чи набору, зламаний файл, без сімейного', () => {
+  const other = (id, qid = 'xx-01') => {
+    const d = clone();
+    d.meta.pack = { ...d.meta.pack, id, kids: false };
+    d.questions = [{ id: qid, category: d.categories[0].id, text: 'Питання?' }];
+    return d;
+  };
+  const ok = loadPacks({ 'z.json': other('zeta'), 'f.json': clone(), 'c.json': other('couples', 'xx-02') });
+  assert.deepEqual(ok.errors, []);
+  assert.deepEqual(ok.order, ['family', 'couples', 'zeta']);
+  assert.equal(ok.packs.zeta.questions[0].type, 'open', 'питання з усіма полями');
+  const dupQ = loadPacks({ 'f.json': clone(), 'c.json': other('couples', 'gs-01') });
+  assert.ok(dupQ.errors.some((e) => /c.json: питання gs-01 уже є в наборі «family»/.test(e)));
+  const dupP = loadPacks({ 'f.json': clone(), 'g.json': clone() });
+  assert.ok(dupP.errors.some((e) => /g.json: набір «family» уже є/.test(e)));
+  const broken = loadPacks({ 'f.json': clone(), 'b.json': null });
+  assert.ok(broken.errors.some((e) => /^b.json: Файл питань порожній/.test(e)));
+  assert.deepEqual(loadPacks({ 'c.json': other('couples') }).errors, ['Немає сімейного набору (family)']);
 });

@@ -1,6 +1,5 @@
 <script>
-  import raw from './data/questions.json';
-  import { load, byAudience } from './lib/questions.js';
+  import { loadPacks, byAudience } from './lib/questions.js';
   import { newGame, finishCard, remaining, allDone, updatePlayers, restoreGame, endGame, questionAt } from './lib/state.js';
   import { freshQuestions, markSeen, cleanSeen } from './lib/seen.js';
   import { gameRecord, addRecord, cleanHistory } from './lib/history.js';
@@ -26,12 +25,10 @@
   import { downloadAll, cachedCount, clearAudio } from './lib/audiocache.js';
   import { playSfx } from './lib/sfx.js';
 
-  // Питання читаються один раз під час старту; реактивність тут не потрібна.
-  const { data, errors } = (() => {
-    try { return { data: load(raw), errors: [] }; }
-    catch (e) { return { data: null, errors: e.errors || [e.message] }; }
-  })();
-  const byId = new Map(data ? data.questions.map((q) => [q.id, q]) : []);
+  // Набори питань читаються один раз під час старту: кожен файл у src/data/packs — окремий набір.
+  const files = import.meta.glob('./data/packs/*.json', { eager: true, import: 'default' });
+  const { packs, order: packOrder, errors } = loadPacks(Object.fromEntries(Object.entries(files).map(([f, d]) => [f.split('/').pop(), d])));
+  const packOf = (id) => (packs[id] ? id : 'family');
 
   // ---------- відновлення після перезавантаження ----------
   const saved = loadAll() || {};
@@ -47,10 +44,11 @@
       { id: newId(), name: '', photo: null, template: null, tplPos: clampTpl() },
       { id: newId(), name: '', photo: null, template: null, tplPos: clampTpl() },
     ];
-    const game = data ? restoreGame(saved.game, data.questions.map((q) => q.id), players) : null;
+    const pack = packs[packOf(saved.game?.pack)];
+    const game = pack ? restoreGame(saved.game, pack.questions.map((q) => q.id), players) : null;
     const ui = saved.ui || {};
     let screen = game && SCREENS.includes(ui.screen) ? ui.screen : 'setup';
-    const catId = game && data.categories.some((c) => c.id === ui.catId) ? ui.catId : null;
+    const catId = game && pack.categories.some((c) => c.id === ui.catId) ? ui.catId : null;
     const selected = game && catId && Number.isInteger(ui.selected) && remaining(game, catId) && !game.used[catId]?.includes(ui.selected) ? ui.selected : null;
     if (screen === 'grid' && !catId) screen = 'categories';
     if (game?.over && !['history', 'install', 'about'].includes(screen)) screen = 'summary'; // завершена гра — лише підсумок
@@ -58,8 +56,9 @@
   })();
 
   let players = $state(init.players);
-  let settings = $state({ audience: saved.settings?.audience === 'kids' ? 'kids' : 'family', scoring: saved.settings?.scoring ?? true, voice: !!saved.settings?.voice, sounds: saved.settings?.sounds ?? true });
-  let rulesSeen = $state(!!saved.rulesSeen);
+  let settings = $state({ pack: packOf(saved.settings?.pack), audience: saved.settings?.audience === 'kids' ? 'kids' : 'family', scoring: saved.settings?.scoring ?? true, voice: !!saved.settings?.voice, sounds: saved.settings?.sounds ?? true });
+  // набори, правила яких уже показували (раніше — просто true для сімейного)
+  let rulesSeen = $state(saved.rulesSeen === true ? ['family'] : Array.isArray(saved.rulesSeen) ? saved.rulesSeen : []);
   let lastDeck = $state(saved.lastDeck || null); // колода минулої гри — щоб номери не повторювались
   let names = $state(saved.names || {});          // id → ім'я всіх, хто будь-коли грав
   let game = $state(init.game);
@@ -68,7 +67,9 @@
   let selected = $state(init.selected);
   let history = $state(cleanHistory(saved.history));
   let seen = $state(cleanSeen(saved.seen)); // зіграні питання між іграми — нова гра спершу дає незіграні
-  const PACK = 'family';
+  // набір поточної гри, а без гри — вибраний у налаштуваннях
+  const data = $derived(packs[game?.pack ?? settings.pack] ?? null);
+  const byId = $derived(new Map(data ? data.questions.map((q) => [q.id, q]) : []));
   let historyFrom = $state('setup');
   // ---------- встановлення ----------
   const installKind = platform(navigator.userAgent, { standalone: isStandalone(), maxTouchPoints: navigator.maxTouchPoints || 0 });
@@ -146,21 +147,22 @@
   function start() {
     for (const p of players) names[p.id] = p.name.trim();
     if (!game) {
-      const fresh = freshQuestions(byAudience(data.questions, settings.audience), $state.snapshot(seen), PACK);
+      const pack = settings.pack, audience = packs[pack].meta.pack.kids ? settings.audience : 'family';
+      const fresh = freshQuestions(byAudience(packs[pack].questions, audience), $state.snapshot(seen), pack);
       seen = fresh.seen;
       game = newGame({
-        players: players.map((p) => ({ id: p.id, name: p.name.trim() })), audience: settings.audience, scoring: settings.scoring,
+        players: players.map((p) => ({ id: p.id, name: p.name.trim() })), pack, audience, scoring: settings.scoring,
         questions: fresh.questions, prevDeck: lastDeck, restarted: fresh.restarted,
       });
       lastDeck = game.deck;
-      screen = rulesSeen ? 'categories' : 'rules';
+      screen = rulesSeen.includes(pack) ? 'categories' : 'rules';
     } else {
       game = { ...updatePlayers(game, players, names), scoring: settings.scoring };
       screen = catId ? 'grid' : 'categories';
     }
   }
   function finish(num, outcome, answerer) {
-    seen = markSeen(seen, PACK, questionAt(game, catId, num));
+    seen = markSeen(seen, game.pack, questionAt(game, catId, num));
     game = finishCard(game, catId, num, outcome, answerer);
     selected = null;
     const sfx = { correct: 'point', wrong: 'miss', skipped: 'skip' }[outcome];
@@ -199,7 +201,7 @@
 <main>
   {#if errors.length}
     <section class="errors">
-      <h1>Помилка у questions.json</h1>
+      <h1>Помилка в наборах питань</h1>
       <ul>{#each errors as e}<li>{e}</li>{/each}</ul>
     </section>
   {:else if screen === 'setup'}
@@ -207,7 +209,7 @@
       audio={{ total: audioIds.size, done: audioDone, busy: audioBusy, fetch: fetchAudio, remove: removeAudio }} />
   {:else if screen === 'rules'}
     <Rules rules={data.meta.rules} again={!!rulesFrom}
-      onok={() => { rulesSeen = true; screen = rulesFrom || 'categories'; rulesFrom = null; }} />
+      onok={() => { if (!rulesSeen.includes(game.pack)) rulesSeen = [...rulesSeen, game.pack]; screen = rulesFrom || 'categories'; rulesFrom = null; }} />
   {:else if screen === 'summary'}
     <Summary {game} {players} {names} onnew={newGameAsk} onhistory={openHistory} />
   {:else if screen === 'about'}

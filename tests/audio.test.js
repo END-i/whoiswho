@@ -8,7 +8,8 @@ import { mkdtempSync, writeFileSync as wf, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const raw = JSON.parse(readFileSync(new URL('../src/data/questions.json', import.meta.url)));
+import { allQuestions } from './packs.js';
+const raw = { questions: allQuestions };
 
 // ---------- текст ----------
 

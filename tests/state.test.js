@@ -288,3 +288,14 @@ test("restarted: нова гра пам'ятає категорії, що піш
   assert.deepEqual(restoreGame({ ...g, restarted: ['c1', 'gone'] }, ids, players).restarted, ['c1']);
   assert.deepEqual(restoreGame({ ...g, restarted: 'c1' }, ids, players).restarted, []);
 });
+
+test('pack: нова гра знає свій набір; старе збереження без набору — сімейний', () => {
+  const players = [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }];
+  const questions = [{ id: 'q1', category: 'c1' }];
+  assert.equal(newGame({ players, questions }).pack, 'family');
+  const g = newGame({ players, questions, pack: 'friends' });
+  assert.equal(g.pack, 'friends');
+  assert.equal(restoreGame(g, ['q1'], players).pack, 'friends');
+  const { pack, ...old } = g;
+  assert.equal(restoreGame(old, ['q1'], players).pack, 'family');
+});
