@@ -56,3 +56,40 @@ test('набір не змінити посеред гри; правила ко�
   await page.getByRole('button', { name: /Історія/ }).first().click();
   await expect(page.locator('.games li').first()).toContainText('💞 Для пар');
 });
+
+test('18+: без підтвердження «усім є 18» набір не вибрати й гру не почати; з підтвердженням — пікантні категорії', async ({ page }) => {
+  const answers = [];
+  const asked = [];
+  page.on('dialog', (d) => { asked.push(d.message()); return answers.shift() ? d.accept() : d.dismiss(); });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Хто є хто' })).toBeVisible();
+  await setPlayers(page, ['Оля', 'Тарас']);
+  answers.push(false);
+  await pick(page, '18\\+').click();
+  await expect(pick(page, 'Сімейний')).toHaveAttribute('aria-checked', 'true');
+  expect(asked.at(-1)).toBe('Набір 18+ — лише для дорослих. Усім гравцям уже є 18 років?');
+  answers.push(true);
+  await pick(page, '18\\+').click();
+  await expect(pick(page, '18\\+')).toHaveAttribute('aria-checked', 'true');
+  // перед грою — ще раз: телефон міг перейти до дітей
+  answers.push(false);
+  await page.getByRole('button', { name: /Почати гру/ }).click();
+  await expect(page.getByRole('button', { name: /Почати гру/ })).toBeVisible();
+  expect(asked).toHaveLength(3);
+  answers.push(true);
+  await page.getByRole('button', { name: /Почати гру/ }).click();
+  await expect(page.getByText('Будь-яку картку можна пропустити без пояснень. Правильно — бал.')).toBeVisible();
+  await page.getByRole('button', { name: /Граємо!/ }).click();
+  await expect(page.locator('.cat .title')).toHaveText(['Зізнання', 'Побачення', 'Флірт', 'Хто з нас?', 'Вгадай', 'Бажання', 'Сміливо']);
+  expect((await saved(page)).game.pack).toBe('adults');
+});
+
+test('«Для друзів»: 7 своїх категорій; гравців до 8', async ({ page }) => {
+  await fresh(page);
+  await setPlayers(page, ['Оля', 'Тарас', 'Ліна']);
+  await pick(page, 'Для друзів').click();
+  await expect(page.getByRole('button', { name: /Додати гравця/ })).toContainText('3 з 8');
+  await page.getByRole('button', { name: /Почати гру/ }).click();
+  await page.getByRole('button', { name: /Граємо!/ }).click();
+  await expect(page.locator('.cat .title')).toHaveText(['Хто з нас?', 'Вгадай', 'Історії', 'Виклик', 'А що, якби…', 'Чесно', 'Сміх']);
+});
