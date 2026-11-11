@@ -39,7 +39,7 @@ test('правила показуються лише перед першою г�
   await setPlayers(page, ['Оля', 'Тарас']);
   await page.getByRole('button', { name: /Почати гру/ }).click();
   await expect(page.getByRole('heading', { name: 'Як грати' })).toBeVisible();
-  await page.getByRole('button', { name: /Зрозуміло, граємо/ }).click();
+  await page.getByRole('button', { name: /Граємо!/ }).click();
   await page.getByRole('button', { name: 'Меню' }).click();
   await page.getByRole('button', { name: /Нова гра/ }).click();
   await page.getByRole('button', { name: /Почати гру/ }).click();
@@ -153,11 +153,32 @@ test('фото й шаблон видно на картці питання й у
   await page.locator('.tpl', { hasText: 'Корона' }).click();
   await page.getByRole('button', { name: 'Закрити' }).click();
   await page.getByRole('button', { name: /Почати гру/ }).click();
-  await page.getByRole('button', { name: /Зрозуміло, граємо/ }).click();
+  await page.getByRole('button', { name: /Граємо!/ }).click();
   await expect(page.locator('.bar img')).toBeVisible();
   await page.locator('.cat', { hasText: 'Відкрийся' }).click();
   const s = await page.evaluate(() => JSON.parse(localStorage.getItem('whoiswho.v2')));
   await page.getByRole('button', { name: `Карта ${s.game.deck.open.indexOf('op-02') + 1}`, exact: true }).click();
   await expect(page.getByRole('dialog').locator('.who img')).toBeVisible();
   await expect(page.getByRole('dialog').locator('.who svg')).toBeVisible();
+});
+
+test('інструкція — схема з кроків; кнопку «Граємо!» видно без прокрутки на маленькому iPhone', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await setPlayers(page, ['Оля', 'Тарас']);
+  await page.getByRole('button', { name: /Почати гру/ }).click();
+  await expect(page.locator('.flow li')).toHaveCount(4);
+  await expect(page.locator('.flow li .ic i')).toHaveText(['1', '2', '3', '4']);
+  await expect(page.getByRole('button', { name: /Граємо!/ })).toBeInViewport();
+  expect(await page.evaluate(() => scrollY)).toBe(0);
+});
+
+test('стрілка на схемі кола лежить на колі й закінчується наконечником', async ({ page }) => {
+  const geo = await page.locator('.ring .arc').evaluate((el) => {
+    const len = el.getTotalLength(), a = el.getPointAtLength(0), b = el.getPointAtLength(len), mid = el.getPointAtLength(len / 2);
+    const r = (p) => Math.hypot(p.x - 50, p.y - 50);
+    return { r: [r(a), r(mid), r(b)], marker: el.getAttribute('marker-end'), clockwise: Math.atan2(b.y - 50, b.x - 50) > Math.atan2(a.y - 50, a.x - 50) };
+  });
+  for (const r of geo.r) expect(Math.abs(r - 38)).toBeLessThan(0.5);
+  expect(geo.marker).toContain('arrowhead');
+  expect(geo.clockwise).toBe(true);
 });

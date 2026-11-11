@@ -40,7 +40,7 @@ test.describe('офлайн', () => {
     await expect(page.getByRole('heading', { name: 'Хто є хто' })).toBeVisible();
     await setPlayers(page, ['Оля', 'Тарас']);
     await page.getByRole('button', { name: /Почати гру/ }).click();
-    await page.getByRole('button', { name: /Зрозуміло, граємо/ }).click();
+    await page.getByRole('button', { name: /Граємо!/ }).click();
     await page.locator('.cat').first().click();
     await expect(page.getByRole('group', { name: /Карти категорії/ })).toBeVisible();
     // шрифт теж із кешу

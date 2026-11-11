@@ -47,7 +47,7 @@ test('голос браузера: перемикач доступний, кно
   await expect(sw).toBeEnabled();
   await sw.check();
   await page.getByRole('button', { name: /Почати гру/ }).click();
-  await page.getByRole('button', { name: /Зрозуміло, граємо/ }).click();
+  await page.getByRole('button', { name: /Граємо!/ }).click();
   await openQuestion(page, 'Вгадай', 'guess', 'gs-04'); // для gs-04 записаної озвучки немає
   await page.getByRole('button', { name: 'Прослухати питання' }).click();
   const spoken = await page.evaluate(() => window.__spoken);
@@ -62,7 +62,7 @@ test('без українського голосу перемикач вимкн
   await expect(page.getByText('немає українського голосу')).toBeVisible();
   await setPlayers(page, ['Оля', 'Тарас']);
   await page.getByRole('button', { name: /Почати гру/ }).click();
-  await page.getByRole('button', { name: /Зрозуміло, граємо/ }).click();
+  await page.getByRole('button', { name: /Граємо!/ }).click();
   await openQuestion(page, 'Вгадай', 'guess', 'gs-04');
   await expect(page.getByRole('button', { name: 'Прослухати питання' })).toHaveCount(0);
 });

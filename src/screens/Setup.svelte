@@ -49,7 +49,11 @@
 <section class="panel">
   <h2>Хто де сидить?</h2>
   <div class="circle" aria-hidden="true">
-    <svg viewBox="0 0 100 100" class="ring"><circle cx="50" cy="50" r="38" /><path d="M 78 20 A 38 38 0 0 1 88 44" /><path d="M 86 38 L 88 45 L 82 42" class="head" /></svg>
+    <svg viewBox="0 0 100 100" class="ring">
+      <defs><marker id="arrowhead" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="tip" /></marker></defs>
+      <circle cx="50" cy="50" r="38" />
+      <path class="arc" d="M 63.0 14.29 A 38 38 0 0 1 82.91 31" marker-end="url(#arrowhead)" />
+    </svg>
     <span class="hint">телефон іде<br />за стрілкою ↻</span>
     {#each seats as s, i (s.p.id)}
       <span class="seat" style="left:{s.x}%; top:{s.y}%"><Avatar player={s.p} size={players.length > 6 ? 36 : 42} /><b>{s.p.name.trim() || i + 1}</b></span>
@@ -137,8 +141,8 @@
   .circle { position: relative; width: min(100%, 300px); aspect-ratio: 1; margin: 0 auto; }
   .ring { position: absolute; inset: 0; width: 100%; height: 100%; }
   .ring circle { fill: none; stroke: var(--line); stroke-width: 1.4; stroke-dasharray: 2 2.5; }
-  .ring path { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; }
-  .ring .head { stroke-linejoin: round; }
+  .ring .arc { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; }
+  .ring .tip { fill: var(--accent); }
   .hint { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; font-size: 13px; color: var(--dim); font-weight: 800; }
   .seat { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 2px; transition: left .3s, top .3s; }
   .seat b { font-size: 12px; font-weight: 900; max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--card); padding: 0 6px; border-radius: 8px; }

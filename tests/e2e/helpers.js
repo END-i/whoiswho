@@ -36,7 +36,7 @@ export async function startGame(page, names = ['Оля', 'Тарас', 'Мама
   await page.getByRole('switch').first().setChecked(scoring); // режим з балами за замовчуванням увімкнений
   if (kids) await page.getByRole('radio', { name: /Лише діти/ }).click();
   await page.getByRole('button', { name: /Почати гру/ }).click();
-  await page.getByRole('button', { name: /Зрозуміло, граємо/ }).click();
+  await page.getByRole('button', { name: /Граємо!/ }).click();
   await expect(page.getByRole('heading', { name: 'Вибери категорію' })).toBeVisible();
 }
 
