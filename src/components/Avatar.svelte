@@ -6,7 +6,7 @@
   const tpl = $derived(player?.template ? templateById(player.template) : null);
 </script>
 
-<span class="av" class:ring style="--s:{size}px; --c:{playerColor(player?.id)}" aria-hidden="true">
+<span class="av" class:ring style="--s:{size}px; --c:{player?.color || playerColor(player?.id)}" aria-hidden="true">
   {#if player?.photo}
     <img src={player.photo} alt="" />
   {:else}

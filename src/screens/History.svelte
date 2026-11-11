@@ -2,6 +2,7 @@
   import Avatar from '../components/Avatar.svelte';
   import { leaderboard } from '../lib/history.js';
   import { t, i18n } from '../lib/lang.svelte.js';
+  import { LOCALES } from '../lib/i18n.js';
 
   // packs — { id: meta.pack }, щоб підписати, з якого набору гра
   let { history, players, packs = {}, onback, onclear } = $props();
@@ -10,7 +11,7 @@
   const face = (id, name) => players.find((p) => p.id === id) || { id, name };
   const date = (iso) => {
     const d = new Date(iso);
-    return Number.isNaN(+d) ? '' : d.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long' }) + ', ' + d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
+    return Number.isNaN(+d) ? '' : d.toLocaleDateString(LOCALES[i18n.lang], { day: 'numeric', month: 'long' }) + ', ' + d.toLocaleTimeString(LOCALES[i18n.lang], { hour: '2-digit', minute: '2-digit' });
   };
 </script>
 

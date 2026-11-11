@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { translate, paramsOf, cleanLang, LANGS, LANG_NAMES } from '../src/lib/i18n.js';
+import { translate, paramsOf, cleanLang, LANGS, LANG_NAMES, LOCALES } from '../src/lib/i18n.js';
 import { TYPES, ROLES } from '../src/lib/questions.js';
 import { TEMPLATES } from '../src/lib/templates.js';
 import uk from '../src/i18n/uk.js';
@@ -45,5 +45,5 @@ test('translate: параметри, множина за n, невідомий �
 test('cleanLang: лише відомі мови, інакше українська; у кожної мови є назва', () => {
   assert.equal(cleanLang('ru'), 'ru');
   for (const bad of [undefined, 'en', '', null]) assert.equal(cleanLang(bad), 'uk');
-  for (const l of LANGS) assert.ok(LANG_NAMES[l]);
+  for (const l of LANGS) assert.ok(LANG_NAMES[l] && LOCALES[l]?.startsWith(`${l}-`), l);
 });

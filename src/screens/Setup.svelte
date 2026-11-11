@@ -3,6 +3,7 @@
   import Sheet from '../components/Sheet.svelte';
   import PhotoEditor from '../components/PhotoEditor.svelte';
   import { newId } from '../lib/storage.js';
+  import { assignColors } from '../lib/theme.js';
   import { t } from '../lib/lang.svelte.js';
   import { LANGS, LANG_NAMES } from '../lib/i18n.js';
 
@@ -37,7 +38,8 @@
 
   function add() {
     if (players.length >= MAX) return;
-    players.push({ id: newId(), name: '', photo: null, template: null, tplPos: { x: 0, y: 0, s: 1 } });
+    // колір — вільний серед тих, хто вже грає
+    players.push(assignColors([...players, { id: newId(), name: '', photo: null, template: null, tplPos: { x: 0, y: 0, s: 1 } }]).at(-1));
     requestAnimationFrame(() => document.querySelectorAll('.players input')[players.length - 1]?.focus());
   }
   function remove(i) {
@@ -120,7 +122,7 @@
 </section>
 
 <section class="panel opts">
-  <div class="opt">
+  <div class="opt choice">
     <span class="lbl">{t('lang.label')}</span>
     <div class="seg" role="radiogroup" aria-label={t('lang.label')}>
       {#each LANGS as l}
@@ -129,7 +131,7 @@
     </div>
   </div>
   {#if pack.kids}
-  <div class="opt">
+  <div class="opt choice">
     <span class="lbl">{t('setup.whoPlays')}</span>
     <div class="seg" role="radiogroup" aria-label={t('setup.audience')}>
       <button role="radio" aria-checked={settings.audience === 'family'} class:on={settings.audience === 'family'} disabled={inGame} onclick={() => (settings.audience = 'family')}>{t('setup.audFamily')}</button>
@@ -145,6 +147,10 @@
   <label class="opt sw">
     <span><span class="lbl">{t('setup.sounds')}</span><small>{t('setup.soundsHint')}</small></span>
     <input type="checkbox" role="switch" bind:checked={settings.sounds} aria-label={t('setup.soundsLabel')} />
+  </label>
+  <label class="opt sw">
+    <span><span class="lbl">{t('setup.autoRead')}</span><small>{t('setup.autoReadHint')}</small></span>
+    <input type="checkbox" role="switch" bind:checked={settings.autoRead} aria-label={t('setup.autoReadLabel')} />
   </label>
   <label class="opt sw" class:off={!voiceAvailable}>
     <span><span class="lbl">{t('setup.voice')}</span><small>{voiceAvailable
@@ -248,5 +254,5 @@
   .about { width: 100%; min-height: 44px; margin-top: 8px; border: none; background: none; color: var(--dim); font-weight: 800; }
   .hist { width: 100%; min-height: 52px; margin-top: 12px; border-radius: 18px; border: 2px solid var(--line); background: var(--card); font-weight: 900; box-shadow: 0 3px 0 var(--line); }
   .start { width: 100%; font-size: 21px; min-height: 64px; }
-  @media (max-width: 380px) { .opt:first-child { flex-direction: column; align-items: stretch; } .seg button { flex: 1; } }
+  @media (max-width: 380px) { .opt.choice { flex-direction: column; align-items: stretch; } .seg button { flex: 1; } }
 </style>

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CATEGORY_COLORS, categoryColor, playerColor, PLAYER_COLORS, initial, contrast, luminance, TOKENS, INK } from '../src/lib/theme.js';
+import { CATEGORY_COLORS, categoryColor, playerColor, assignColors, PLAYER_COLORS, initial, contrast, luminance, TOKENS, INK } from '../src/lib/theme.js';
 
 import { packFiles } from './packs.js';
 
@@ -56,4 +56,18 @@ test('WCAG AA: основний і другорядний текст ≥ 4.5 н�
 test('WCAG AA для великого жирного тексту: білий на кнопках ≥ 3', () => {
   for (const k of ['accent', 'ok', 'no']) assert.ok(contrast('#FFFFFF', TOKENS.light[k]) >= 3, k);
   assert.ok(contrast(INK, '#FFFFFF') >= 4.5);
+});
+
+test('assignColors: у кожного гравця свій колір; збережений лишається; зайнятий — перший вільний', () => {
+  // id з однаковим кольором за хешем
+  const same = []; for (let k = 0; same.length < 3; k++) if (playerColor(`p${k}`) === playerColor('p0')) same.push(`p${k}`);
+  const out = assignColors(same.map((id) => ({ id })));
+  assert.equal(new Set(out.map((p) => p.color)).size, 3);
+  const eight = assignColors(Array.from({ length: 8 }, (_, k) => ({ id: same[0] + k, color: PLAYER_COLORS[0] })));
+  assert.equal(new Set(eight.map((p) => p.color)).size, 8, '8 гравців — 8 різних кольорів');
+  const kept = { id: 'x', color: PLAYER_COLORS[3] };
+  assert.equal(assignColors([kept])[0], kept, 'не змінився — той самий об\'єкт');
+  assert.equal(assignColors([{ id: 'y', color: 'red' }])[0].color, playerColor('y'), 'колір не з палітри — за id');
+  const nine = assignColors(Array.from({ length: 9 }, (_, k) => ({ id: `n${k}` })));
+  assert.ok(PLAYER_COLORS.includes(nine[8].color), 'палітра скінчилась — усе одно колір з палітри');
 });

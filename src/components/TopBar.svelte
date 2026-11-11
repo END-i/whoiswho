@@ -14,7 +14,7 @@
     {/key}
     <span class="txt"><small>{t('top.turn')}</small><b>{p?.name}</b></span>
   </div>
-  {#if game.scoring}<button class="icon" onclick={onscores} aria-label={t('menu.scores')}>🏆</button>{/if}
+  {#if game.scoring}<button class="icon scores" onclick={onscores} aria-label={t('menu.scores')}>🏆</button>{/if}
   <button class="icon" onclick={onmenu} aria-label={t('menu.title')}>☰</button>
 </div>
 
@@ -38,11 +38,17 @@
   .pop { display: inline-flex; animation: pop .45s cubic-bezier(.2, 1.8, .4, 1); }
   @keyframes pop { from { transform: scale(.4) rotate(-20deg); } }
   .txt { display: flex; flex-direction: column; line-height: 1.05; min-width: 0; }
-  small { font-size: 12px; color: var(--dim); font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+  small { font-size: 12px; color: var(--dim); font-weight: 800; text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   b { font-size: 22px; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .icon {
     width: 48px; height: 48px; flex: none; border-radius: 16px; border: none; background: var(--soft);
     font-size: 21px; font-weight: 900; box-shadow: 0 3px 0 var(--line);
+  }
+  /* вузький екран: таблиця балів під панеллю й так відкриває бали — 🏆 ховаємо, щоб ім'я вміщалося */
+  @media (max-width: 360px) {
+    .icon.scores { display: none; }
+    .turn { gap: 8px; }
+    small { font-size: 11px; letter-spacing: .03em; }
   }
   .icon:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--line); }
   .board {

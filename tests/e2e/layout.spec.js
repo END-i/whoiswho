@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures.js';
-import { startGame, category, openCard, openQuestion, QUESTIONS } from './helpers.js';
+import { startGame, category, openCard, openQuestion, QUESTIONS, fresh } from './helpers.js';
 
 const noHorizontalScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
 
@@ -53,8 +53,66 @@ test('кнопки «Правильно» і «Ні» кольорові, тек
     const cs = getComputedStyle(el), rgb = (c) => c.match(/\d+/g).slice(0, 3).map(Number);
     return { bg: rgb(cs.backgroundColor), fg: rgb(cs.color) };
   });
-  const ok = await look(/Правильно/), no = await look('❌ Неправильно');
+  const ok = await look(/Правильно/), no = await look('Неправильно');
   expect(ok.bg[1]).toBeGreaterThan(ok.bg[0]); // зелена
   expect(no.bg[0]).toBeGreaterThan(no.bg[1] + 80); // червона
   for (const b of [ok, no]) expect(b.fg).toEqual([255, 255, 255]); // білий текст
 });
+
+for (const width of [320, 375, 390, 430]) {
+  test(`${width} px: «Правильно» і «Неправильно» — кожна в один рядок, великим шрифтом, не вилазять за картку`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 700 });
+    await startGame(page, ['Оля', 'Тарас'], { scoring: true });
+    await openQuestion(page, 'Вгадай', 'guess', 'gs-01'); // з озвучкою — є кнопка «Слухати»
+    await expect(page.locator('.listen')).toBeVisible();
+    for (const name of [/Правильно/, /Неправильно/]) {
+      const b = page.getByRole('button', { name }).first();
+      const lines = await b.evaluate((el) => {
+        const r = document.createRange(); r.selectNodeContents(el);
+        return new Set([...r.getClientRects()].map((x) => Math.round(x.top))).size;
+      });
+      expect(lines, String(name)).toBe(1);
+      expect(await b.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(18.67);
+      expect(await b.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+      // і сама кнопка не вилазить за картку
+      expect(await b.evaluate((el) => el.getBoundingClientRect().right <= el.closest('.card').getBoundingClientRect().right - 8)).toBe(true);
+    }
+    // значки над питанням — кожен в один рядок (поруч кнопка «Слухати»)
+    for (const badge of await page.locator('.badge').all()) expect(await badge.evaluate((el) => el.scrollHeight <= 30)).toBe(true);
+  });
+}
+
+for (const [lang, turn] of [['Українська', 'Зараз хід'], ['Русский', 'Сейчас ходит']]) {
+  test(`320 px, ${lang}: у верхній панелі ім'я й «${turn}» вміщаються, нічого не залазить під кнопки`, async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    await startGame(page, ['Оля', 'Тарас'], { scoring: true });
+    await page.getByRole('button', { name: 'Меню' }).click();
+    await page.getByRole('button', { name: /Гравці й налаштування/ }).click();
+    await page.getByRole('radio', { name: lang }).click();
+    await page.getByRole('button', { name: /Повернутися до гри|Вернуться к игре/ }).click();
+    await page.locator('.cat').first().click(); // з кнопкою «Назад» місця найменше
+    const fits = (sel) => page.locator(`.bar ${sel}`).evaluate((el) => el.scrollWidth <= el.clientWidth);
+    expect(await fits('.txt b')).toBe(true);
+    expect(await fits('.txt small')).toBe(true);
+    const txt = await page.locator('.bar .txt').boundingBox();
+    const menuIcon = await page.locator('.bar > .icon').last().boundingBox(); // ☰
+    expect(txt.x + txt.width).toBeLessThanOrEqual(menuIcon.x);
+    // бали відкриваються й без 🏆 — тапом по таблиці
+    await page.locator('.board').click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+  });
+}
+
+for (const lang of ['Українська', 'Русский']) {
+  test(`320 px, ${lang}: налаштування — перемикачі мови й «Хто грає» не вилазять за картку`, async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    await fresh(page);
+    await page.getByRole('radio', { name: lang }).click();
+    expect(await noHorizontalScroll(page)).toBe(true);
+    const outside = await page.evaluate(() => [...document.querySelectorAll('section *')].filter((el) => {
+      const r = el.getBoundingClientRect(), box = el.closest('section').getBoundingClientRect();
+      return r.width && (r.left < box.left - 1 || r.right > box.right + 1);
+    }).map((el) => el.textContent.trim().slice(0, 30)));
+    expect(outside).toEqual([]);
+  });
+}

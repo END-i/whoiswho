@@ -65,3 +65,15 @@ test('clearAudio видаляє кеш озвучки; базовий шлях �
   assert.equal(await clearAudio({ caches }), true);
   assert.equal(caches.stores.has(AUDIO_CACHE), false);
 });
+
+test('Cache Storage відмовляє (приватний режим, немає місця) — жодна функція не кидає помилку', async () => {
+  const boom = () => Promise.reject(new Error('SecurityError'));
+  const dead = { open: boom, delete: boom };
+  assert.equal(await cachedCount(['a'], { caches: dead }), 0);
+  assert.deepEqual(await downloadAll(['a', 'b'], { caches: dead, fetch: async () => ({ ok: true }) }), { done: 0, total: 2, failed: 2 });
+  assert.equal(await clearAudio({ caches: dead }), false);
+  // кеш відкрився, але match/put падають — рахуємо як невдачу й ідемо далі
+  const half = { open: async () => ({ match: boom, put: boom }) };
+  assert.equal(await cachedCount(['a'], { caches: half }), 0);
+  assert.deepEqual(await downloadAll(['a', 'b'], { caches: half, fetch: async () => ({ ok: true }) }), { done: 0, total: 2, failed: 2 });
+});

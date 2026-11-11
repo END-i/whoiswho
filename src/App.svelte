@@ -1,10 +1,10 @@
 <script>
   import { loadPacks, byAudience } from './lib/questions.js';
-  import { newGame, finishCard, remaining, allDone, updatePlayers, restoreGame, endGame, questionAt } from './lib/state.js';
-  import { freshQuestions, markSeen, cleanSeen } from './lib/seen.js';
+  import { newGame, finishCard, remaining, allDone, updatePlayers, restoreGame, endGame } from './lib/state.js';
   import { gameRecord, addRecord, cleanHistory } from './lib/history.js';
   import { loadAll, saveAll, newId } from './lib/storage.js';
   import { clampTpl, migrateTemplate } from './lib/templates.js';
+  import { assignColors } from './lib/theme.js';
   import Setup from './screens/Setup.svelte';
   import Rules from './screens/Rules.svelte';
   import Categories from './screens/Categories.svelte';
@@ -41,16 +41,16 @@
   const saved = loadAll() || {};
   const cleanPlayers = (list) => {
     const ok = Array.isArray(list) ? list.filter((p) => p && typeof p.id === 'string' && typeof p.name === 'string') : [];
-    return ok.length >= 2 ? ok.map((p) => ({ id: p.id, name: p.name, photo: p.photo || null, template: migrateTemplate(p.template), tplPos: clampTpl(p.tplPos) })) : null;
+    return ok.length >= 2 ? assignColors(ok.map((p) => ({ id: p.id, name: p.name, color: p.color, photo: p.photo || null, template: migrateTemplate(p.template), tplPos: clampTpl(p.tplPos) }))) : null;
   };
   const SCREENS = ['setup', 'rules', 'categories', 'grid', 'summary', 'history', 'install', 'about'];
 
   // Усе відновлення — звичайними змінними, один раз; далі стан живе в $state.
   const init = (() => {
-    const players = cleanPlayers(saved.players) || [
+    const players = cleanPlayers(saved.players) || assignColors([
       { id: newId(), name: '', photo: null, template: null, tplPos: clampTpl() },
       { id: newId(), name: '', photo: null, template: null, tplPos: clampTpl() },
-    ];
+    ]);
     const pack = LOADED.uk.packs[packOf(saved.game?.pack)];
     const game = pack ? restoreGame(saved.game, pack.questions.map((q) => q.id), players) : null;
     const ui = saved.ui || {};
@@ -63,9 +63,9 @@
   })();
 
   let players = $state(init.players);
-  let settings = $state({ lang: cleanLang(saved.settings?.lang), pack: packOf(saved.settings?.pack), audience: saved.settings?.audience === 'kids' ? 'kids' : 'family', scoring: saved.settings?.scoring ?? true, voice: !!saved.settings?.voice, sounds: saved.settings?.sounds ?? true });
+  let settings = $state({ lang: cleanLang(saved.settings?.lang), pack: packOf(saved.settings?.pack), audience: saved.settings?.audience === 'kids' ? 'kids' : 'family', scoring: saved.settings?.scoring ?? true, voice: !!saved.settings?.voice, sounds: saved.settings?.sounds ?? true, autoRead: saved.settings?.autoRead !== false });
   // набори, правила яких уже показували (раніше — просто true для сімейного)
-  setLang(settings.lang);
+  setLang(cleanLang(saved.settings?.lang));
   $effect(() => setLang(settings.lang));
   // набори мовою інтерфейсу; id і порядок однакові для всіх мов
   const packs = $derived(LOADED[settings.lang].packs);
@@ -77,7 +77,6 @@
   let catId = $state(init.catId);
   let selected = $state(init.selected);
   let history = $state(cleanHistory(saved.history));
-  let seen = $state(cleanSeen(saved.seen)); // зіграні питання між іграми — нова гра спершу дає незіграні
   // набір поточної гри, а без гри — вибраний у налаштуваннях
   const data = $derived(packs[game?.pack ?? settings.pack] ?? null);
   const byId = $derived(new Map(data ? data.questions.map((q) => [q.id, q]) : []));
@@ -118,7 +117,7 @@
   loadVoices();
   synth?.addEventListener?.('voiceschanged', loadVoices);
   const voice = $derived(pickVoice(voices, settings.lang));
-  const sound = $derived({ ids: audioIds, voiceOn: settings.voice, voice, lang: settings.lang });
+  const sound = $derived({ ids: audioIds, voiceOn: settings.voice, voice, lang: settings.lang, auto: settings.autoRead });
   // Озвучка для офлайну: у фоні під час першого запуску, далі — лише нове;
   // лише мовою інтерфейсу й лише для вибраного набору (усі набори — десятки мегабайтів)
   const offlineIds = () => {
@@ -163,7 +162,7 @@
   $effect(() => {
     saveAll({
       players: $state.snapshot(players), settings: $state.snapshot(settings), rulesSeen, lastDeck,
-      names: $state.snapshot(names), game: $state.snapshot(game), history: $state.snapshot(history), seen: $state.snapshot(seen), ui: { screen, catId, selected },
+      names: $state.snapshot(names), game: $state.snapshot(game), history: $state.snapshot(history), ui: { screen, catId, selected },
     });
   });
 
@@ -179,11 +178,9 @@
     for (const p of players) names[p.id] = p.name.trim();
     if (!game) {
       const pack = settings.pack, audience = packs[pack].meta.pack.kids ? settings.audience : 'family';
-      const fresh = freshQuestions(byAudience(packs[pack].questions, audience), $state.snapshot(seen), pack);
-      seen = fresh.seen;
       game = newGame({
         players: players.map((p) => ({ id: p.id, name: p.name.trim() })), pack, audience, scoring: settings.scoring,
-        questions: fresh.questions, prevDeck: lastDeck, restarted: fresh.restarted,
+        questions: byAudience(packs[pack].questions, audience), prevDeck: lastDeck,
       });
       lastDeck = game.deck;
       screen = rulesSeen.includes(pack) ? 'categories' : 'rules';
@@ -193,7 +190,6 @@
     }
   }
   function finish(num, outcome, answerer) {
-    seen = markSeen(seen, game.pack, questionAt(game, catId, num));
     game = finishCard(game, catId, num, outcome, answerer);
     selected = null;
     const sfx = { correct: 'point', wrong: 'miss', skipped: 'skip' }[outcome];

@@ -51,7 +51,7 @@ test('історія: дві гри → загальний рахунок; не�
     const s = await saved(page);
     const turn = s.game.order[s.game.turn];
     await page.getByRole('button', { name: `Карта ${s.game.deck.open.indexOf(id) + 1}`, exact: true }).click();
-    await page.getByRole('button', { name: turn === s.game.order[1] ? /Зараховано/ : '❌ Ні' }).click();
+    await page.getByRole('button', { name: turn === s.game.order[1] ? /Зараховано/ : /^Ні$/ }).click();
   }
   await menu(page, /Нова гра/);
   await page.reload();

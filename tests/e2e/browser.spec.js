@@ -39,7 +39,7 @@ const fakeVoice = () => {
   window.SpeechSynthesisUtterance = class { constructor(t) { this.text = t; } };
 };
 
-test('голос браузера: перемикач доступний, кнопка 🔊 читає питання українським голосом', async ({ page }) => {
+test('голос браузера: картка сама читає питання українським голосом, «Слухати» — ще раз', async ({ page }) => {
   await page.addInitScript(fakeVoice);
   await fresh(page);
   await setPlayers(page, ['Оля', 'Тарас']);
@@ -49,9 +49,43 @@ test('голос браузера: перемикач доступний, кно
   await page.getByRole('button', { name: /Почати гру/ }).click();
   await page.getByRole('button', { name: /Граємо!/ }).click();
   await openQuestion(page, 'Вгадай', 'guess', 'gs-04'); // для gs-04 записаної озвучки немає
+  const one = { text: 'Яку суперсилу обрав би гравець ліворуч?', lang: 'uk-UA', voice: 'Lesya' };
+  await expect.poll(() => page.evaluate(() => window.__spoken)).toEqual([one]);
+  await page.getByRole('button', { name: 'Прослухати питання' }).click(); // дочитав — кнопка знову «Слухати»
+  await expect.poll(() => page.evaluate(() => window.__spoken)).toEqual([one, one]);
+});
+
+test('автоозвучка: вимкнена в налаштуваннях — картка мовчить, доки не натиснуть «Слухати»', async ({ page }) => {
+  await page.addInitScript(fakeVoice);
+  await fresh(page);
+  await setPlayers(page, ['Оля', 'Тарас']);
+  await page.getByRole('switch', { name: 'Голос браузера' }).check();
+  const auto = page.getByRole('switch', { name: 'Читати питання вголос' });
+  await expect(auto).toBeChecked(); // за замовчуванням увімкнена
+  await auto.uncheck();
+  await page.getByRole('button', { name: /Почати гру/ }).click();
+  await page.getByRole('button', { name: /Граємо!/ }).click();
+  await openQuestion(page, 'Вгадай', 'guess', 'gs-04');
+  await page.waitForTimeout(1000);
+  expect(await page.evaluate(() => window.__spoken)).toEqual([]);
   await page.getByRole('button', { name: 'Прослухати питання' }).click();
-  const spoken = await page.evaluate(() => window.__spoken);
-  expect(spoken).toEqual([{ text: 'Яку суперсилу обрав би гравець ліворуч?', lang: 'uk-UA', voice: 'Lesya' }]);
+  await expect.poll(() => page.evaluate(() => window.__spoken.length)).toBe(1);
+});
+
+test('автоозвучка: де треба вибрати гравця — питання читається лише після вибору; натиснули «Слухати» раніше — не повторює', async ({ page }) => {
+  await page.addInitScript(fakeVoice);
+  await fresh(page);
+  await setPlayers(page, ['Оля', 'Тарас', 'Мама']);
+  await page.getByRole('switch', { name: 'Голос браузера' }).check();
+  await page.getByRole('button', { name: /Почати гру/ }).click();
+  await page.getByRole('button', { name: /Граємо!/ }).click();
+  await openQuestion(page, 'Вгадай', 'guess', 'gs-05'); // «Вибери будь-кого…»
+  await page.waitForTimeout(1000);
+  expect(await page.evaluate(() => window.__spoken)).toEqual([]);
+  await page.locator('.chip', { hasText: 'Тарас' }).click();
+  await page.getByRole('button', { name: 'Прослухати питання' }).click(); // одразу, до автоозвучки
+  await page.waitForTimeout(1000);
+  expect((await page.evaluate(() => window.__spoken)).length).toBe(1);
 });
 
 test('без українського голосу перемикач вимкнений, а кнопки 🔊 немає', async ({ page }) => {

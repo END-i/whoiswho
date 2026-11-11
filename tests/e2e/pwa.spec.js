@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures.js';
+import { readFileSync } from 'node:fs';
 import { fresh, confirmAll, startGame, openQuestion, setPlayers } from './helpers.js';
 
 // Запис трасування Playwright у WebKit ламає Cache Storage (put «вдається», але нічого не зберігається) —
@@ -49,17 +50,25 @@ test.describe('офлайн', () => {
   });
 });
 
-test('кнопка 🔊 є лише там, де є файл озвучки, і грає саме його', async ({ page }) => {
+test('озвучка є лише там, де є файл: картка сама грає саме його, «Стоп» зупиняє, «Слухати» — ще раз', async ({ page }) => {
   const hits = await serveAudio(page);
   await startGame(page, ['Оля', 'Тарас']);
   await openQuestion(page, 'Вгадай', 'guess', 'gs-04');
   await expect(page.getByRole('button', { name: 'Прослухати питання' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Пропустити' }).click();
   await page.getByRole('button', { name: 'До категорій' }).click();
-  await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
   hits.length = 0;
-  await page.getByRole('button', { name: 'Прослухати питання' }).click();
+  // справжній запис (кілька секунд), щоб побачити «Стоп», поки він грає
+  await page.route('**/audio/gs-01.mp3', (r) => { hits.push('/audio/gs-01.mp3'); r.fulfill({ status: 200, contentType: 'audio/mpeg', body: readFileSync('public/audio/gs-01.mp3') }); });
+  await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
   await expect.poll(() => hits).toContain('/audio/gs-01.mp3');
+  const stop = page.getByRole('button', { name: 'Зупинити озвучку' });
+  await expect(stop).toHaveText('Стоп');
+  await stop.click();
+  const listen = page.getByRole('button', { name: 'Прослухати питання' });
+  await expect(listen).toHaveText('Слухати');
+  await listen.click();
+  await expect(page.getByRole('button', { name: 'Зупинити озвучку' })).toBeVisible();
 });
 
 test('озвучка для офлайну: качається у фоні, видаляється й качається знову', async ({ page }) => {

@@ -52,6 +52,20 @@ export function playerColor(id = '') {
   return PLAYER_COLORS[h % PLAYER_COLORS.length];
 }
 
+/**
+ * Різні кольори гравцям одного списку: свій збережений колір, якщо він з палітри й ще не зайнятий,
+ * інакше колір за id, а коли й він зайнятий — перший вільний. Хто не змінився — той самий об'єкт.
+ */
+export function assignColors(players) {
+  const used = new Set();
+  return players.map((p) => {
+    let c = PLAYER_COLORS.includes(p.color) && !used.has(p.color) ? p.color : playerColor(p.id);
+    if (used.has(c)) c = PLAYER_COLORS.find((x) => !used.has(x)) ?? c;
+    used.add(c);
+    return c === p.color ? p : { ...p, color: c };
+  });
+}
+
 /** Перша літера імені для кружечка без фото. */
 export const initial = (name) => (String(name || '').trim().charAt(0) || '?').toUpperCase();
 

@@ -5,6 +5,8 @@ import { plural } from './plural.js';
 
 export const LANGS = ['uk', 'ru'];
 export const LANG_NAMES = { uk: 'Українська', ru: 'Русский' };
+/** Мовний код для голосу й дат. */
+export const LOCALES = { uk: 'uk-UA', ru: 'ru-RU' };
 
 /** Рядок за ключем з підставленими параметрами. Немає ключа — сам ключ (видно в інтерфейсі й у тестах). */
 export function translate(dict, key, params = {}) {

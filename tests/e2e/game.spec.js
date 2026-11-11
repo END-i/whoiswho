@@ -122,7 +122,7 @@ test('бали: «Правильно» дає бал тому, хто відпо
   expect((await saved(page)).game.scores[(await saved(page)).game.order[0]]).toBe(1);
   // Тарас вгадує й помиляється
   await openCard(page, await numberOf(page, 'guess', 'gs-04'));
-  await page.getByRole('button', { name: '❌ Неправильно' }).click();
+  await page.getByRole('button', { name: 'Неправильно' }).click();
   await page.getByRole('button', { name: 'Бали', exact: true }).click();
   await expect(page.locator('.scores li').first()).toContainText('Оля');
   await expect(page.locator('.scores li').first()).toContainText('1');
@@ -180,7 +180,7 @@ test('таблиця балів видна під час гри й оновлю�
   await expect(board(page).locator('.pl')).toHaveCount(3);
   await expect(board(page).locator('.pl.now')).toHaveCount(1);
   await openQuestion(page, 'Відкрийся', 'open', 'op-02');
-  await expect(page.getByText(/зарахувати відповідь/)).toBeVisible();
+  await expect(page.locator('.check')).toHaveText('Оля — зараховуємо відповідь? Вирішують усі разом.');
   await page.getByRole('button', { name: /Зараховано/ }).click();
   await expect(pts(page, 0)).toHaveText('1');
   await expect(board(page).locator('.pl').nth(1)).toHaveClass(/now/);
@@ -192,7 +192,7 @@ test('таблиця балів видна під час гри й оновлю�
 test('«Відкрийся» з балами: «Ні» — без бала, хід далі', async ({ page }) => {
   await startGame(page, ['Оля', 'Тарас'], { scoring: true });
   await openQuestion(page, 'Відкрийся', 'open', 'op-02');
-  await page.getByRole('button', { name: '❌ Ні' }).click();
+  await page.getByRole('button', { name: 'Ні', exact: true }).click();
   await expect(pts(page, 0)).toHaveText('0');
   expect(await turnName(page)).toBe('Тарас');
 });
@@ -233,7 +233,8 @@ test('«Цікаві факти»: відповідь схована до «По
   await expect(card.getByRole('button', { name: /Правильно/ })).toHaveCount(0);
   await card.getByRole('button', { name: /Показати відповідь/ }).click();
   await expect(card.getByRole('status')).toContainText('Ні, це міф. Страус лягає');
-  await card.getByRole('button', { name: '✅ Правильно' }).click();
+  await expect(card.locator('.check')).toHaveText('Оля — відповідь збіглася з правильною?');
+  await card.getByRole('button', { name: 'Правильно', exact: true }).click();
   expect((await saved(page)).game.scores[(await saved(page)).game.order[0]]).toBe(1);
 });
 

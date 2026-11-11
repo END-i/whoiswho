@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { speechText, audioUrl, pickVoice, listenMode, playQuestion } from '../src/lib/speech.js';
+import { speechText, audioUrl, pickVoice, listenMode, playQuestion, questionAudio, resetQuestionAudio, AUTO_DELAY } from '../src/lib/speech.js';
 import { listAudioIds, planJobs, ssml, piperEngine, azureEngine, edgeEngine, geminiEngine, geminiRequest, geminiBatch, geminiMp3, textHash, updateManifest, staleAudio, checkPronunciation, applyPronunciation, stressedIds, pcmToMp3, retryDelay, isDailyQuota, GEMINI_STYLE, GEMINI_STYLES, runJobs, fatal, parseArgs, parseEnv, piperText, numberWords, parseWav, wavToMp3 } from '../scripts/audio-lib.mjs';
 import { audioIdsPlugin, VIRTUAL_ID } from '../scripts/vite-audio-plugin.mjs';
 import { mkdtempSync, mkdirSync, writeFileSync as wf, rmSync } from 'node:fs';
@@ -332,7 +332,28 @@ test('playQuestion: файл — Audio з правильною адресою, �
   stop(); assert.equal(made[0].paused, true);
   await new Promise((r) => setTimeout(r, 0)); // відмова play() не стає необробленою помилкою
   assert.equal(ended, 1, 'відмова play() — кнопка перестає «грати»');
-  assert.equal(made[0].onended, deps.onend);
+  made[0].onended(); assert.equal(ended, 2, 'кінець файлу — кнопка перестає «грати»');
+});
+
+test('playQuestion: спільний плеєр — «стоп» старої картки не зупиняє нове питання', () => {
+  const a = { play: () => {}, pause() { this.paused = true; } };
+  const stopOld = playQuestion({ id: 'a' }, 'file', { makeAudio: () => a });
+  const stopNew = playQuestion({ id: 'b' }, 'file', { makeAudio: () => a });
+  stopOld(); assert.equal(a.paused, undefined);
+  stopNew(); assert.equal(a.paused, true);
+});
+
+test('questionAudio: один плеєр на всі питання; нова адреса — попереднє зупиняється', () => {
+  resetQuestionAudio();
+  let created = 0;
+  class Audio { constructor() { created++; } pause() { this.paused = (this.paused || 0) + 1; } }
+  const a = questionAudio('/audio/a.mp3', Audio);
+  const b = questionAudio('/audio/b.mp3', Audio);
+  assert.equal(a, b); assert.equal(created, 1);
+  assert.equal(b.src, '/audio/b.mp3'); assert.equal(b.paused, 2);
+  resetQuestionAudio();
+  assert.notEqual(questionAudio('/audio/c.mp3', Audio), a);
+  assert.ok(AUTO_DELAY > 0 && AUTO_DELAY < 1000, 'автоозвучка — у межах секунди після дотику (iPhone)');
 });
 
 test('playQuestion: голос браузера — український, трохи повільніше, текст без дужок', () => {

@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures.js';
-import { fresh, setPlayers } from './helpers.js';
+import { fresh, setPlayers, numberOf } from './helpers.js';
 
 const lang = (page, name) => page.getByRole('radio', { name });
 
@@ -60,4 +60,21 @@ test('гра російською: категорії й питання росі
   await page.getByRole('button', { name: `Карта ${s.game.deck.aboutme.indexOf('am-02') + 1}`, exact: true }).click();
   await expect(page.getByRole('dialog').getByText('Что ты больше всего любишь делать в выходные?')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Прослушать вопрос' })).toHaveCount(0);
+});
+
+test('історія російською: дата гри — російською, не українською', async ({ page }) => {
+  await fresh(page);
+  await lang(page, 'Русский').click();
+  await setPlayers(page, ['Оля', 'Тарас']);
+  await page.getByRole('button', { name: /Начать игру/ }).click();
+  await page.getByRole('button', { name: /Играем!/ }).click();
+  // порожню гру історія не записує — зіграємо одну карту (gs-01: відповідає той, чия черга)
+  await page.locator('.cat').first().click();
+  await page.getByRole('button', { name: `Карта ${await numberOf(page, 'guess', 'gs-01')}`, exact: true }).click();
+  await page.getByRole('button', { name: /Правильно/ }).click();
+  await page.getByRole('button', { name: 'Меню' }).click();
+  await page.getByRole('button', { name: /Завершить игру/ }).click();
+  await page.getByRole('button', { name: /История/ }).click();
+  const month = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+  await expect(page.locator('.date').first()).toContainText(month);
 });
