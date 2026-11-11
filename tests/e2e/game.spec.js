@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { startGame, category, openCard, openQuestion, numberOf, saved, turnName, fresh, QUESTIONS, byId } from './helpers.js';
 
 const count = (cat, kids = false) => QUESTIONS.questions.filter((q) => q.category === cat && (kids || (q.audience ?? 'all') === 'all')).length;

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { startGame, openQuestion, fresh, setPlayers } from './helpers.js';
 
 // Підставний Wake Lock: записує запити й звільнення у window.__wl

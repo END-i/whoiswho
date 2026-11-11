@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { TOKENS, CATEGORY_COLORS, contrast } from '../../src/lib/theme.js';
 import { startGame, openQuestion, fresh } from './helpers.js';
 

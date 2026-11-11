@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { startGame, openQuestion, saved } from './helpers.js';
 
 const menu = async (page, item) => { await page.getByRole('button', { name: 'Меню' }).click(); await page.getByRole('button', { name: item }).click(); };

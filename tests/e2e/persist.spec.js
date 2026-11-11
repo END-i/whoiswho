@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { startGame, category, openCard, openQuestion, numberOf, saved, turnName } from './helpers.js';
 
 test('перезавантаження посеред гри: той самий екран, хід, використані карти й відкрита картка', async ({ page }) => {

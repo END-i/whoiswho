@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { fresh, confirmAll, startGame, openQuestion, setPlayers } from './helpers.js';
 
 // Запис трасування Playwright у WebKit ламає Cache Storage (put «вдається», але нічого не зберігається) —

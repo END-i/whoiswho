@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import { fresh } from './helpers.js';
 
 test('гра ще не встановлена: смужка «Встанови гру» веде до інструкції, свій телефон — першим і підсвічений', async ({ page }, info) => {
