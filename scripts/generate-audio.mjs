@@ -59,10 +59,10 @@ const engine = opts.engine === 'gemini'
 
 fs.mkdirSync(outDir, { recursive: true });
 console.log(`Озвучую ${jobs.length} питань (${opts.engine})…`);
-const { done, failed } = await runJobs(jobs, engine, {
+const { done, failed, stopped } = await runJobs(jobs, engine, {
   outFile: (id) => path.join(outDir, `${id}.mp3`),
   cleanup: (f) => fs.rmSync(f, { force: true }),
   log: (m) => console.log(m),
 });
-console.log(`Готово: ${done.length}. Помилок: ${failed.length}.`);
+console.log(`Готово: ${done.length}. Помилок: ${failed.length}.${stopped.length ? ` Зупинено, не озвучено ще ${stopped.length}.` : ''}`);
 process.exit(failed.length ? 1 : 0);

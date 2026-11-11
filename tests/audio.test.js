@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { speechText, audioUrl, pickUkVoice, listenMode, playQuestion } from '../src/lib/speech.js';
-import { listAudioIds, planJobs, ssml, piperEngine, azureEngine, edgeEngine, geminiEngine, geminiRequest, checkPronunciation, applyPronunciation, stressedIds, pcmToMp3, retryDelay, isDailyQuota, GEMINI_STYLE, runJobs, parseArgs, parseEnv, piperText, numberWords, parseWav, wavToMp3 } from '../scripts/audio-lib.mjs';
+import { listAudioIds, planJobs, ssml, piperEngine, azureEngine, edgeEngine, geminiEngine, geminiRequest, checkPronunciation, applyPronunciation, stressedIds, pcmToMp3, retryDelay, isDailyQuota, GEMINI_STYLE, runJobs, fatal, parseArgs, parseEnv, piperText, numberWords, parseWav, wavToMp3 } from '../scripts/audio-lib.mjs';
 import { audioIdsPlugin, VIRTUAL_ID } from '../scripts/vite-audio-plugin.mjs';
 import { mkdtempSync, writeFileSync as wf, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -163,7 +163,7 @@ test('retryDelay: береться з RetryInfo, інакше експоненц
 
 test('geminiEngine: правильний запит (голос, стиль, ключ у заголовку) і MP3 з потрібною частотою', async () => {
   let req, file;
-  const eng = geminiEngine({ key: 'K', voice: 'Puck', fetch: async (url, init) => { req = { url, init }; return reply(200, okBody(22050)); }, writeFile: (f, b) => (file = { f, b }) });
+  const eng = geminiEngine({ key: 'K', voice: 'Puck', model: 'gemini-2.5-flash-preview-tts', fetch: async (url, init) => { req = { url, init }; return reply(200, okBody(22050)); }, writeFile: (f, b) => (file = { f, b }) });
   assert.equal(await eng({ id: 'q', text: 'Привіт!' }, '/o/q.mp3'), null);
   assert.match(req.url, /models\/gemini-2\.5-flash-preview-tts:generateContent$/);
   assert.equal(req.init.headers['x-goog-api-key'], 'K');
@@ -184,8 +184,8 @@ test('geminiRequest: 2.x — стиль у тексті; 3.x — текст до
   assert.deepEqual(neu.contents[0].parts[0], { text: 'Питання?', speech_metadata: { style: 'весело' } });
   assert.deepEqual(neu.generationConfig.speechConfig.voiceConfig, { voice: 'Kore' });
   assert.deepEqual(neu.generationConfig.responseModalities, ['AUDIO']);
-  // за замовчуванням — модель GEMINI_MODEL і голос Leda
-  assert.match(JSON.stringify(geminiRequest('x')), /Leda/);
+  // за замовчуванням — модель GEMINI_MODEL і голос Achird
+  assert.match(JSON.stringify(geminiRequest('x')), /Achird/);
 });
 
 test('geminiEngine: модель задається; WAV-відповідь 3.x кодується без заголовка, сирий PCM 2.5 — як PCM', async () => {
@@ -230,18 +230,23 @@ test('geminiEngine: денний ліміт і надто довге очіку�
   assert.equal(isDailyQuota(null), false);
   let slept = 0;
   const eng = geminiEngine({ key: 'K', sleep: async () => slept++, writeFile() {}, fetch: async () => reply(429, daily) });
-  await assert.rejects(eng({ id: 'q', text: 'x' }, '/o'), /денний ліміт/);
+  await assert.rejects(eng({ id: 'q', text: 'x' }, '/o'), (e) => e.fatal && /денний ліміт Gemini для gemini-3\.8-flash-tts\. Ліміт скинеться приблизно через 676 хв/.test(e.message));
+  // Tier 1: у відповіді є quotaValue — показуємо його
+  const tier1 = { error: { details: [{ violations: [{ quotaId: 'GenerateRequestsPerDayPerProjectPerModel', quotaValue: '100' }] }, { '@type': 'RetryInfo', retryDelay: '669s' }] } };
+  const eng1 = geminiEngine({ key: 'K', writeFile() {}, fetch: async () => reply(429, tier1) });
+  await assert.rejects(eng1({ id: 'q', text: 'x' }, '/o'), /\(100 запитів на добу\).*через 12 хв/);
   const long = geminiEngine({ key: 'K', maxWait: 1000, sleep: async () => slept++, writeFile() {}, fetch: async () => reply(429, { error: { details: [{ '@type': 'RetryInfo', retryDelay: '300s' }] } }) });
-  await assert.rejects(long({ id: 'q', text: 'x' }, '/o'), /зачекати 5 хв/);
+  await assert.rejects(long({ id: 'q', text: 'x' }, '/o'), (e) => e.fatal && /зачекати 5 хв/.test(e.message));
   assert.equal(slept, 0, 'марно не чекає');
 });
 
-test('geminiEngine: значення за замовчуванням (голос Leda, справжній sleep)', async () => {
+test('geminiEngine: значення за замовчуванням (модель 3.8 і голос Achird, справжній sleep)', async () => {
   let body;
   let n = 0;
   const eng = geminiEngine({ key: 'K', writeFile() {}, fetch: async (_u, init) => { body = JSON.parse(init.body); return ++n === 1 ? reply(429, { error: { details: [{ '@type': 'RetryInfo', retryDelay: '0s' }] } }) : reply(200, okBody()); } });
   await eng({ id: 'q', text: 'x' }, '/o');
-  assert.equal(body.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName, 'Leda');
+  assert.deepEqual(body.generationConfig.speechConfig.voiceConfig, { voice: 'Achird' });
+  assert.equal(body.contents[0].parts[0].text, 'x', '3.8 — текст дослівно');
 });
 
 test('azureEngine: правильний запит і запис файлу; помилка сервера — зрозуміла', async () => {
@@ -262,15 +267,23 @@ test('azureEngine: правильний запит і запис файлу; п�
   assert.throws(() => azureEngine({ region: 'r' }), /AZURE_SPEECH_KEY/);
 });
 
+test('runJobs: фатальна помилка (ліміт на добу) зупиняє решту — не перебирає марно всі питання', async () => {
+  let calls = 0;
+  const engine = async (job) => { calls++; if (job.id === 'b') throw fatal('ліміт'); return null; };
+  const r = await runJobs([{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }], engine, { outFile: (id) => id });
+  assert.deepEqual(r, { done: ['a'], failed: [{ id: 'b', error: 'ліміт' }], stopped: ['c', 'd'] });
+  assert.equal(calls, 2);
+});
+
 test('runJobs: помилка одного не зупиняє решту, тимчасові файли прибираються', async () => {
   const cleaned = [], logs = [];
   const engine = async (job) => { if (job.id === 'b') throw new Error('бах'); return job.id === 'a' ? '/tmp/a.wav' : null; };
   const r = await runJobs([{ id: 'a' }, { id: 'b' }, { id: 'c' }], engine, { outFile: (id) => id, cleanup: (f) => cleaned.push(f), log: (m) => logs.push(m) });
-  assert.deepEqual(r, { done: ['a', 'c'], failed: [{ id: 'b', error: 'бах' }] });
+  assert.deepEqual(r, { done: ['a', 'c'], failed: [{ id: 'b', error: 'бах' }], stopped: [] });
   assert.deepEqual(cleaned, ['/tmp/a.wav']);
   assert.equal(logs.length, 3);
-  assert.deepEqual(await runJobs([{ id: 'z' }], async () => null, { outFile: (x) => x }), { done: ['z'], failed: [] });
-  assert.deepEqual(await runJobs([{ id: 'w' }], async () => '/tmp/w.wav', { outFile: (x) => x }), { done: ['w'], failed: [] }, 'без cleanup — тимчасовий файл просто лишається');
+  assert.deepEqual(await runJobs([{ id: 'z' }], async () => null, { outFile: (x) => x }), { done: ['z'], failed: [], stopped: [] });
+  assert.deepEqual(await runJobs([{ id: 'w' }], async () => '/tmp/w.wav', { outFile: (x) => x }), { done: ['w'], failed: [], stopped: [] }, 'без cleanup — тимчасовий файл просто лишається');
 });
 
 // ---------- аргументи й .env ----------

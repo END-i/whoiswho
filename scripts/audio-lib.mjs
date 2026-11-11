@@ -170,13 +170,14 @@ export function edgeEngine({ run, voice = 'uk-UA-PolinaNeural', rate = '-5%', bi
 
 // ---------- Gemini TTS ----------
 export const GEMINI_STYLE = 'тепло й весело, як ведучий сімейної гри для дітей, чітко й не поспішаючи';
-export const GEMINI_MODEL = 'gemini-2.5-flash-preview-tts';
+export const GEMINI_MODEL = 'gemini-3.8-flash-tts';
+export const GEMINI_VOICE = 'Achird'; // вибір 11.11: чоловічий, привітний
 
 /**
  * Тіло запиту до Gemini TTS. Моделі 2.x беруть стиль прямо в тексті («Прочитай …: питання»).
  * Моделі 3.x читають text дослівно (разом з інструкцією!), тож стиль іде окремо — у speech_metadata.style.
  */
-export function geminiRequest(text, { voice = 'Leda', style = GEMINI_STYLE, model = GEMINI_MODEL } = {}) {
+export function geminiRequest(text, { voice = GEMINI_VOICE, style = GEMINI_STYLE, model = GEMINI_MODEL } = {}) {
   const legacy = /^gemini-2\./.test(model);
   return {
     contents: [{ role: 'user', parts: [legacy ? { text: `Прочитай українською ${style}: ${text}` } : { text, speech_metadata: { style } }] }],
@@ -200,7 +201,7 @@ export function retryDelay(errorBody, attempt) {
  * Google Gemini TTS: текст + опис стилю → PCM 24 кГц → MP3.
  * fetch, writeFile, sleep передаються параметрами. 429 — чекаємо й повторюємо (до retries разів).
  */
-export function geminiEngine({ key, fetch, writeFile, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), voice = 'Leda', style = GEMINI_STYLE, model = GEMINI_MODEL, retries = 6, maxWait = 120000, log = () => {} }) {
+export function geminiEngine({ key, fetch, writeFile, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), voice = GEMINI_VOICE, style = GEMINI_STYLE, model = GEMINI_MODEL, retries = 6, maxWait = 120000, log = () => {} }) {
   if (!key) throw new Error('Для Gemini потрібен GEMINI_API_KEY у .env (aistudio.google.com → Get API key)');
   return async (job, outFile) => {
     for (let attempt = 0; ; attempt++) {
@@ -211,11 +212,14 @@ export function geminiEngine({ key, fetch, writeFile, sleep = (ms) => new Promis
       });
       const body = await res.json().catch(() => ({}));
       if (res.status === 429 && isDailyQuota(body)) {
-        throw new Error('Вичерпано денний ліміт Gemini (безкоштовний рівень — 10 запитів на день). Продовж завтра або ввімкни оплату в AI Studio');
+        // ліміт на добу — на модель і проєкт: безкоштовно 10, на Tier 1 — 100 (для 3.8)
+        const limit = body.error.details.flatMap((d) => d.violations || []).map((v) => v.quotaValue).find(Boolean);
+        const mins = Math.ceil(retryDelay(body, 0) / 60000);
+        throw fatal(`Вичерпано денний ліміт Gemini для ${model}${limit ? ` (${limit} запитів на добу)` : ''}. Ліміт скинеться приблизно через ${mins} хв — тоді запусти ще раз, готові файли пропускаються`);
       }
       if (res.status === 429 && attempt < retries) {
         const ms = retryDelay(body, attempt);
-        if (ms > maxWait) throw new Error(`Gemini просить зачекати ${Math.round(ms / 60000)} хв — зупиняюсь, спробуй пізніше`);
+        if (ms > maxWait) throw fatal(`Gemini просить зачекати ${Math.round(ms / 60000)} хв — зупиняюсь, спробуй пізніше`);
         log(`… ліміт запитів, чекаю ${Math.round(ms / 1000)} с`); await sleep(ms); continue;
       }
       if (!res.ok) throw new Error(`Gemini відповів ${res.status}: ${String(body?.error?.message || '').slice(0, 200)}`);
@@ -252,6 +256,11 @@ export function azureEngine({ key, region, voice, fetch, writeFile }) {
 }
 
 /** Виконати завдання по черзі. Помилка одного питання не зупиняє решту. */
+/** Помилка, після якої решту питань озвучувати марно (ліміт на добу тощо): runJobs зупиняється. */
+export function fatal(message) {
+  return Object.assign(new Error(message), { fatal: true });
+}
+
 export async function runJobs(jobs, engine, { outFile, cleanup = () => {}, log = () => {} }) {
   const done = [], failed = [];
   for (const [k, job] of jobs.entries()) {
@@ -263,9 +272,10 @@ export async function runJobs(jobs, engine, { outFile, cleanup = () => {}, log =
     } catch (e) {
       failed.push({ id: job.id, error: e.message });
       log(`✗ ${job.id}: ${e.message}`);
+      if (e.fatal) return { done, failed, stopped: jobs.slice(k + 1).map((j) => j.id) };
     }
   }
-  return { done, failed };
+  return { done, failed, stopped: [] };
 }
 
 /** Аргументи: --engine edge|gemini|azure|piper --voice назва --model шлях --speaker N --force --stressed --only a,b --list --out тека */
