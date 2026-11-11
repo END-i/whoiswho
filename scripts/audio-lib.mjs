@@ -197,6 +197,66 @@ export function retryDelay(errorBody, attempt) {
   return Number.isFinite(s) ? Math.ceil(s * 1000) + 500 : Math.min(60000, 2000 * 2 ** attempt);
 }
 
+/** Відповідь Gemini (generateContent) → MP3. 2.5 віддає сирий PCM (audio/L16;rate=24000), 3.x — WAV із заголовком. */
+export function geminiMp3(response) {
+  const part = response?.candidates?.[0]?.content?.parts?.find?.((p) => p.inlineData)?.inlineData;
+  if (!part?.data) throw new Error('Gemini не повернув звуку');
+  const audio = Buffer.from(part.data, 'base64');
+  const isWav = /wav/i.test(part.mimeType || '') || audio.subarray(0, 4).toString('latin1') === 'RIFF';
+  const rate = Number((part.mimeType || '').match(/rate=(\d+)/)?.[1]) || 24000;
+  return isWav ? wavToMp3(audio, 48) : pcmToMp3(audio, rate);
+}
+
+/**
+ * Пакетна озвучка (Batch API): усі питання одним завданням. Удвічі дешевше, і окремий ліміт —
+ * не впирається в 100 запитів на добу. Зазвичай готово за кілька хвилин (максимум — 48 год).
+ * Повертає { done, failed } як runJobs; файли пише через writeFile(outFile(id), mp3).
+ */
+export async function geminiBatch(jobs, { key, fetch, writeFile, outFile, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), voice = GEMINI_VOICE, style = GEMINI_STYLE, model = GEMINI_MODEL, poll = 20000, maxPolls = 540, log = () => {} }) {
+  if (!key) throw new Error('Для Gemini потрібен GEMINI_API_KEY у .env (aistudio.google.com → Get API key)');
+  const api = 'https://generativelanguage.googleapis.com/v1beta';
+  const headers = { 'Content-Type': 'application/json', 'x-goog-api-key': key };
+  const call = async (url, init) => {
+    const res = await fetch(url, { headers, ...init });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(`Gemini Batch відповів ${res.status}: ${String(body?.error?.message || '').slice(0, 200)}`);
+    return body;
+  };
+  const requests = jobs.map((j) => ({ request: geminiRequest(j.text, { voice, style, model }), metadata: { key: j.id } }));
+  let op = await call(`${api}/models/${model}:batchGenerateContent`, {
+    method: 'POST', body: JSON.stringify({ batch: { display_name: `whoiswho-${jobs.length}`, input_config: { requests: { requests } } } }),
+  });
+  log(`Пакет ${op.name}: ${jobs.length} питань, чекаю…`);
+  for (let k = 0; !op.done; k++) {
+    if (k >= maxPolls) throw new Error(`Пакет ${op.name} не готовий після ${Math.round((maxPolls * poll) / 60000)} хв — перевір пізніше`);
+    await sleep(poll);
+    op = await call(`${api}/${op.name}`, { method: 'GET' });
+    const st = op.metadata?.batchStats;
+    log(`… ${op.metadata?.state}${st ? `: готово ${st.successfulRequestCount || 0} з ${st.requestCount}` : ''}`);
+  }
+  if (op.error || op.metadata?.state !== 'BATCH_STATE_SUCCEEDED') throw new Error(`Пакет не вдався: ${op.metadata?.state} ${op.error?.message || ''}`.trim());
+  const out = op.metadata.output || op.response || {};
+  let results = out.inlinedResponses?.inlinedResponses;
+  if (!results && out.responsesFile) {
+    // великий результат Google віддає файлом JSONL: рядок — { key, response | error }
+    const res = await fetch(`https://generativelanguage.googleapis.com/download/v1beta/${out.responsesFile}:download?alt=media`, { headers });
+    if (!res.ok) throw new Error(`Не вдалося завантажити результат пакета: ${res.status}`);
+    results = (await res.text()).split('\n').filter(Boolean).map((l) => { const r = JSON.parse(l); return { ...r, metadata: { key: r.key } }; });
+  }
+  const done = [], failed = [];
+  for (const r of results || []) {
+    const id = r.metadata?.key;
+    try {
+      if (r.error) throw new Error(r.error.message || 'помилка');
+      writeFile(outFile(id), geminiMp3(r.response));
+      done.push(id);
+    } catch (e) { failed.push({ id, error: e.message }); log(`✗ ${id}: ${e.message}`); }
+  }
+  // те, на що пакет не відповів зовсім
+  for (const j of jobs) if (!done.includes(j.id) && !failed.some((f) => f.id === j.id)) failed.push({ id: j.id, error: 'немає відповіді в пакеті' });
+  return { done, failed, stopped: [] };
+}
+
 /**
  * Google Gemini TTS: текст + опис стилю → PCM 24 кГц → MP3.
  * fetch, writeFile, sleep передаються параметрами. 429 — чекаємо й повторюємо (до retries разів).
@@ -223,13 +283,7 @@ export function geminiEngine({ key, fetch, writeFile, sleep = (ms) => new Promis
         log(`… ліміт запитів, чекаю ${Math.round(ms / 1000)} с`); await sleep(ms); continue;
       }
       if (!res.ok) throw new Error(`Gemini відповів ${res.status}: ${String(body?.error?.message || '').slice(0, 200)}`);
-      const part = body?.candidates?.[0]?.content?.parts?.find?.((p) => p.inlineData)?.inlineData;
-      if (!part?.data) throw new Error('Gemini не повернув звуку');
-      // 2.5 віддає сирий PCM (audio/L16;rate=24000), 3.x — готовий WAV із заголовком
-      const audio = Buffer.from(part.data, 'base64');
-      const isWav = /wav/i.test(part.mimeType || '') || audio.subarray(0, 4).toString('latin1') === 'RIFF';
-      const rate = Number((part.mimeType || '').match(/rate=(\d+)/)?.[1]) || 24000;
-      writeFile(outFile, isWav ? wavToMp3(audio, 48) : pcmToMp3(audio, rate));
+      writeFile(outFile, geminiMp3(body));
       return null;
     }
   };
@@ -278,9 +332,9 @@ export async function runJobs(jobs, engine, { outFile, cleanup = () => {}, log =
   return { done, failed, stopped: [] };
 }
 
-/** Аргументи: --engine edge|gemini|azure|piper --voice назва --model шлях --speaker N --force --stressed --only a,b --list --out тека */
+/** Аргументи: --engine edge|gemini|azure|piper --voice назва --model шлях --speaker N --force --stressed --batch --only a,b --list --out тека */
 export function parseArgs(argv) {
-  const o = { engine: 'edge', voice: null, model: null, speaker: null, force: false, stressed: false, only: null, list: false, out: null };
+  const o = { engine: 'edge', voice: null, model: null, speaker: null, force: false, stressed: false, batch: false, only: null, list: false, out: null };
   for (let k = 0; k < argv.length; k++) {
     const a = argv[k];
     if (a === '--engine') o.engine = argv[++k];
@@ -290,11 +344,13 @@ export function parseArgs(argv) {
     else if (a === '--speaker') { o.speaker = Number(argv[++k]); if (!Number.isInteger(o.speaker) || o.speaker < 0) throw new Error('--speaker — номер голосу: 0, 1, 2…'); }
     else if (a === '--force') o.force = true;
     else if (a === '--stressed') o.stressed = true;
+    else if (a === '--batch') o.batch = true;
     else if (a === '--list') o.list = true;
     else if (a === '--only') o.only = String(argv[++k] || '').split(',').filter(Boolean);
     else throw new Error(`Невідомий аргумент: ${a}`);
   }
   if (!['edge', 'gemini', 'azure', 'piper'].includes(o.engine)) throw new Error(`Невідомий рушій: ${o.engine} (є edge, gemini, azure і piper)`);
+  if (o.batch && o.engine !== 'gemini') throw new Error('--batch працює лише з --engine gemini');
   return o;
 }
 

@@ -6,6 +6,7 @@
 //   node scripts/generate-audio.mjs --engine piper --model ~/piper/uk_UA-ukrainian_tts-medium.onnx   # Piper, локально
 //   node scripts/generate-audio.mjs --engine azure                                    # Azure F0, ключі в .env
 //   node scripts/generate-audio.mjs --engine gemini --voice Leda --model gemini-3.8-flash-tts   # Gemini, ключ у .env
+//   node scripts/generate-audio.mjs --engine gemini --batch --force             # Gemini пакетом: усі питання одним завданням, удвічі дешевше
 //   node scripts/generate-audio.mjs --list                                            # що буде озвучено
 //   ... --force (перегенерувати все), --only gs-01,gs-02, --stressed (лише питання зі словами зі словника вимови)
 // Шлях до piper можна задати змінною PIPER_BIN. ffmpeg не потрібен: MP3 кодує lamejs.
@@ -15,7 +16,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { listAudioIds, planJobs, checkPronunciation, piperEngine, azureEngine, edgeEngine, geminiEngine, runJobs, parseArgs, parseEnv } from './audio-lib.mjs';
+import { listAudioIds, planJobs, checkPronunciation, geminiBatch, piperEngine, azureEngine, edgeEngine, geminiEngine, runJobs, parseArgs, parseEnv } from './audio-lib.mjs';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const data = JSON.parse(fs.readFileSync(path.join(root, 'src/data/questions.json'), 'utf8'));
@@ -59,8 +60,11 @@ const engine = opts.engine === 'gemini'
 
 fs.mkdirSync(outDir, { recursive: true });
 console.log(`Озвучую ${jobs.length} питань (${opts.engine})…`);
-const { done, failed, stopped } = await runJobs(jobs, engine, {
-  outFile: (id) => path.join(outDir, `${id}.mp3`),
+const outFile = (id) => path.join(outDir, `${id}.mp3`);
+const { done, failed, stopped } = opts.batch
+  ? await geminiBatch(jobs, { key: env.GEMINI_API_KEY, voice: opts.voice || undefined, model: opts.model || env.GEMINI_MODEL || undefined, fetch, writeFile: fs.writeFileSync, outFile, log: (m) => console.log(m) })
+  : await runJobs(jobs, engine, {
+  outFile,
   cleanup: (f) => fs.rmSync(f, { force: true }),
   log: (m) => console.log(m),
 });

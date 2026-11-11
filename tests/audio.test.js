@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { speechText, audioUrl, pickUkVoice, listenMode, playQuestion } from '../src/lib/speech.js';
-import { listAudioIds, planJobs, ssml, piperEngine, azureEngine, edgeEngine, geminiEngine, geminiRequest, checkPronunciation, applyPronunciation, stressedIds, pcmToMp3, retryDelay, isDailyQuota, GEMINI_STYLE, runJobs, fatal, parseArgs, parseEnv, piperText, numberWords, parseWav, wavToMp3 } from '../scripts/audio-lib.mjs';
+import { listAudioIds, planJobs, ssml, piperEngine, azureEngine, edgeEngine, geminiEngine, geminiRequest, geminiBatch, geminiMp3, checkPronunciation, applyPronunciation, stressedIds, pcmToMp3, retryDelay, isDailyQuota, GEMINI_STYLE, runJobs, fatal, parseArgs, parseEnv, piperText, numberWords, parseWav, wavToMp3 } from '../scripts/audio-lib.mjs';
 import { audioIdsPlugin, VIRTUAL_ID } from '../scripts/vite-audio-plugin.mjs';
 import { mkdtempSync, writeFileSync as wf, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -289,10 +289,10 @@ test('runJobs: помилка одного не зупиняє решту, ти�
 // ---------- аргументи й .env ----------
 
 test('parseArgs', () => {
-  assert.deepEqual(parseArgs([]), { engine: 'edge', voice: null, model: null, speaker: null, force: false, stressed: false, only: null, list: false, out: null });
+  assert.deepEqual(parseArgs([]), { engine: 'edge', voice: null, model: null, speaker: null, force: false, stressed: false, batch: false, only: null, list: false, out: null });
   assert.equal(parseArgs(['--engine', 'gemini', '--out', '/tmp/s']).out, '/tmp/s');
   assert.deepEqual(parseArgs(['--engine', 'azure', '--force', '--only', 'a,b', '--list', '--speaker', '1', '--voice', 'uk-UA-OstapNeural']),
-    { engine: 'azure', voice: 'uk-UA-OstapNeural', model: null, speaker: 1, force: true, stressed: false, only: ['a', 'b'], list: true, out: null });
+    { engine: 'azure', voice: 'uk-UA-OstapNeural', model: null, speaker: 1, force: true, stressed: false, batch: false, only: ['a', 'b'], list: true, out: null });
   assert.equal(parseArgs(['--engine', 'piper']).engine, 'piper');
   assert.throws(() => parseArgs(['--speaker', 'x']), /номер голосу/);
   assert.equal(parseArgs(['--model', 'x.onnx']).model, 'x.onnx');
@@ -430,4 +430,83 @@ test('src/data/pronunciation.json: словник без помилок', async 
   const { words } = JSON.parse(readFileSync(new URL('../src/data/pronunciation.json', import.meta.url), 'utf8'));
   assert.equal(typeof words, 'object');
   assert.deepEqual(checkPronunciation(words), []);
+});
+
+// ---- Gemini Batch ----
+const wavPart = (sec = 0.2) => ({ candidates: [{ content: { parts: [{ inlineData: { mimeType: 'audio/wav', data: makeWav({ seconds: sec, rate: 24000 }).toString('base64') } }] } }] });
+const json = (status, body) => ({ ok: status < 400, status, json: async () => body, text: async () => body });
+function batchApi({ final, polls = [], download } = {}) {
+  const calls = [];
+  let k = 0;
+  const fetch = async (url, init = {}) => {
+    calls.push({ url, method: init.method, body: init.body && JSON.parse(init.body), key: init.headers?.['x-goog-api-key'] });
+    if (url.includes(':batchGenerateContent')) return json(200, { name: 'batches/b1', metadata: { state: 'BATCH_STATE_PENDING' } });
+    if (url.includes(':download')) return download();
+    return json(200, k < polls.length ? polls[k++] : final);
+  };
+  return { fetch, calls };
+}
+
+test('geminiBatch: одне завдання на всі питання, опитування до кінця, файли й помилки по кожному питанню', async () => {
+  const final = { name: 'batches/b1', done: true, metadata: { state: 'BATCH_STATE_SUCCEEDED', output: { inlinedResponses: { inlinedResponses: [
+    { metadata: { key: 'a' }, response: wavPart() },
+    { metadata: { key: 'b' }, error: { message: 'зламалось' } },
+    { metadata: { key: 'd' }, error: {} },
+  ] } } } };
+  const { fetch, calls } = batchApi({ final, polls: [{ name: 'batches/b1', metadata: { state: 'BATCH_STATE_RUNNING', batchStats: { requestCount: '4' } } }, { name: 'batches/b1', metadata: { state: 'BATCH_STATE_RUNNING' } }] });
+  const files = {}, logs = [];
+  let slept = 0;
+  const jobs = [{ id: 'a', text: 'Перше?' }, { id: 'b', text: 'Друге?' }, { id: 'c', text: 'Третє?' }, { id: 'd', text: 'Четверте?' }];
+  const r = await geminiBatch(jobs, { key: 'K', fetch, writeFile: (f, b) => (files[f] = b), outFile: (id) => `/o/${id}.mp3`, sleep: async () => slept++, log: (m) => logs.push(m) });
+  assert.match(calls[0].url, /models\/gemini-3\.8-flash-tts:batchGenerateContent$/);
+  assert.equal(calls[0].method, 'POST'); assert.equal(calls[0].key, 'K');
+  const reqs = calls[0].body.batch.input_config.requests.requests;
+  assert.deepEqual(reqs.map((x) => x.metadata.key), ['a', 'b', 'c', 'd']);
+  assert.deepEqual(reqs[0].request, geminiRequest('Перше?'));
+  assert.ok(calls.slice(1).every((c) => c.url.endsWith('/v1beta/batches/b1') && c.method === 'GET'));
+  assert.equal(slept, 3);
+  assert.deepEqual(r.done, ['a']);
+  assert.deepEqual(r.failed, [{ id: 'b', error: 'зламалось' }, { id: 'd', error: 'помилка' }, { id: 'c', error: 'немає відповіді в пакеті' }]);
+  assert.deepEqual(r.stopped, []);
+  assert.deepEqual(files['/o/a.mp3'], geminiMp3(wavPart()));
+  assert.ok(logs.some((m) => /готово 0 з 4/.test(m)));
+  assert.ok(logs.some((m) => m === '… BATCH_STATE_RUNNING'));
+});
+
+test('geminiBatch: великий результат файлом JSONL; результат у response; порожній результат', async () => {
+  const fileFinal = { name: 'batches/b1', done: true, metadata: { state: 'BATCH_STATE_SUCCEEDED', output: { responsesFile: 'files/out1' } } };
+  const lines = [JSON.stringify({ key: 'a', response: wavPart() }), JSON.stringify({ key: 'b', error: { message: 'x' } }), ''].join('\n');
+  const okApi = batchApi({ final: fileFinal, download: async () => json(200, lines) });
+  const files = {};
+  const opts = { key: 'K', writeFile: (f, b) => (files[f] = b), outFile: (id) => id, sleep: async () => {} };
+  const r = await geminiBatch([{ id: 'a', text: 'x' }, { id: 'b', text: 'y' }], { ...opts, fetch: okApi.fetch });
+  assert.match(okApi.calls.at(-1).url, /\/download\/v1beta\/files\/out1:download\?alt=media$/);
+  assert.deepEqual(r.done, ['a']); assert.deepEqual(r.failed, [{ id: 'b', error: 'x' }]);
+  const badApi = batchApi({ final: fileFinal, download: async () => json(500, '') });
+  await assert.rejects(geminiBatch([{ id: 'a', text: 'x' }], { ...opts, fetch: badApi.fetch }), /результат пакета: 500/);
+  // інше розташування результату (op.response)
+  const respApi = batchApi({ final: { name: 'batches/b1', done: true, metadata: { state: 'BATCH_STATE_SUCCEEDED' }, response: { inlinedResponses: { inlinedResponses: [{ metadata: { key: 'a' }, response: wavPart() }] } } } });
+  assert.deepEqual((await geminiBatch([{ id: 'a', text: 'x' }], { ...opts, fetch: respApi.fetch })).done, ['a']);
+  const emptyApi = batchApi({ final: { name: 'batches/b1', done: true, metadata: { state: 'BATCH_STATE_SUCCEEDED' } } });
+  assert.deepEqual((await geminiBatch([{ id: 'a', text: 'x' }], { ...opts, fetch: emptyApi.fetch })).failed, [{ id: 'a', error: 'немає відповіді в пакеті' }]);
+});
+
+test('geminiBatch: пакет не вдався, помилка API, задовго, без ключа; значення за замовчуванням', async () => {
+  const opts = { key: 'K', writeFile() {}, outFile: (id) => id, sleep: async () => {} };
+  const failedApi = batchApi({ final: { name: 'batches/b1', done: true, metadata: { state: 'BATCH_STATE_FAILED' } } });
+  await assert.rejects(geminiBatch([{ id: 'a', text: 'x' }], { ...opts, fetch: failedApi.fetch }), /Пакет не вдався: BATCH_STATE_FAILED$/);
+  const errApi = batchApi({ final: { name: 'batches/b1', done: true, error: { message: 'квота' }, metadata: { state: 'BATCH_STATE_SUCCEEDED' } } });
+  await assert.rejects(geminiBatch([{ id: 'a', text: 'x' }], { ...opts, fetch: errApi.fetch }), /квота/);
+  const down = async () => ({ ok: false, status: 503, json: async () => { throw new Error('not json'); } });
+  await assert.rejects(geminiBatch([{ id: 'a', text: 'x' }], { ...opts, fetch: down }), /Gemini Batch відповів 503: $/);
+  const forbidden = async () => json(403, { error: { message: 'немає доступу' } });
+  await assert.rejects(geminiBatch([{ id: 'a', text: 'x' }], { ...opts, fetch: forbidden }), /403: немає доступу/);
+  const slow = batchApi({ final: { name: 'batches/b1', metadata: { state: 'BATCH_STATE_RUNNING' } } });
+  await assert.rejects(geminiBatch([{ id: 'a', text: 'x' }], { ...opts, fetch: slow.fetch, maxPolls: 2, poll: 60000 }), /не готовий після 2 хв/);
+  await assert.rejects(geminiBatch([], { writeFile() {}, outFile() {}, fetch() {} }), /GEMINI_API_KEY/);
+  // справжній sleep (poll: 0) і log за замовчуванням
+  const quick = batchApi({ final: { name: 'batches/b1', done: true, metadata: { state: 'BATCH_STATE_SUCCEEDED', output: { inlinedResponses: { inlinedResponses: [{ metadata: { key: 'a' }, response: wavPart() }] } } } } });
+  assert.deepEqual((await geminiBatch([{ id: 'a', text: 'x' }], { key: 'K', fetch: quick.fetch, writeFile() {}, outFile: (id) => id, poll: 0 })).done, ['a']);
+  assert.equal(parseArgs(['--engine', 'gemini', '--batch']).batch, true);
+  assert.throws(() => parseArgs(['--batch']), /лише з --engine gemini/);
 });
