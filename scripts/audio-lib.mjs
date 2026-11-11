@@ -240,29 +240,44 @@ export function geminiMp3(response) {
 }
 
 /**
- * Пакетна озвучка (Batch API): усі питання одним завданням. Удвічі дешевше, і окремий ліміт —
+ * Пакетна озвучка (Batch API): питання пакетами по chunk штук. Удвічі дешевше, і окремий ліміт —
  * не впирається в 100 запитів на добу. Зазвичай готово за кілька хвилин (максимум — 48 год).
+ * Пакети невеликі, бо відповідь приходить одним JSON: 900 питань — це ~580 МБ, більше, ніж рядок у JavaScript.
  * Повертає { done, failed } як runJobs; файли пише через writeFile(outFile(id), mp3).
  */
-export async function geminiBatch(jobs, { key, fetch, writeFile, outFile, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), voice = GEMINI_VOICE, style = GEMINI_STYLE, model = GEMINI_MODEL, poll = 20000, maxPolls = 540, log = () => {} }) {
-  if (!key) throw new Error('Для Gemini потрібен GEMINI_API_KEY у .env (aistudio.google.com → Get API key)');
+export async function geminiBatch(jobs, { chunk = 250, log = () => {}, ...opts }) {
+  if (!opts.key) throw new Error('Для Gemini потрібен GEMINI_API_KEY у .env (aistudio.google.com → Get API key)');
+  const done = [], failed = [];
+  for (let i = 0; i < jobs.length; i += chunk) {
+    const part = jobs.slice(i, i + chunk);
+    if (jobs.length > chunk) log(`Частина ${i / chunk + 1} з ${Math.ceil(jobs.length / chunk)}`);
+    const r = await batchPart(part, { ...opts, log });
+    done.push(...r.done); failed.push(...r.failed);
+  }
+  return { done, failed, stopped: [] };
+}
+
+async function batchPart(jobs, { key, fetch, writeFile, outFile, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), voice = GEMINI_VOICE, style = GEMINI_STYLE, model = GEMINI_MODEL, poll = 20000, maxPolls = 540, log }) {
   const api = 'https://generativelanguage.googleapis.com/v1beta';
   const headers = { 'Content-Type': 'application/json', 'x-goog-api-key': key };
   const call = async (url, init) => {
     const res = await fetch(url, { headers, ...init });
-    const body = await res.json().catch(() => ({}));
+    let body;
+    try { body = await res.json(); } catch { body = null; }
     if (!res.ok) throw new Error(`Gemini Batch відповів ${res.status}: ${String(body?.error?.message || '').slice(0, 200)}`);
+    if (!body) throw new Error('Відповідь Gemini Batch не прочиталася — завелика? Зменш --chunk');
     return body;
   };
   const requests = jobs.map((j) => ({ request: geminiRequest(j.text, { voice, style, model }), metadata: { key: j.id } }));
   let op = await call(`${api}/models/${model}:batchGenerateContent`, {
     method: 'POST', body: JSON.stringify({ batch: { display_name: `whoiswho-${jobs.length}`, input_config: { requests: { requests } } } }),
   });
-  log(`Пакет ${op.name}: ${jobs.length} питань, чекаю…`);
+  const name = op.name; // назва пакета — з першої відповіді, щоб не загубити
+  log(`Пакет ${name}: ${jobs.length} питань, чекаю…`);
   for (let k = 0; !op.done; k++) {
-    if (k >= maxPolls) throw new Error(`Пакет ${op.name} не готовий після ${Math.round((maxPolls * poll) / 60000)} хв — перевір пізніше`);
+    if (k >= maxPolls) throw new Error(`Пакет ${name} не готовий після ${Math.round((maxPolls * poll) / 60000)} хв — перевір пізніше`);
     await sleep(poll);
-    op = await call(`${api}/${op.name}`, { method: 'GET' });
+    op = await call(`${api}/${name}`, { method: 'GET' });
     const st = op.metadata?.batchStats;
     log(`… ${op.metadata?.state}${st ? `: готово ${st.successfulRequestCount || 0} з ${st.requestCount}` : ''}`);
   }
@@ -286,7 +301,7 @@ export async function geminiBatch(jobs, { key, fetch, writeFile, outFile, sleep 
   }
   // те, на що пакет не відповів зовсім
   for (const j of jobs) if (!done.includes(j.id) && !failed.some((f) => f.id === j.id)) failed.push({ id: j.id, error: 'немає відповіді в пакеті' });
-  return { done, failed, stopped: [] };
+  return { done, failed };
 }
 
 /**

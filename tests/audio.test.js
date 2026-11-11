@@ -546,3 +546,25 @@ test('--lang: українська за замовчуванням, російс
   assert.match(GEMINI_STYLES.ru, /весело/);
   assert.ok(!/[іїєґ]/.test(GEMINI_STYLES.ru), 'стиль для російської — російською');
 });
+
+test('geminiBatch: великий список — кількома пакетами по chunk; відповідь, що не прочиталася, — помилка, а не тиша', async () => {
+  let posts = 0, n = 0;
+  const fetch = async (url, init = {}) => {
+    if (url.includes(':batchGenerateContent')) {
+      posts++;
+      const keys = JSON.parse(init.body).batch.input_config.requests.requests.map((r) => r.metadata.key);
+      return json(200, { name: `batches/p${posts}`, done: true, metadata: { state: 'BATCH_STATE_SUCCEEDED', output: { inlinedResponses: { inlinedResponses: keys.map((k) => ({ metadata: { key: k }, response: wavPart() })) } } } });
+    }
+    n++; return json(200, {});
+  };
+  const logs = [];
+  const r = await geminiBatch([1, 2, 3, 4, 5].map((i) => ({ id: `q${i}`, text: 'x' })), { key: 'K', fetch, writeFile() {}, outFile: (id) => id, sleep: async () => {}, chunk: 2, log: (m) => logs.push(m) });
+  assert.equal(posts, 3);
+  assert.deepEqual(r.done, ['q1', 'q2', 'q3', 'q4', 'q5']);
+  assert.ok(logs.includes('Частина 3 з 3'));
+  // GET повернув щось, що не є JSON (напр. завелике) — зрозуміла помилка
+  const broken = async (url) => (url.includes(':batchGenerateContent')
+    ? json(200, { name: 'batches/b1', metadata: { state: 'BATCH_STATE_PENDING' } })
+    : { ok: true, status: 200, json: async () => { throw new RangeError('Invalid string length'); } });
+  await assert.rejects(geminiBatch([{ id: 'a', text: 'x' }], { key: 'K', fetch: broken, writeFile() {}, outFile: (id) => id, sleep: async () => {} }), /не прочиталася/);
+});
