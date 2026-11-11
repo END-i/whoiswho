@@ -37,7 +37,7 @@ test('валідатор ловить типові помилки', () => {
   const cases = [
     [(d) => { d.questions[1].id = d.questions[0].id; }, /повторюється/],
     [(d) => { d.questions[0].category = 'nope'; }, /немає категорії/],
-    [(d) => { d.questions[0].type = 'quiz'; }, /невідомий type/],
+    [(d) => { d.questions[0].type = 'riddle'; }, /невідомий type/],
     [(d) => { d.questions[0].audience = 'adults'; }, /adults.*сімейна/],
     [(d) => { const q = d.questions.find((x) => x.type === 'who'); q.about = 'left'; }, /Хто з нас/],
     [(d) => { const q = d.questions.find((x) => x.category === 'guess'); q.about = 'answerer'; q.text = 'Що ти любиш?'; }, /мають бути різними/],
@@ -87,6 +87,16 @@ test('валідатор: «той, чия черга» заборонено; fo
   assert.ok(errs((q) => { q.about = 'left'; }).some((e) => /form "you"/.test(e)));
   assert.ok(errs((q) => { q.answerer = 'self'; q.about = 'left'; }).some((e) => /form "you"/.test(e)));
   assert.deepEqual(errs((q) => { delete q.form; }), [], 'без form — звичайне питання');
+});
+
+test('валідатор: quiz — потрібна відповідь, відповідає сам; answer лише в quiz', () => {
+  const run = (q) => { const d = clone(); d.questions.push({ id: 'zz-01', category: 'guess', text: 'Скільки ніг у павука?', ...q }); return validate(d); };
+  assert.deepEqual(run({ type: 'quiz', answer: 'Вісім.' }), []);
+  assert.ok(run({ type: 'quiz' }).some((e) => /потрібна відповідь/.test(e)));
+  assert.ok(run({ type: 'quiz', answer: 7 }).some((e) => /потрібна відповідь/.test(e)));
+  assert.ok(run({ type: 'quiz', answer: 'Вісім.', about: 'left' }).some((e) => /без answerer і about/.test(e)));
+  assert.ok(run({ type: 'quiz', answer: 'Вісім.', answerer: 'left' }).some((e) => /без answerer і about/.test(e)));
+  assert.ok(run({ answer: 'Вісім.' }).some((e) => /answer буває лише в quiz/.test(e)));
 });
 
 test('валідатор: структура файлу і категорії', () => {

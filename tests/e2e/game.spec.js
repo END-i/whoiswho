@@ -222,3 +222,29 @@ test('режим з балами можна ввімкнути посеред г
   await page.getByRole('button', { name: /Повернутися до гри/ }).click();
   await expect(board(page)).toBeVisible();
 });
+
+test('«Цікаві факти»: відповідь схована до «Показати відповідь», далі «Правильно» — бал тому, чия черга', async ({ page }) => {
+  await startGame(page, ['Оля', 'Тарас'], { scoring: true });
+  await openQuestion(page, 'Цікаві факти', 'facts', 'fc-01');
+  const card = page.getByRole('dialog');
+  await expect(card.getByText('Чи справді страус ховає голову в пісок, коли боїться?')).toBeVisible();
+  await expect(card.locator('.who').nth(0)).toContainText('Оля');
+  await expect(card.getByText(/це міф/)).toHaveCount(0);
+  await expect(card.getByRole('button', { name: /Правильно/ })).toHaveCount(0);
+  await card.getByRole('button', { name: /Показати відповідь/ }).click();
+  await expect(card.getByRole('status')).toContainText('Ні, це міф. Страус лягає');
+  await card.getByRole('button', { name: '✅ Правильно' }).click();
+  expect((await saved(page)).game.scores[(await saved(page)).game.order[0]]).toBe(1);
+});
+
+test('«Цікаві факти» без балів: після відповіді — «Далі»; пропустити можна й до відповіді', async ({ page }) => {
+  await startGame(page, ['Оля', 'Тарас']);
+  await openQuestion(page, 'Цікаві факти', 'facts', 'fc-03');
+  await page.getByRole('button', { name: /Показати відповідь/ }).click();
+  await expect(page.getByRole('dialog').getByRole('status')).toHaveText(/Вісім/);
+  await page.getByRole('button', { name: /Далі/ }).click();
+  await page.getByRole('button', { name: 'До категорій' }).click();
+  await openQuestion(page, 'Цікаві факти', 'facts', 'fc-07');
+  await page.getByRole('button', { name: /Пропустити/ }).click();
+  expect((await saved(page)).game.stats).toEqual({ answered: 1, skipped: 1 });
+});

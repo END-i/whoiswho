@@ -11,6 +11,7 @@ export const CATEGORY_COLORS = {
   open: ['#4374B5', '#296FDD', '#FFFFFF'],
   ifwhat: ['#7DCE45', '#4E9F22', INK],
   show: ['#B050A4', '#B83BA3', '#FFFFFF'],
+  facts: ['#5BC0EB', '#1E96D1', INK],
 };
 const FALLBACK = Object.values(CATEGORY_COLORS);
 

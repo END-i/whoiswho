@@ -29,6 +29,9 @@
     : answerer === null ? 'answerer' : about === null ? 'about' : null);
   const isGuess = $derived(question.type === 'guess' && answerer !== about);
   const isWho = $derived(question.type === 'who');
+  // «Цікаві факти»: спершу відповідь гравця, потім — правильна відповідь
+  const isQuiz = $derived(question.type === 'quiz');
+  let revealed = $state(false);
   // «Хто з нас?»: після того як показали пальцем, вибираємо, на кого показала більшість
   let voting = $state(false);
   const showAbout = $derived(question.type !== 'who' && about !== null && about !== answerer);
@@ -40,7 +43,7 @@
   // питання на «ти» до того, чия черга: відповідає інший — замість нього
   const instead = $derived(question.form === 'you');
   const aboutRole = $derived(question.about === 'answerer' ? question.answerer : question.about);
-  const TYPE = { open: 'Розкажи', choice: 'Вибери', activity: 'Покажи', guess: 'Вгадай', who: 'Хто з нас?' };
+  const TYPE = { open: 'Розкажи', choice: 'Вибери', activity: 'Покажи', guess: 'Вгадай', who: 'Хто з нас?', quiz: 'Факт' };
 </script>
 
 <div class="overlay" role="dialog" aria-modal="true" aria-label="Картка {number}">
@@ -95,6 +98,12 @@
           {#if tipOpen}<p class="tiptext">{question.tip}</p>{/if}
         {/if}
 
+        {#if isQuiz && !revealed}
+          <button class="chunky light wide" onclick={() => (revealed = true)}>👀 Показати відповідь</button>
+        {:else}
+        {#if isQuiz}
+          <div class="answer" role="status"><small>Відповідь</small><p>{question.answer}</p></div>
+        {/if}
         {#if !scoring}
           <button class="chunky ok wide" onclick={() => onfinish('answered', answerer)}>✅ Далі</button>
         {:else if isWho}
@@ -112,12 +121,14 @@
         {:else}
           <p class="check">
             {#if isGuess}Перевіряє <b>{players[about].name}</b>: вгадали?
+            {:else if isQuiz}Чи збіглася відповідь <b>{players[answerer].name}</b> з правильною?
             {:else}Усі разом: зарахувати відповідь <b>{players[answerer].name}</b>?{/if}
           </p>
           <div class="row">
-            <button class="chunky ok" onclick={() => onfinish('correct', answerer)}>✅ {isGuess ? 'Правильно' : 'Зараховано'}</button>
-            <button class="chunky no" onclick={() => onfinish('wrong', answerer)}>❌ {isGuess ? 'Неправильно' : 'Ні'}</button>
+            <button class="chunky ok" onclick={() => onfinish('correct', answerer)}>✅ {isGuess || isQuiz ? 'Правильно' : 'Зараховано'}</button>
+            <button class="chunky no" onclick={() => onfinish('wrong', answerer)}>❌ {isGuess || isQuiz ? 'Неправильно' : 'Ні'}</button>
           </div>
+        {/if}
         {/if}
         <button class="skip" onclick={() => onfinish('skipped', null)}>Пропустити — без відповіді</button>
       {/if}
@@ -154,6 +165,9 @@
   @keyframes pulse { 50% { transform: scale(1.1); } }
   .people { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
   .who { display: flex; gap: 10px; align-items: center; min-width: 0; }
+  .answer { margin: 4px 0 12px; padding: 10px 14px; border-radius: 16px; background: var(--soft); }
+  .answer small { display: block; font-weight: 900; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; font-size: 12px; }
+  .answer p { margin: 2px 0 0; font-size: 17px; font-weight: 800; line-height: 1.35; }
   .instead { margin: 0 0 8px; font-size: 15px; font-weight: 800; color: var(--dim); }
   .who span { display: flex; flex-direction: column; line-height: 1.1; min-width: 0; }
   .who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

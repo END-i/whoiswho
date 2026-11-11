@@ -1,7 +1,7 @@
 // Читання questions.json: значення за замовчуванням, перевірка схеми, фільтр аудиторії.
 // Без Svelte — щоб можна було тестувати в Node.
 
-export const TYPES = ['open', 'choice', 'activity', 'guess', 'who'];
+export const TYPES = ['open', 'choice', 'activity', 'guess', 'who', 'quiz'];
 export const AUDIENCES = ['all', 'kids'];
 export const ROLES = ['self', 'left', 'right', 'pick'];
 export const ABOUT = [...ROLES, 'answerer'];
@@ -64,6 +64,11 @@ export function validate(raw) {
     if (q.type === 'guess' && !isAboutOther(q)) errors.push(`${where}: у guess той, хто відповідає, і той, про кого питання, мають бути різними`);
     // Імен у тексті немає: роль пишемо словами («гравець ліворуч»), тож фігурних дужок бути не може.
     if (/[{}]/.test(q.text)) errors.push(`${where}: у тексті є «{…}» — імена не підставляються, пиши роль словами`);
+    // «Цікаві факти»: відповідь ховається за кнопкою; відповідає сам той, чия черга
+    if (q.type === 'quiz') {
+      if (!raw0.answer || typeof raw0.answer !== 'string') errors.push(`${where}: у quiz потрібна відповідь (answer)`);
+      if (q.answerer !== 'self' || q.about !== 'answerer') errors.push(`${where}: у quiz відповідає той, чия черга, — без answerer і about`);
+    } else if (raw0.answer !== undefined) errors.push(`${where}: answer буває лише в quiz`);
     // «той, чия черга» звучить заплутано: до того, чия черга, звертаємось на «ти» (form: 'you')
     if (/чия черга/i.test(q.text)) errors.push(`${where}: «той, чия черга» — заплутано; звертайся на «ти» й постав form: "you"`);
     if (raw0.form !== undefined && raw0.form !== 'you') errors.push(`${where}: невідомий form «${raw0.form}» (є лише "you")`);
