@@ -24,14 +24,32 @@ export const TEMPLATES = [
   { id: 'hero', kind: 'fun', name: 'Супергерой', svg: `
     <path d="M14 40 C24 32 40 34 50 40 C60 34 76 32 86 40 C84 52 70 54 58 48 C54 46 46 46 42 48 C30 54 16 52 14 40 Z" fill="#3b82f6" stroke="#1d4ed8" stroke-width="2"/>
     <ellipse cx="34" cy="42" rx="7" ry="4" fill="#fff"/><ellipse cx="66" cy="42" rx="7" ry="4" fill="#fff"/>` },
-  { id: 'week', kind: 'serious', name: 'Гравець тижня', svg: `
-    <circle cx="50" cy="50" r="47" fill="none" stroke="#ffc83d" stroke-width="5"/>
-    <path d="M10 80 L90 80 L84 90 L90 98 L10 98 L16 90 Z" fill="#e5484d"/>
-    <text x="50" y="92.5" font-size="8" font-weight="800" fill="#fff" text-anchor="middle" font-family="system-ui" textLength="66" lengthAdjust="spacingAndGlyphs">ГРАВЕЦЬ ТИЖНЯ</text>` },
+  { id: 'star', kind: 'serious', name: 'Зірка', svg: `
+    <circle cx="50" cy="50" r="47" fill="none" stroke="#FFC23D" stroke-width="4"/>
+    <g transform="translate(80 80)">
+      <circle r="15" fill="#FFC23D" stroke="#C8901A" stroke-width="2"/>
+      <path d="M0 -10 L2.9 -3.1 L10.5 -3.1 L4.3 1.6 L6.6 9 L0 4.5 L-6.6 9 L-4.3 1.6 L-10.5 -3.1 L-2.9 -3.1 Z" fill="#fff"/>
+    </g>` },
+  { id: 'wreath', kind: 'serious', name: 'Віночок', svg: `
+    <g>${[200, 222, 244, 266, 288, 310, 332].map((deg, k) => {
+      // квіти по верхній дузі, між ними листочки
+      const a = deg * Math.PI / 180, x = (50 + Math.cos(a) * 44).toFixed(1), y = (50 + Math.sin(a) * 44).toFixed(1);
+      const col = ['#E5484D', '#FFC23D', '#5EA4FF', '#FFFFFF', '#E5484D', '#FFC23D', '#5EA4FF'][k];
+      const la = (deg + 11) * Math.PI / 180, lx = (50 + Math.cos(la) * 46).toFixed(1), ly = (50 + Math.sin(la) * 46).toFixed(1);
+      return `<ellipse cx="${lx}" cy="${ly}" rx="6" ry="2.6" fill="#3fae6a" transform="rotate(${deg + 101} ${lx} ${ly})"/>`
+        + `<circle cx="${x}" cy="${y}" r="7" fill="${col}" stroke="rgba(0,0,0,.15)" stroke-width="1"/><circle cx="${x}" cy="${y}" r="2.4" fill="#F08C00"/>`;
+    }).join('')}</g>` },
+  { id: 'sun', kind: 'serious', name: 'Сонечко', svg: `
+    <g fill="#FFC23D">${Array.from({ length: 16 }, (_, k) => {
+      const a = (k * 22.5) * Math.PI / 180, c = Math.cos(a), s = Math.sin(a), w = 0.12;
+      const p = (r, d) => `${(50 + Math.cos(a + d) * r).toFixed(1)} ${(50 + Math.sin(a + d) * r).toFixed(1)}`;
+      return `<path d="M${p(46, -w)} L${p(56, 0)} L${p(46, w)} Z"/>`;
+    }).join('')}</g>
+    <circle cx="50" cy="50" r="46" fill="none" stroke="#FFC23D" stroke-width="3"/>` },
   { id: 'medal', kind: 'serious', name: 'Медаль', svg: `
     <circle cx="50" cy="50" r="47" fill="none" stroke="#c8901a" stroke-width="4" stroke-dasharray="3 3"/>
     <path d="M70 70 L78 96 L84 88 L92 92 L84 66 Z" fill="#3b82f6"/>
-    <circle cx="80" cy="72" r="11" fill="#ffc83d" stroke="#c8901a" stroke-width="2"/><text x="80" y="76" font-size="10" font-weight="900" fill="#8a5a0a" text-anchor="middle" font-family="system-ui">1</text>` },
+    <circle cx="80" cy="72" r="11" fill="#ffc83d" stroke="#c8901a" stroke-width="2"/><path d="M80 65.5 L82 70 L87 70.2 L83.1 73.3 L84.4 78.2 L80 75.4 L75.6 78.2 L76.9 73.3 L73 70.2 L78 70 Z" fill="#8a5a0a"/>` },
   { id: 'polaroid', kind: 'serious', name: 'Полароїд', svg: `
     <rect x="3" y="3" width="94" height="94" rx="4" fill="none" stroke="#fff" stroke-width="7"/>
     <rect x="3" y="80" width="94" height="17" fill="#fff"/>` },
@@ -48,17 +66,17 @@ export const TEMPLATES = [
 export const templateById = (id) => TEMPLATES.find((t) => t.id === id);
 
 // ---------- положення шаблону на фото ----------
-// x, y — зсув у відсотках розміру аватарки (−40…40), s — масштаб (0.6…1.6).
+// x, y — зсув у відсотках розміру аватарки (−40…40). Розмір шаблону більше не змінюється (s завжди 1).
 export const TPL_DEFAULT = Object.freeze({ x: 0, y: 0, s: 1 });
 const clampNum = (v, a, b, d) => (Number.isFinite(v) ? Math.min(b, Math.max(a, v)) : d);
 
-/** Безпечне положення шаблону: заповнює відсутнє й обмежує межами. */
+/** Безпечне положення шаблону: заповнює відсутнє й обмежує межами; старий збережений розмір ігнорується. */
 export function clampTpl(pos) {
   const p = pos && typeof pos === 'object' ? pos : {};
   return {
     x: Math.round(clampNum(p.x, -40, 40, 0) * 10) / 10,
     y: Math.round(clampNum(p.y, -40, 40, 0) * 10) / 10,
-    s: Math.round(clampNum(p.s, 0.6, 1.6, 1) * 100) / 100,
+    s: 1,
   };
 }
 
@@ -72,5 +90,14 @@ export function dragTpl(pos, dxPx, dyPx, size) {
 /** CSS-трансформація для шару шаблону. */
 export const tplTransform = (pos) => {
   const p = clampTpl(pos);
-  return `translate(${p.x}%, ${p.y}%) scale(${p.s})`;
+  return `translate(${p.x}%, ${p.y}%)`;
 };
+
+// Шаблони, яких більше немає, → найближча заміна (щоб збережені фото не «губили» шаблон)
+const RENAMED = { week: 'star' };
+/** Id шаблону після оновлень: старий → новий, невідомий → без шаблону. */
+export function migrateTemplate(id) {
+  if (!id) return null;
+  const next = RENAMED[id] || id;
+  return TEMPLATES.some((t) => t.id === next) ? next : null;
+}

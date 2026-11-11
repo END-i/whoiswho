@@ -1,6 +1,6 @@
 <script>
   import Avatar from './Avatar.svelte';
-  import { TEMPLATES, clampTpl, dragTpl, TPL_DEFAULT } from '../lib/templates.js';
+  import { TEMPLATES, dragTpl, TPL_DEFAULT } from '../lib/templates.js';
   import { squarePhoto } from '../lib/photos.js';
 
   let { player = $bindable() } = $props();
@@ -18,7 +18,8 @@
     finally { busy = false; }
   }
   function choose(id) {
-    player.template = id;
+    // повторне натискання на вибраний шаблон його знімає
+    player.template = player.template === id ? null : id;
     player.tplPos = { ...TPL_DEFAULT };
   }
   // Перетягування шаблону пальцем по прев'ю
@@ -34,7 +35,6 @@
     drag = { x: e.clientX, y: e.clientY };
   }
   const up = () => (drag = null);
-  const pos = $derived(clampTpl(player.tplPos));
   const groups = [['fun', 'Веселі'], ['serious', 'Серйозні']];
 </script>
 
@@ -47,13 +47,10 @@
   {#if error}<p class="err">{error}</p>{/if}
   {#if player.template}
     <div class="adjust">
-      <label>Розмір шаблону
-        <input type="range" min="0.6" max="1.6" step="0.05" value={pos.s} aria-label="Розмір шаблону"
-          oninput={(e) => (player.tplPos = clampTpl({ ...pos, s: +e.currentTarget.value }))} />
-      </label>
-      <button class="mini" onclick={() => (player.tplPos = { ...TPL_DEFAULT })}>↺ Скинути</button>
+      <button class="mini" onclick={() => (player.tplPos = { ...TPL_DEFAULT })}>↺ На місце</button>
+      <button class="mini danger" onclick={() => choose(player.template)}>✕ Прибрати шаблон</button>
     </div>
-    <p class="hint">Тягни шаблон пальцем, щоб посунути.</p>
+    <p class="hint">Тягни шаблон пальцем, щоб посунути. Ще раз натисни на вибраний шаблон — і він зникне.</p>
   {/if}
 </div>
 
@@ -85,9 +82,8 @@
   .preview { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px 0 8px; }
   .stage { touch-action: none; border-radius: 50%; padding: 14px; }
   .stage.movable { cursor: grab; background: repeating-conic-gradient(var(--soft) 0 25%, transparent 0 50%) 0 0 / 16px 16px; }
-  .adjust { display: flex; align-items: center; gap: 10px; width: 100%; max-width: 340px; }
-  .adjust label { flex: 1; font-size: 13px; font-weight: 800; color: var(--dim); display: flex; flex-direction: column; gap: 4px; }
-  .adjust input { width: 100%; accent-color: var(--accent); height: 28px; }
+  .adjust { display: flex; justify-content: center; gap: 10px; width: 100%; }
+  .mini.danger { color: var(--no); }
   .mini { min-height: 40px; padding: 0 12px; border-radius: 12px; border: none; background: var(--card); font-weight: 900; box-shadow: 0 3px 0 var(--line); }
   .row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 8px; }
   .btn { display: inline-flex; align-items: center; min-height: 52px; padding: 0 18px; border-radius: 16px; border: none; background: var(--card); font-weight: 900; cursor: pointer; box-shadow: 0 4px 0 var(--line); }

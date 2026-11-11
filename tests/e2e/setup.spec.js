@@ -100,30 +100,52 @@ const makePng = (page) => page.evaluate(() => {
   return c.toDataURL('image/png').split(',')[1];
 });
 
-test('шаблон можна посунути пальцем і змінити розмір; положення зберігається', async ({ page }) => {
+test('шаблон можна посунути пальцем; положення зберігається; повзунка розміру немає', async ({ page }) => {
   await setPlayers(page, ['Оля', 'Тарас']);
   await page.getByRole('button', { name: 'Фото для Оля' }).click();
   await page.locator('.tpl', { hasText: 'Корона' }).click();
+  await expect(page.getByLabel('Розмір шаблону')).toHaveCount(0);
   const stage = page.locator('.stage');
   const box = await stage.boundingBox();
   const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
   await page.mouse.move(cx, cy); await page.mouse.down();
   await page.mouse.move(cx + 34, cy + 17, { steps: 5 }); await page.mouse.up();
-  await page.getByLabel('Розмір шаблону').fill('1.3');
   const pos = () => page.evaluate(() => JSON.parse(localStorage.getItem('whoiswho.v2')).players[0].tplPos);
   // ~34×17 px на прев'ю 170 px — це ~20% × 10%; дробові пікселі на екранах 3× дають ±0.5
-  const near = (p) => Math.abs(p.x - 20) <= 0.5 && Math.abs(p.y - 10) <= 0.5 && p.s === 1.3;
+  const near = (p) => Math.abs(p.x - 20) <= 0.5 && Math.abs(p.y - 10) <= 0.5 && p.s === 1;
   await expect.poll(async () => near(await pos())).toBe(true);
-  await expect(stage.locator('svg')).toHaveAttribute('style', /translate\(\d+(\.\d)?%, \d+(\.\d)?%\) scale\(1\.3\)/);
+  await expect(stage.locator('svg')).toHaveAttribute('style', /translate\(\d+(\.\d)?%, \d+(\.\d)?%\)/);
   const before = await pos();
   await page.reload();
   expect(await pos()).toEqual(before);
   await page.getByRole('button', { name: 'Фото для Оля' }).click();
-  await page.getByRole('button', { name: /Скинути/ }).click();
+  await page.getByRole('button', { name: /На місце/ }).click();
   await expect.poll(pos).toEqual({ x: 0, y: 0, s: 1 });
-  // новий шаблон починає з центру
-  await page.locator('.tpl', { hasText: 'Вуса' }).click();
-  await expect(page.locator('.tpl', { hasText: 'Вуса' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('шаблон знімається: повторним натисканням і кнопкою «Прибрати шаблон», з будь-якої групи', async ({ page }) => {
+  await setPlayers(page, ['Оля', 'Тарас']);
+  await page.getByRole('button', { name: 'Фото для Оля' }).click();
+  const tpl = () => page.evaluate(() => JSON.parse(localStorage.getItem('whoiswho.v2')).players[0].template);
+  await page.locator('.tpl', { hasText: 'Віночок' }).click();
+  await expect.poll(tpl).toBe('wreath');
+  await page.locator('.tpl', { hasText: 'Віночок' }).click();       // повторно — знімає
+  await expect.poll(tpl).toBe(null);
+  await expect(page.locator('.stage svg')).toHaveCount(0);
+  await page.locator('.tpl', { hasText: 'Зірка' }).click();
+  await page.getByRole('button', { name: /Прибрати шаблон/ }).click();
+  await expect.poll(tpl).toBe(null);
+  await page.getByRole('button', { name: 'Закрити' }).click();
+  await expect(page.locator('.players li').first().locator('svg')).toHaveCount(0);
+});
+
+test('збережений «Гравець тижня» після оновлення стає «Зіркою»', async ({ page }) => {
+  await setPlayers(page, ['Оля', 'Тарас']);
+  await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('whoiswho.v2')); s.players[0].template = 'week'; s.players[0].tplPos = { x: 0, y: 0, s: 1.5 }; localStorage.setItem('whoiswho.v2', JSON.stringify(s)); });
+  await page.reload();
+  const p0 = await page.evaluate(() => JSON.parse(localStorage.getItem('whoiswho.v2')).players[0]);
+  expect(p0.template).toBe('star'); expect(p0.tplPos.s).toBe(1);
+  await expect(page.locator('.players li').first().locator('svg')).toHaveCount(1);
 });
 
 test('«Видалити всі фото» стирає фото й шаблони всіх гравців', async ({ page }) => {

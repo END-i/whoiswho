@@ -4,7 +4,7 @@
   import { newGame, finishCard, remaining, allDone, updatePlayers, restoreGame, endGame } from './lib/state.js';
   import { gameRecord, addRecord, cleanHistory } from './lib/history.js';
   import { loadAll, saveAll, newId } from './lib/storage.js';
-  import { clampTpl } from './lib/templates.js';
+  import { clampTpl, migrateTemplate } from './lib/templates.js';
   import Setup from './screens/Setup.svelte';
   import Rules from './screens/Rules.svelte';
   import Categories from './screens/Categories.svelte';
@@ -32,7 +32,7 @@
   const saved = loadAll() || {};
   const cleanPlayers = (list) => {
     const ok = Array.isArray(list) ? list.filter((p) => p && typeof p.id === 'string' && typeof p.name === 'string') : [];
-    return ok.length >= 2 ? ok.map((p) => ({ id: p.id, name: p.name, photo: p.photo || null, template: p.template || null, tplPos: clampTpl(p.tplPos) })) : null;
+    return ok.length >= 2 ? ok.map((p) => ({ id: p.id, name: p.name, photo: p.photo || null, template: migrateTemplate(p.template), tplPos: clampTpl(p.tplPos) })) : null;
   };
   const SCREENS = ['setup', 'rules', 'categories', 'grid', 'summary', 'history'];
 
