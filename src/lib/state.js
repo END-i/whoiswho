@@ -110,6 +110,20 @@ export const remaining = (game, cat) => {
 };
 export const questionAt = (game, cat, num) => game.deck[cat]?.[num - 1] ?? null;
 export const allDone = (game) => Object.keys(game.deck).every((c) => remaining(game, c) === 0);
+/** Номери ще не відкритих карт категорії. */
+export const openNumbers = (game, cat) => (game.deck[cat] || []).map((_, k) => k + 1).filter((n) => !isUsed(game, cat, n));
+/** Випадкова ще не відкрита карта категорії (номер) або null. */
+export function randomNumber(game, cat, rand = Math.random) {
+  const nums = openNumbers(game, cat);
+  return nums.length ? nums[Math.min(nums.length - 1, Math.floor(rand() * nums.length))] : null;
+}
+/** «🎲 Випадкове»: випадкова категорія з тих, де ще є карти, і в ній випадкова карта; нічого немає — null. */
+export function randomCard(game, cats, rand = Math.random) {
+  const open = cats.filter((c) => remaining(game, c));
+  if (!open.length) return null;
+  const cat = open[Math.min(open.length - 1, Math.floor(rand() * open.length))];
+  return { cat, num: randomNumber(game, cat, rand) };
+}
 
 /** Завершити гру: далі лише підсумок і нова гра. */
 export const endGame = (game) => ({ ...game, over: true });

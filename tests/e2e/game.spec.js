@@ -6,12 +6,13 @@ const count = (cat, kids = false) => QUESTIONS.questions.filter((q) => q.categor
 test('категорії: усі 8 з лічильниками за фільтром «Уся родина»', async ({ page }) => {
   await startGame(page);
   await expect(page.locator('.cat')).toHaveCount(QUESTIONS.categories.length);
-  await expect(category(page, 'Якби…')).toContainText(`${count('ifwhat')} з ${count('ifwhat')}`);
+  await expect(category(page, 'Якби…')).toHaveAttribute('aria-label', `Якби…. Залишилось ${count('ifwhat')}`);
+  await expect(category(page, 'Якби…').locator('.left')).toHaveText(String(count('ifwhat')));
 });
 
 test('фільтр «Лише діти» додає дитячі питання', async ({ page }) => {
   await startGame(page, ['Оля', 'Тарас'], { kids: true });
-  await expect(category(page, 'Якби…')).toContainText(`${count('ifwhat', true)} з ${count('ifwhat', true)}`);
+  await expect(category(page, 'Якби…')).toHaveAttribute('aria-label', `Якби…. Залишилось ${count('ifwhat', true)}`);
 });
 
 test('карта: відкривається, після «Далі» — хід наступному, він бачить категорії згори; карта затемнена, лічильник менший', async ({ page }) => {
@@ -28,10 +29,10 @@ test('карта: відкривається, після «Далі» — хід
   await expect(page.getByRole('heading', { name: 'Вибери категорію' })).toBeVisible();
   expect(await page.evaluate(() => scrollY)).toBe(0);
   expect(await turnName(page)).toBe('Тарас');
-  await expect(category(page, 'Відкрийся')).toContainText(`${all - 1} з ${all}`);
+  await expect(category(page, 'Відкрийся').locator('.left')).toHaveText(String(all - 1));
   await category(page, 'Відкрийся').click();
   await expect(page.getByRole('button', { name: `Карта ${n}, вже була` })).toBeDisabled();
-  await expect(page.locator('header p')).toContainText(`${all - 1} з ${all}`);
+  await expect(page.locator('header .count')).toContainText(`${all - 1} з ${all}`);
 });
 
 test('пропуск теж робить номер використаним і передає хід', async ({ page }) => {
@@ -171,7 +172,8 @@ test('вичерпана категорія стає «пройдено» і н�
   // остання карта може бути з вибором гравця — «Пропустити» є на обох кроках
   await page.getByRole('button', { name: 'Пропустити' }).click();
   await expect(category(page, 'Покажи!')).toBeDisabled();
-  await expect(category(page, 'Покажи!')).toContainText('пройдено');
+  await expect(category(page, 'Покажи!')).toHaveAttribute('aria-label', 'Покажи!. Пройдено');
+  await expect(category(page, 'Покажи!').locator('.left')).toHaveText('✓');
 });
 
 test('режим з балами увімкнений за замовчуванням', async ({ page }) => {

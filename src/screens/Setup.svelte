@@ -136,6 +136,14 @@
       {/each}
     </div>
   </div>
+  <div class="opt choice">
+    <span class="lbl">{t('cats.mode')}</span>
+    <div class="seg" role="radiogroup" aria-label={t('cats.mode')}>
+      {#each ['tiles', 'wheel'] as m}
+        <button role="radio" aria-checked={settings.mode === m} class:on={settings.mode === m} onclick={() => (settings.mode = m)}>{t(`cats.${m}`)}</button>
+      {/each}
+    </div>
+  </div>
   {#if pack.kids}
   <div class="opt choice">
     <span class="lbl">{t('setup.whoPlays')}</span>

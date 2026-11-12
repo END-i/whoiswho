@@ -95,3 +95,10 @@ test('playSfx: вимкнено, немає <audio>, невідомий звук
   // значення за замовчуванням — глобальні Audio/URL (у Node Audio немає)
   assert.equal(playSfx('point'), false);
 });
+
+test('tones: колесо — одне дуже коротке тихе клацання', () => {
+  const c = tones('click');
+  assert.equal(c.length, 1);
+  assert.ok(c[0].dur <= 0.04 && c[0].gain <= 0.3 && c[0].slide < c[0].freq);
+  assert.ok(render('click').length < render('tick').length);
+});

@@ -2,15 +2,16 @@
   import { t } from '../lib/lang.svelte.js';
   import Avatar from './Avatar.svelte';
 
-  let { players, game, onmenu, onscores, back = null } = $props();
+  // big — на екрані категорій: телефон щойно передали, тож чий хід — крупно
+  let { players, game, onmenu, onscores, back = null, big = false } = $props();
   const p = $derived(players[game.turn]);
 </script>
 
-<div class="bar">
+<div class="bar" class:big>
   {#if back}<button class="icon" onclick={back} aria-label={t('top.back')}>←</button>{/if}
   <div class="turn">
     {#key p?.id}
-      <span class="pop"><Avatar player={p} size={46} ring /></span>
+      <span class="pop"><Avatar player={p} size={big ? 64 : 46} ring /></span>
     {/key}
     <span class="txt"><small>{t('top.turn')}</small><b>{p?.name}</b></span>
   </div>
@@ -50,6 +51,10 @@
     .turn { gap: 8px; }
     small { font-size: 11px; letter-spacing: .03em; }
   }
+  .big .turn { gap: 16px; padding: 4px 0 4px 6px; }
+  .big b { font-size: 30px; }
+  @media (min-width: 361px) { .big small { font-size: 13px; } }
+  @media (max-width: 360px) { .big b { font-size: 24px; } }
   .icon:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--line); }
   .board {
     display: flex; gap: 6px; width: 100%; overflow-x: auto; margin: -6px 0 14px; padding: 6px 8px;

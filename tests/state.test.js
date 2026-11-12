@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   shuffle, derange, buildDeck, newGame, undoCard, POINTS, POINT_SCALE, isRated, pointsFor, finishCard, remaining, isUsed, questionAt, total, allDone,
-  updatePlayers, seat, roles, restoreGame, endGame, VERSION,
+  updatePlayers, seat, roles, restoreGame, endGame, VERSION, openNumbers, randomNumber, randomCard,
 } from '../src/lib/state.js';
 
 // Відтворюваний генератор випадкових чисел (mulberry32)
@@ -328,4 +328,31 @@ test('undoCard: картка знову закрита, бали, статист
   assert.equal(undoCard(updatePlayers(g, P('A', 'B'), {})).used.c.length, 2, 'змінили склад — не скасовується');
   const odd = { ...g, used: {} };
   assert.deepEqual(undoCard(odd).used.c, [], 'без запису used — порожньо, не падає');
+});
+
+test('openNumbers/randomNumber: лише ще не відкриті карти; усе відкрито — null', () => {
+  const g = { deck: { a: ['q1', 'q2', null, 'q4'] }, used: { a: [2] } };
+  assert.deepEqual(openNumbers(g, 'a'), [1, 4]);
+  assert.deepEqual(openNumbers(g, 'нема'), []);
+  assert.equal(randomNumber(g, 'a', () => 0), 1);
+  assert.equal(randomNumber(g, 'a', () => 0.99), 4);
+  assert.equal(randomNumber(g, 'a', () => 1), 4);
+  assert.equal(randomNumber({ deck: { a: ['q1'] }, used: { a: [1] } }, 'a'), null);
+  assert.ok([1, 4].includes(randomNumber(g, 'a')));
+});
+
+test('randomCard: категорія лише з тих, де ще є карти, і карта в ній ще не відкрита', () => {
+  const g = { deck: { a: ['q1'], b: ['q2', 'q3'], c: ['q4'] }, used: { a: [1], c: [] } };
+  const r = rng(5), seen = new Set();
+  for (let k = 0; k < 200; k++) {
+    const { cat, num } = randomCard(g, ['a', 'b', 'c'], r);
+    assert.notEqual(cat, 'a');
+    assert.ok(!isUsed(g, cat, num));
+    seen.add(cat + num);
+  }
+  assert.deepEqual([...seen].sort(), ['b1', 'b2', 'c1']);
+  assert.deepEqual(randomCard(g, ['b'], () => 1), { cat: 'b', num: 2 });
+  assert.equal(randomCard(g, ['a']), null);
+  assert.equal(randomCard(g, []), null);
+  assert.ok(randomCard(g, ['c']).cat === 'c');
 });
