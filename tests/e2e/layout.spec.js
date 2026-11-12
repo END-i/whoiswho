@@ -95,8 +95,9 @@ for (const [lang, turn] of [['Українська', 'Зараз хід'], ['Р�
     await page.getByRole('button', { name: /Повернутися до гри|Вернуться к игре/ }).click();
     await page.locator('.cat').first().click(); // з кнопкою «Назад» місця найменше
     const fits = (sel) => page.locator(`.bar ${sel}`).evaluate((el) => el.scrollWidth <= el.clientWidth);
-    expect(await fits('.txt b')).toBe(true);
-    expect(await fits('.txt small')).toBe(true);
+    // шапка щойно стала звичайною (на екрані категорій вона велика) — чекаємо, поки розкладка встановиться
+    await expect.poll(() => fits('.txt b')).toBe(true);
+    await expect.poll(() => fits('.txt small')).toBe(true);
     const txt = await page.locator('.bar .txt').boundingBox();
     const menuIcon = await page.locator('.bar > .icon').last().boundingBox(); // ☰
     expect(txt.x + txt.width).toBeLessThanOrEqual(menuIcon.x);
