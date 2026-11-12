@@ -43,14 +43,14 @@ test('історія: дві гри → загальний рахунок; не�
   await menu(page, /Завершити гру/);
   await page.getByRole('button', { name: /Нова гра/ }).click();
   await expect(page.getByRole('button', { name: /Історія ігор \(1\)/ })).toBeVisible();
-  // гра 2: Тарас набирає 10, але гру кидають через «Нова гра»
+  // гра 2: Тарас набирає 20, але гру кидають через «Нова гра»
   await page.getByRole('button', { name: /Почати гру/ }).click();
   for (const id of ['op-02', 'op-04']) {
     await page.locator('.cat', { hasText: 'Відкрийся' }).click();
     const s = await saved(page);
     const turn = s.game.order[s.game.turn];
     await page.getByRole('button', { name: `Карта ${s.game.deck.open.indexOf(id) + 1}`, exact: true }).click();
-    await page.getByRole('button', { name: turn === s.game.order[1] ? 'Добре, +10' : /Пропустити/ }).click();
+    await page.getByRole('button', { name: turn === s.game.order[1] ? '✅ Є відповідь · +20' : /Пропустити/ }).click();
   }
   await menu(page, /Нова гра/);
   await page.reload();

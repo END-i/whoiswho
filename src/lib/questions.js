@@ -63,6 +63,7 @@ export function validate(raw) {
     else if (catIds.has(c.id)) errors.push(`${where}: id повторюється`);
     catIds.add(c.id);
     for (const f of ['emoji', 'title', 'description']) if (!c[f]) errors.push(`${where}: порожнє поле ${f}`);
+    if ('brave' in c && c.brave !== true) errors.push(`${where}: brave — лише true (смілива категорія, +20 за відповідь)`);
   });
   for (const id of meta.scoringCategories) if (!catIds.has(id)) errors.push(`meta.scoringCategories: немає категорії «${id}»`);
 

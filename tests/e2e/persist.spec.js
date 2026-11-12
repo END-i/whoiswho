@@ -4,7 +4,7 @@ import { startGame, category, openCard, openQuestion, numberOf, saved, turnName 
 test('перезавантаження посеред гри: той самий екран, хід, використані карти й відкрита картка', async ({ page }) => {
   await startGame(page, ['Оля', 'Тарас', 'Мама'], { scoring: true });
   const a = await openQuestion(page, 'Відкрийся', 'open', 'op-02');
-  await page.getByRole('button', { name: 'Добре, +10' }).click();
+  await page.getByRole('button', { name: '✅ Є відповідь · +20' }).click();
   const b = await openQuestion(page, 'Відкрийся', 'open', 'op-03');
   const text = await page.locator('.q').innerText();
   await page.reload();

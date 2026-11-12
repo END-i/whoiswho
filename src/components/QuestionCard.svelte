@@ -1,7 +1,7 @@
 <script>
   import Avatar from './Avatar.svelte';
   import Timer from './Timer.svelte';
-  import { roles, POINTS, isRated } from '../lib/state.js';
+  import { roles, POINTS, isRated, pointsFor } from '../lib/state.js';
   import { listenMode, playQuestion, questionAudio, answerId } from '../lib/speech.js';
   import { onDestroy, untrack } from 'svelte';
   import { t } from '../lib/lang.svelte.js';
@@ -51,9 +51,9 @@
   const showAbout = $derived(question.type !== 'who' && about !== null && about !== answerer);
   // Відповідає не той, чия черга, а інший гравець — про себе: «Питає Оля → Відповідає Тарас»
   const asks = $derived(!isWho && !showAbout && answerer !== null && answerer !== i);
-  // Без правильної відповіді — компанія оцінює: +10 / +20 / +50
+  // Без правильної відповіді — бали за сміливість: відповів — +10, у сміливій категорії — +20
   const rated = $derived(isRated(question.type));
-  const RATES = [['👍', 'rateOk'], ['😂', 'rateFun'], ['🤩', 'rateWow']];
+  const pts = $derived(pointsFor(question, category));
   let tipOpen = $state(false);
 
   function roleText(role) {
@@ -81,7 +81,7 @@
     <div class="body">
       <div class="badges">
         <span class="badge">{t(`type.${question.type}`)}</span>
-        {#if scoring}<span class="badge pts">{rated ? t('card.pointsUpTo', { n: POINTS.rate.at(-1) }) : t('card.points', { n: POINTS.right })}</span>{/if}
+        {#if scoring}<span class="badge pts">{t('card.points', { n: pts })}</span>{/if}
         <button class="like" class:on={liked} onclick={onlike} aria-pressed={liked} aria-label={t('card.like')}>{liked ? '❤️' : '🤍'}</button>
         {#if mode}
           <button class="listen" class:playing onclick={toggle} aria-label={playing ? t('card.stop') : t('card.listen')}>
@@ -163,14 +163,8 @@
             <button class="chunky light wide" onclick={() => onfinish('wrong', null)}>{t('card.tie')}</button>
           {/if}
         {:else if rated}
-          <p class="check"><b>{players[answerer].name}</b>{t('card.rateQ')}</p>
-          <div class="rates">
-            {#each RATES as [emoji, key], k}
-              <button class="chunky rate" onclick={() => onfinish('correct', answerer, POINTS.rate[k])} aria-label={t(`card.${key}`, { n: POINTS.rate[k] })}>
-                <span class="big" aria-hidden="true">{emoji}</span><span>+{POINTS.rate[k]}</span>
-              </button>
-            {/each}
-          </div>
+          <p class="check"><b>{players[answerer].name}</b>{t(category.brave ? 'card.braveQ' : 'card.answerQ')}</p>
+          <button class="chunky ok wide" onclick={() => onfinish('correct', answerer, pts)}>{t('card.answered', { n: pts })}</button>
         {:else}
           <p class="check">
             {#if isGuess}{t('card.checks')} <b>{players[about].name}</b>{t('card.checksQ')}
@@ -270,9 +264,6 @@
   @media (max-width: 460px) { .row .ico { display: none; } }
   @media (max-width: 400px) { .row { grid-template-columns: 1fr; } }
   .chips + .wide { margin-top: 12px; }
-  .rates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-  .rate { --c: #FFC23D; --c2: #E59A00; color: #3d2600; text-shadow: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 76px; padding: 6px 4px; font-size: 20px; line-height: 1; }
-  .rate .big { font-size: 28px; }
   .chunky.ok { --c: var(--ok); --c2: var(--ok2); }
   .chunky.no { --c: var(--no); --c2: var(--no2); }
   .wide { width: 100%; margin-top: 16px; }

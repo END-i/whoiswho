@@ -78,3 +78,18 @@ test('історія російською: дата гри — російськ�
   const month = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
   await expect(page.locator('.date').first()).toContainText(month);
 });
+
+test('російські питання — окремим файлом: українська гра їх не вантажить; збережена російська — одразу російською, без блимання', async ({ page }) => {
+  const js = [];
+  page.on('request', (r) => { if (r.resourceType() === 'script') js.push(new URL(r.url()).pathname); });
+  await fresh(page);
+  await expect(page.getByRole('radio', { name: /Сімейний/ })).toBeVisible();
+  const ukOnly = js.length;
+  await lang(page, 'Русский').click();
+  await expect(page.getByRole('radio', { name: /Семейный/ })).toBeVisible();
+  expect(js.length).toBeGreaterThan(ukOnly); // довантажились російські набори
+  // після перезавантаження — з першого кадру російською
+  await page.reload();
+  await expect(page.getByRole('radio', { name: /Семейный/ })).toBeVisible();
+  await expect(page.getByRole('radio', { name: /Сімейний/ })).toHaveCount(0);
+});

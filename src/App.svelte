@@ -27,14 +27,18 @@
   import { playSfx } from './lib/sfx.js';
   import { t, setLang } from './lib/lang.svelte.js';
   import { cleanLang } from './lib/i18n.js';
+  import { loadRuFiles } from './ru-packs.js';
 
   // Набори питань читаються один раз під час старту: кожен файл у src/data/packs — окремий набір,
   // у src/data/packs/ru — той самий набір російською (ті самі id); немає перекладу — українською.
   const byName = (files) => Object.fromEntries(Object.entries(files).map(([f, d]) => [f.split('/').pop(), d]));
   const ukFiles = byName(import.meta.glob('./data/packs/*.json', { eager: true, import: 'default' }));
-  const ruFiles = byName(import.meta.glob('./data/packs/ru/*.json', { eager: true, import: 'default' }));
-  const LOADED = { uk: loadPacks(ukFiles), ru: loadPacks({ ...ukFiles, ...ruFiles }) };
-  const errors = [...new Set([...LOADED.uk.errors, ...LOADED.ru.errors])];
+  // російські — окремим шматком (src/ru-packs.js): main.js підвантажує їх до старту, якщо мова вже російська
+  let { preloadedRu = null } = $props();
+  let ruFiles = $state.raw(preloadedRu);
+  const LOADED = { uk: loadPacks(ukFiles) };
+  const ruLoaded = $derived(ruFiles ? loadPacks({ ...ukFiles, ...ruFiles }) : null);
+  const errors = $derived([...new Set([...LOADED.uk.errors, ...(ruLoaded?.errors || [])])]);
   const packOrder = LOADED.uk.order;
   const packOf = (id) => (LOADED.uk.packs[id] ? id : 'family');
 
@@ -69,7 +73,9 @@
   setLang(cleanLang(saved.settings?.lang));
   $effect(() => setLang(settings.lang));
   // набори мовою інтерфейсу; id і порядок однакові для всіх мов
-  const packs = $derived(LOADED[settings.lang].packs);
+  // поки російські вантажаться (мить після перемикання) — українські
+  const packs = $derived((settings.lang === 'ru' && ruLoaded ? ruLoaded : LOADED.uk).packs);
+  $effect(() => { if (settings.lang === 'ru' && !ruFiles) loadRuFiles().then((f) => (ruFiles = f)); });
   let rulesSeen = $state(saved.rulesSeen === true ? ['family'] : Array.isArray(saved.rulesSeen) ? saved.rulesSeen : []);
   let lastDeck = $state(saved.lastDeck || null); // колода минулої гри — щоб номери не повторювались
   let names = $state(saved.names || {});          // id → ім'я всіх, хто будь-коли грав

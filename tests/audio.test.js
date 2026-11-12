@@ -178,6 +178,11 @@ test('updateStarts: щойно записані файли — без тиші, 
 test('wavToMp3 / pcmToMp3: тиша на початку зрізається — запис коротший', () => {
   const silentThenTone = (sec) => { const p = pcm(sec); const lead = Buffer.alloc(24000 * 2 * 0.5); return Buffer.concat([lead, p]); };
   assert.ok(pcmToMp3(silentThenTone(1)).length < pcmToMp3(Buffer.concat([Buffer.alloc(0), pcm(1.5)])).length);
+  // Gemini 3.x віддає WAV — тиша зрізається й там
+  const wavOf = (body) => { const h = Buffer.alloc(44); h.write('RIFF', 0); h.writeUInt32LE(36 + body.length, 4); h.write('WAVE', 8); h.write('fmt ', 12);
+    h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22); h.writeUInt32LE(24000, 24); h.writeUInt32LE(48000, 28); h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34);
+    h.write('data', 36); h.writeUInt32LE(body.length, 40); return Buffer.concat([h, body]); };
+  assert.ok(wavToMp3(wavOf(silentThenTone(1))).length < wavToMp3(wavOf(pcm(1.5))).length, 'WAV: тиша на початку зрізана');
 });
 
 test('pcmToMp3: сирий PCM → MP3; непарний байт не ламає', () => {

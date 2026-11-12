@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  shuffle, derange, buildDeck, newGame, undoCard, POINTS, POINT_SCALE, isRated, finishCard, remaining, isUsed, questionAt, total, allDone,
+  shuffle, derange, buildDeck, newGame, undoCard, POINTS, POINT_SCALE, isRated, pointsFor, finishCard, remaining, isUsed, questionAt, total, allDone,
   updatePlayers, seat, roles, restoreGame, endGame, VERSION,
 } from '../src/lib/state.js';
 
@@ -125,11 +125,16 @@ test('finishCard: бал за «Правильно» отримує той, хт
   assert.deepEqual(g.stats, { answered: 3, skipped: 0 });
 });
 
-test('finishCard: оцінка компанії — 10, 20 чи 50 балів; isRated — лише відкриті питання й виклики', () => {
+test('finishCard і pointsFor: бали за сміливість — 10, у сміливій категорії 20; isRated — лише відкриті питання й виклики', () => {
   let g = newGame({ players: P('A', 'B'), questions: Q('c', 3), scoring: true, rand: rng(1) });
-  for (const [k, pts] of POINTS.rate.entries()) g = finishCard(g, 'c', k + 1, 'correct', 0, pts);
-  assert.equal(g.scores.p0, 80);
-  assert.deepEqual(POINTS, { right: 20, rate: [10, 20, 50] });
+  g = finishCard(g, 'c', 1, 'correct', 0, POINTS.answer);
+  g = finishCard(g, 'c', 2, 'correct', 0, POINTS.brave);
+  assert.equal(g.scores.p0, 30);
+  assert.deepEqual(POINTS, { right: 20, answer: 10, brave: 20 });
+  assert.equal(pointsFor({ type: 'open' }, { id: 'ifwhat' }), 10, 'відповів — 10');
+  assert.equal(pointsFor({ type: 'activity' }, { id: 'show', brave: true }), 20, 'смілива категорія — 20');
+  assert.equal(pointsFor({ type: 'guess' }, { brave: true }), 20, 'вгадав — 20');
+  assert.equal(pointsFor({ type: 'open' }), 10, 'без категорії — 10');
   assert.deepEqual(['open', 'activity', 'guess', 'quiz', 'who'].map(isRated), [true, true, false, false, false]);
 });
 

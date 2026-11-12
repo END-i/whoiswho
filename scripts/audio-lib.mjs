@@ -80,7 +80,7 @@ export function wavToMp3(wav, kbps = MP3_KBPS) {
     mono = new Int16Array(Math.floor(samples.length / channels));
     for (let i = 0; i < mono.length; i++) { let sum = 0; for (let c = 0; c < channels; c++) sum += samples[i * channels + c]; mono[i] = Math.round(sum / channels); }
   }
-  return encodeMono(mono, sampleRate, kbps);
+  return encodeMono(trimLead(mono, sampleRate), sampleRate, kbps);
 }
 
 /** Сирий PCM 16 біт моно → MP3 (так повертає звук Gemini). */
