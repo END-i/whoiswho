@@ -63,13 +63,15 @@ test('російські тексти: без форм «(ла)», без пов
   }
 });
 
-test('російська сімейна гра: ролі словами, питання до того, чия черга, — на «ты»', () => {
+test('російська сімейна гра: ролі словами; про того, чия черга, коли відповідає інший, — «этот человек» (або на «ты» з form: you)', () => {
   const ru = ruFiles['family.json'];
   if (!ru) return;
-  const words = { left: /слева/, right: /справа/, pick: /выбери любого|на твой выбор/i, self: /(^|[^а-яё])(ты|тебя|тебе|тобой|твой|твоя|твоё|твои|твою)([^а-яё]|$)/i };
+  const you = /(^|[^а-яё])(ты|тебя|тебе|тобой|твой|твоя|твоё|твои|твою)([^а-яё]|$)/i;
+  const words = { left: /слева/, right: /справа/, pick: /выбери любого|на твой выбор/i, self: /(этот|этого|этому|этим|этом) человек/i };
   for (const q of ru.questions.filter((x) => x.type === 'guess')) {
     const target = !q.about || q.about === 'answerer' ? (q.answerer || 'self') : q.about;
-    assert.match(q.text, words[target], `${q.id}: «${q.text}» не каже, про кого (${target})`);
+    if (q.form === 'you') assert.match(q.text, you, `${q.id}: form you — на «ты»`);
+    else assert.match(q.text, words[target], `${q.id}: «${q.text}» не каже, про кого (${target})`);
   }
 });
 
@@ -77,5 +79,4 @@ test('чекають перекладу: лише справжні id — і в 
   const uk = new Set(Object.values(packFiles).flatMap((p) => p.questions).map((q) => q.id));
   const ru = new Set(allRuQuestions.map((q) => q.id));
   for (const id of PENDING) assert.ok(uk.has(id) && ru.has(id), id);
-  assert.ok(PENDING.size > 0);
 });

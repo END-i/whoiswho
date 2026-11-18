@@ -58,7 +58,7 @@ test('гра російською: категорії й питання росі
   await card.getByRole('button', { name: /Пропустить/ }).click();
   await page.locator('.cat', { hasText: 'Что о тебе знают' }).click();
   await page.getByRole('button', { name: `Карта ${s.game.deck.aboutme.indexOf('am-02') + 1}`, exact: true }).click();
-  await expect(page.getByRole('dialog').getByText('Что ты больше всего любишь делать в выходные?')).toBeVisible();
+  await expect(page.getByRole('dialog').getByText('Что этот человек больше всего любит делать в выходные?')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Прослушать вопрос' })).toHaveCount(0);
 });
 
