@@ -36,7 +36,6 @@ export default {
   'setup.dups': '⚠️ Одинаковые имена: {names}. Можно и так, но будет легко перепутать.',
   'setup.packs': 'Набор вопросов',
   'setup.packLocked': 'Набор можно сменить только в новой игре.',
-  'setup.whoPlays': 'Кто играет',
   'setup.audience': 'Аудитория',
   'setup.audFamily': '👨‍👩‍👧 Вся семья',
   'setup.audKids': '🧒 Только дети',

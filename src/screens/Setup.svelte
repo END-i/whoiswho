@@ -136,8 +136,8 @@
     <input type="checkbox" role="switch" checked={settings.mode === 'wheel'} onchange={(e) => (settings.mode = e.currentTarget.checked ? 'wheel' : 'tiles')} aria-label={t('cats.autoLabel')} />
   </label>
   {#if pack.kids}
-  <div class="opt choice">
-    <span class="lbl">{t('setup.whoPlays')}</span>
+  <!-- без підпису «Хто грає»: кнопки «Уся родина / Лише діти» кажуть самі за себе (відгук 18.11) -->
+  <div class="opt choice aud">
     <div class="seg" role="radiogroup" aria-label={t('setup.audience')}>
       <button role="radio" aria-checked={settings.audience === 'family'} class:on={settings.audience === 'family'} disabled={inGame} onclick={() => (settings.audience = 'family')}>{t('setup.audFamily')}</button>
       <button role="radio" aria-checked={settings.audience === 'kids'} class:on={settings.audience === 'kids'} disabled={inGame} onclick={() => (settings.audience = 'kids')}>{t('setup.audKids')}</button>
@@ -268,4 +268,6 @@
   .hist { width: 100%; min-height: 52px; margin-top: 12px; border-radius: 18px; border: 2px solid var(--line); background: var(--card); font-weight: 900; box-shadow: 0 3px 0 var(--line); }
   .start { width: 100%; font-size: 21px; min-height: 64px; }
   @media (max-width: 380px) { .opt.choice { flex-direction: column; align-items: stretch; } .seg button { flex: 1; } }
+  .aud .seg { flex: 1; }
+  .aud .seg button { flex: 1; }
 </style>

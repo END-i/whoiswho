@@ -108,7 +108,7 @@ for (const [lang, turn] of [['Українська', 'Зараз хід'], ['Р�
 }
 
 for (const lang of ['Українська', 'Русский']) {
-  test(`320 px, ${lang}: налаштування — перемикачі мови й «Хто грає» не вилазять за картку`, async ({ page }) => {
+  test(`320 px, ${lang}: налаштування — перемикачі мови й «Уся родина / Лише діти» не вилазять за картку`, async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 640 });
     await fresh(page);
     await page.getByRole('radio', { name: lang }).click();

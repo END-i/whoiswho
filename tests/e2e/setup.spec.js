@@ -234,3 +234,12 @@ test('коло гравців: стрілку «телефон іде сюди»
     expect(hidden, `${n} гравців`).toEqual([]);
   }
 });
+
+test('«Уся родина / Лише діти» — без зайвого підпису «Хто грає», кнопки на всю ширину рядка', async ({ page }) => {
+  await expect(page.getByRole('radiogroup', { name: 'Аудиторія' })).toBeVisible();
+  await expect(page.getByText('Хто грає', { exact: true })).toHaveCount(0);
+  const row = await page.locator('.opt.aud').boundingBox(), seg = await page.locator('.aud .seg').boundingBox();
+  expect(seg.width).toBeGreaterThan(row.width * 0.85);
+  await expect(page.getByRole('radio', { name: /Уся родина/ })).toBeVisible();
+  await expect(page.getByRole('radio', { name: /Лише діти/ })).toBeVisible();
+});
