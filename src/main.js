@@ -2,6 +2,10 @@ import { mount } from 'svelte';
 import { registerSW } from 'virtual:pwa-register';
 import App from './App.svelte';
 import { loadRuFiles } from './ru-packs.js';
+import { installErrorReporting } from './lib/reporter.js';
+
+// помилки в браузерах гравців → /api/error (база D1 у Cloudflare); лише на справжньому сайті
+installErrorReporting({ version: __APP_VERSION__, host: 'whoiswho-akj.pages.dev', endpoint: '/api/error' });
 
 // мова вже російська — спершу підвантажуємо російські питання, щоб не блимнули українські
 let preloadedRu = null;
