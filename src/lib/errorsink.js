@@ -1,11 +1,10 @@
 // Приймач помилок з браузерів гравців: /api/error (Cloudflare Pages Function) → база D1 «pet-errors».
-// Шлють whoiswho, cards і movies — лише технічне (текст помилки, місце в коді, сторінка, версія, браузер).
+// Шле лише whoiswho (рішення 18.11; інші застосунки — можливо, згодом: додати їхній сайт в ORIGINS).
+// Лише технічне: текст помилки, місце в коді, сторінка, версія, браузер.
 // Захист від сміття: лише свої сайти, обрізані поля, не більше DAILY_LIMIT записів на добу, старше KEEP_DAYS — видаляється.
 
 export const ORIGINS = {
   'https://whoiswho-akj.pages.dev': 'whoiswho',
-  'https://pocket-cards-five.vercel.app': 'cards',
-  'https://pet-movies.vercel.app': 'movies',
 };
 export const DAILY_LIMIT = 1000;
 export const KEEP_DAYS = 30;

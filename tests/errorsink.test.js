@@ -35,7 +35,9 @@ test('застосунок визначається сайтом, звідки �
     await handleError(req('POST', report({ app: 'hacker' }), origin), db);
     assert.equal(db.calls[0].args[1], app, origin);
   }
-  assert.deepEqual(Object.values(ORIGINS).sort(), ['cards', 'movies', 'whoiswho']);
+  assert.deepEqual(Object.values(ORIGINS), ['whoiswho']);
+  // інші наші сайти поки не шлють (рішення 18.11)
+  assert.equal((await handleError(req('POST', report(), 'https://pocket-cards-five.vercel.app'), fakeDb())).status, 403);
 });
 
 test('чужий сайт, не POST, сміття в тілі — нічого не пишемо', async () => {

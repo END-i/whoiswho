@@ -1,8 +1,8 @@
--- Помилки з браузерів гравців (whoiswho, cards, movies). Лише технічне: без імен, питань і даних карток.
+-- Помилки з браузерів гравців. Поки лише whoiswho (поле app — на випадок інших застосунків). Лише технічне: без імен і питань.
 CREATE TABLE IF NOT EXISTS errors (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   at TEXT NOT NULL,          -- коли (UTC, ISO)
-  app TEXT NOT NULL,         -- whoiswho | cards | movies
+  app TEXT NOT NULL,         -- whoiswho
   version TEXT NOT NULL,     -- версія застосунку
   kind TEXT NOT NULL,        -- error | rejection
   message TEXT NOT NULL,
