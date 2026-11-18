@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { rank, winners, podium } from '../src/lib/ranking.js';
-import { gameRecord, addRecord, cleanHistory, leaderboard, HISTORY_LIMIT } from '../src/lib/history.js';
+import { gameRecord, addRecord, cleanHistory, leaderboard, nameKey, HISTORY_LIMIT } from '../src/lib/history.js';
 
 const E = (pairs) => pairs.map(([id, score]) => ({ id, score }));
 const places = (r) => r.map((e) => `${e.id}:${e.place}`).join(' ');
@@ -99,17 +99,25 @@ test('cleanHistory: відкидає зламане, доповнює відсу
 
 // ---------- загальна таблиця ----------
 
-test('leaderboard: перемоги, ігри, бали; перейменування не ламає; нічия — однакове місце', () => {
+test('leaderboard: гравець — за ім\'ям; рядок, переписаний під іншу людину («Том» → «Мама»), — інший гравець; нічия — однакове місце', () => {
   let h = [];
-  h = addRecord(h, gameRecord(game({ scores: { p1: 2, p2: 1 } }), { p1: 'Оля', p2: 'Тарас' }, { id: 'g1', date: '1' }));
-  h = addRecord(h, gameRecord(game({ scores: { p1: 0, p2: 3 } }), { p1: 'Олечка', p2: 'Тарас' }, { id: 'g2', date: '2' }));
-  h = addRecord(h, gameRecord(game({ scores: { p1: 0, p2: 0 } }), { p1: 'Олечка', p2: 'Тарас' }, { id: 'g3', date: '3' }));
+  h = addRecord(h, gameRecord(game({ scores: { p1: 2, p2: 1 } }), { p1: 'Том', p2: 'Тарас' }, { id: 'g1', date: '1' }));
+  h = addRecord(h, gameRecord(game({ scores: { p1: 0, p2: 3 } }), { p1: 'Мама', p2: 'Тарас' }, { id: 'g2', date: '2' }));
+  h = addRecord(h, gameRecord(game({ scores: { p1: 0, p2: 0 } }), { p1: ' мама ', p2: 'ТАРАС' }, { id: 'g3', date: '3' }));
   const lb = leaderboard(h);
+  // Мама — лише свої 2 гри й свої бали; Том — окремо зі своїми
   assert.deepEqual(lb.map(({ id, name, games, wins, points, place }) => [id, name, games, wins, points, place]),
-    [['p2', 'Тарас', 3, 1, 4, 1], ['p1', 'Олечка', 3, 1, 2, 2]]);
-  h = addRecord(h, gameRecord(game({ scores: { p1: 2, p2: 0 } }), names, { id: 'g4', date: '4' }));
-  assert.deepEqual(leaderboard(h).map((e) => [e.id, e.wins, e.points, e.place]), [['p1', 2, 4, 1], ['p2', 1, 4, 2]]);
+    [['p2', 'ТАРАС', 3, 1, 4, 1], ['p1', 'Том', 1, 1, 2, 2], ['p1', ' мама ', 2, 0, 0, 3]]);
   assert.deepEqual(leaderboard([]), []);
+  // однакові перемоги й бали — однакове місце
+  const tie = [gameRecord(game({ scores: { p1: 1, p2: 1 } }), { p1: 'А', p2: 'Б' }, { id: 't', date: '1' })];
+  assert.deepEqual(leaderboard(tie).map((e) => e.place), [1, 1]);
+});
+
+test('leaderboard: двоє з однаковим ім\'ям в одній грі — різні люди; nameKey — без регістру й зайвих пробілів', () => {
+  const h = [gameRecord(game({ scores: { p1: 3, p2: 1 } }), { p1: 'Оля', p2: 'оля' }, { id: 'd', date: '1' })];
+  assert.deepEqual(leaderboard(h).map((e) => [e.id, e.points]), [['p1', 3], ['p2', 1]]);
+  assert.equal(nameKey('  Мама   Оля '), 'мама оля');
 });
 
 test('leaderboard: гра без балів додає гру, але не бали й не перемоги', () => {

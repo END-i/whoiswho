@@ -44,24 +44,33 @@ export function cleanHistory(raw) {
     .slice(0, HISTORY_LIMIT);
 }
 
+/** Ім'я для зведення гравців: без різниці великих і малих літер і зайвих пробілів. */
+export const nameKey = (name) => String(name).trim().replace(/\s+/g, ' ').toLocaleLowerCase('uk');
+
 /**
  * Загальна таблиця за всі ігри: для кожного гравця — ігри, перемоги, сума балів.
- * Гравець — за id, тож перейменування не ламає статистику; ім'я береться з найсвіжішої гри.
- * Порядок: перемоги, далі бали; місця — як у rank (однакові показники — однакове місце).
+ * Гравець — за ім'ям, яке видно в списку ігор (з 18.11): вдома рядки гравців переписують під інших людей
+ * («Том» → «Мама»), і зведення за id дописувало чужі бали. Двоє з однаковим ім'ям в одній грі — різні люди.
+ * id запису — з найсвіжішої гри (для фото). Порядок: перемоги, далі бали; однакові показники — однакове місце.
  */
 export function leaderboard(history) {
-  const byId = new Map();
-  // історія зберігається від нових до старих — перше ім'я, яке зустрінемо, найсвіжіше
+  const byName = new Map();
+  // історія зберігається від нових до старих — перший запис, який зустрінемо, найсвіжіший
   for (const r of history) {
+    const seen = new Map();
     for (const p of r.players) {
-      const e = byId.get(p.id) || { id: p.id, name: p.name, games: 0, wins: 0, points: 0 };
+      const base = nameKey(p.name);
+      const n = seen.get(base) || 0;
+      seen.set(base, n + 1);
+      const key = n ? `${base}#${n}` : base;
+      const e = byName.get(key) || { id: p.id, name: p.name, games: 0, wins: 0, points: 0 };
       e.games += 1;
       e.points += r.scoring === false ? 0 : p.score;
       if (r.winners.includes(p.id)) e.wins += 1;
-      byId.set(p.id, e);
+      byName.set(key, e);
     }
   }
   // однакові перемоги розводимо за балами: «рахунок» = перемоги * велике число + бали
-  const ranked = rank([...byId.values()].map((e) => ({ ...e, score: e.wins * 1e6 + e.points })));
+  const ranked = rank([...byName.values()].map((e) => ({ ...e, score: e.wins * 1e6 + e.points })));
   return ranked.map(({ score, ...e }) => e);
 }
