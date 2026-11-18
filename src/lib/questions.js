@@ -41,6 +41,11 @@ function packErrors(pack) {
 }
 
 /** Повертає список помилок українською. Порожній список — усе гаразд. */
+/** Набори, де всі гравці знайомі, тож можна питати про спільне минуле. */
+export const SHARED_PAST_PACKS = ['family', 'couples'];
+/** «як ми познайомилися», «наша спільна поїздка», «у яку гру ми всі разом грали» — спільне минуле. */
+export const SHARED_PAST = /як ми познайомил|наш[аеуіої]*\s+спільн|ми\s+(всі|усі)\s+разом\s+(грали|їздили|були|ходили)/i;
+
 export function validate(raw) {
   const errors = [];
   if (!raw || typeof raw !== 'object') return ['Файл питань порожній або не є JSON-об\'єктом'];
@@ -91,8 +96,10 @@ export function validate(raw) {
       if (!raw0.answer || typeof raw0.answer !== 'string') errors.push(`${where}: у quiz потрібна відповідь (answer)`);
       if (q.answerer !== 'self' || q.about !== 'answerer') errors.push(`${where}: у quiz відповідає той, чия черга, — без answerer і about`);
     } else if (raw0.answer !== undefined) errors.push(`${where}: answer буває лише в quiz`);
-    // «той, чия черга» звучить заплутано: до того, чия черга, звертаємось на «ти» (form: 'you')
-    if (/чия черга/i.test(q.text)) errors.push(`${where}: «той, чия черга» — заплутано; звертайся на «ти» й постав form: "you"`);
+    // «той, чия черга» звучить заплутано: «ця людина» (або на «ти» з form: 'you')
+    if (/чия черга/i.test(q.text)) errors.push(`${where}: «той, чия черга» — заплутано; пиши «ця людина» (або на «ти» з form: "you")`);
+    // спільне минуле — лише там, де всі знайомі (родина, пара); друзі й 18+ можуть бачитися вперше
+    if (!SHARED_PAST_PACKS.includes(meta?.pack?.id) && SHARED_PAST.test(q.text)) errors.push(`${where}: спільне минуле («${q.text}») — гравці можуть бути незнайомі; питай про власний досвід`);
     if (raw0.form !== undefined && raw0.form !== 'you') errors.push(`${where}: невідомий form «${raw0.form}» (є лише "you")`);
     if (raw0.form === 'you' && (q.about !== 'self' || q.answerer === 'self')) errors.push(`${where}: form "you" — питання до того, чия черга (about: self), а відповідає інший`);
   });

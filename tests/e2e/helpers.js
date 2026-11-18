@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { bravePoints } from '../../src/lib/state.js';
 
 export const KEY = 'whoiswho.v2';
 export const QUESTIONS = JSON.parse(readFileSync(new URL('../../src/data/packs/family.json', import.meta.url)));
@@ -33,7 +34,7 @@ export async function setPlayers(page, names) {
 export async function startGame(page, names = ['Оля', 'Тарас', 'Мама', 'Тато'], { scoring = false, kids = false } = {}) {
   await fresh(page);
   await setPlayers(page, names);
-  await page.getByRole('switch').first().setChecked(scoring); // режим з балами за замовчуванням увімкнений
+  await page.getByRole('switch', { name: /Режим з балами/ }).setChecked(scoring); // режим з балами за замовчуванням увімкнений
   if (kids) await page.getByRole('radio', { name: /Лише діти/ }).click();
   await page.getByRole('button', { name: /Почати гру/ }).click();
   await page.getByRole('button', { name: /Граємо!/ }).click();
@@ -65,3 +66,6 @@ export async function openQuestion(page, catTitle, catId, qid) {
 }
 
 export const turnName = (page) => page.locator('.bar .txt b').innerText();
+
+/** Бали сміливого питання в поточній грі (30, 40 чи 50 — від зерна гри). */
+export const braveOf = async (page, qid) => bravePoints((await saved(page)).game.seed, qid);

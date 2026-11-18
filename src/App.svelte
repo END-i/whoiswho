@@ -5,7 +5,6 @@
   import { loadAll, saveAll, newId } from './lib/storage.js';
   import { clampTpl, migrateTemplate } from './lib/templates.js';
   import { assignColors } from './lib/theme.js';
-  import { toggleFavorite, favoriteQuestions, cleanFavorites } from './lib/favorites.js';
   import Setup from './screens/Setup.svelte';
   import Rules from './screens/Rules.svelte';
   import Categories from './screens/Categories.svelte';
@@ -27,6 +26,7 @@
   import { playSfx } from './lib/sfx.js';
   import { t, setLang } from './lib/lang.svelte.js';
   import { cleanLang } from './lib/i18n.js';
+  import { modeRules } from './lib/rules.js';
   import { loadRuFiles } from './ru-packs.js';
 
   // Набори питань читаються один раз під час старту: кожен файл у src/data/packs — окремий набір,
@@ -69,7 +69,7 @@
   })();
 
   let players = $state(init.players);
-  let settings = $state({ lang: cleanLang(saved.settings?.lang), pack: packOf(saved.settings?.pack), audience: saved.settings?.audience === 'kids' ? 'kids' : 'family', scoring: saved.settings?.scoring ?? true, voice: !!saved.settings?.voice, sounds: saved.settings?.sounds ?? true, autoRead: saved.settings?.autoRead !== false, offline: saved.settings?.offline === true, onlyFav: saved.settings?.onlyFav === true, mode: saved.settings?.mode === 'wheel' ? 'wheel' : 'tiles' });
+  let settings = $state({ lang: cleanLang(saved.settings?.lang), pack: packOf(saved.settings?.pack), audience: saved.settings?.audience === 'kids' ? 'kids' : 'family', scoring: saved.settings?.scoring ?? true, voice: !!saved.settings?.voice, sounds: saved.settings?.sounds ?? true, autoRead: saved.settings?.autoRead !== false, offline: saved.settings?.offline === true, mode: saved.settings?.mode === 'wheel' ? 'wheel' : 'tiles' });
   // набори, правила яких уже показували (раніше — просто true для сімейного)
   setLang(cleanLang(saved.settings?.lang));
   $effect(() => setLang(settings.lang));
@@ -86,7 +86,6 @@
   let selected = $state(init.selected);
   let pending = $state(null); // карта, яку вибрала гра («🎲» чи колесо): сітка перевертає її сама
   let history = $state(cleanHistory(saved.history));
-  let favorites = $state(cleanFavorites(saved.favorites)); // ❤️ на картках
   // набір поточної гри, а без гри — вибраний у налаштуваннях
   const data = $derived(packs[game?.pack ?? settings.pack] ?? null);
   const byId = $derived(new Map(data ? data.questions.map((q) => [q.id, q]) : []));
@@ -181,7 +180,7 @@
   $effect(() => {
     saveAll({
       players: $state.snapshot(players), settings: $state.snapshot(settings), rulesSeen, lastDeck,
-      names: $state.snapshot(names), game: $state.snapshot(game), history: $state.snapshot(history), favorites: $state.snapshot(favorites), ui: { screen, catId, selected },
+      names: $state.snapshot(names), game: $state.snapshot(game), history: $state.snapshot(history), ui: { screen, catId, selected },
     });
   });
 
@@ -193,14 +192,8 @@
   });
 
   // ---------- дії ----------
-  // питання нової гри: усі з набору або лише ❤️ улюблені (якщо їх немає — усі)
-  function gameQuestions(pack, audience) {
-    const all = byAudience(packs[pack].questions, audience);
-    const fav = settings.onlyFav ? favoriteQuestions(all, favorites) : [];
-    return fav.length ? fav : all;
-  }
-  const favCount = $derived(favoriteQuestions(packs[settings.pack]?.questions || [], favorites).length);
-  const like = (id) => (favorites = toggleFavorite(favorites, id));
+  // питання нової гри: усі з набору для цієї аудиторії
+  const gameQuestions = (pack, audience) => byAudience(packs[pack].questions, audience);
   function start() {
     for (const p of players) names[p.id] = p.name.trim();
     if (!game) {
@@ -226,7 +219,8 @@
     // повідомлення з «Скасувати»: за столом часто тиснуть не ту кнопку
     toast = {
       ok: outcome === 'correct',
-      text: outcome === 'correct' ? t('app.toastPoint', { n: points ?? POINTS.right, name })
+      text: outcome === 'correct' && game.last?.bonus ? t('app.toastStreak', { n: points ?? POINTS.right, name, k: game.streak[game.order[answerer]], b: game.last.bonus })
+        : outcome === 'correct' ? t('app.toastPoint', { n: points ?? POINTS.right, name })
         : outcome === 'wrong' && name ? t('app.toastZero', { name })
         : outcome === 'skipped' ? t('app.toastSkip') : t('app.toastDone'),
     };
@@ -284,9 +278,9 @@
     </section>
   {:else if screen === 'setup'}
     <Setup bind:players bind:settings packs={packOrder.map((id) => packs[id].meta.pack)} gamePack={game?.pack} inGame={!!game} onstart={start} historyCount={history.length} onhistory={openHistory} showInstall={installKind !== 'installed'} oninstall={openInstall} onabout={openAbout} voiceAvailable={!!voice} audioCount={audioIds.size} wakeLock={wakeSupported()}
-      {favCount} audioFull={audioFull} audio={{ total: audioTotal, done: audioDone, busy: audioBusy, mb: audioMb, fetch: fetchAudio, remove: removeAudio }} />
+      audioFull={audioFull} audio={{ total: audioTotal, done: audioDone, busy: audioBusy, mb: audioMb, fetch: fetchAudio, remove: removeAudio }} />
   {:else if screen === 'rules'}
-    <Rules rules={data.meta.rules} again={!!rulesFrom}
+    <Rules rules={modeRules(data.meta.rules, settings.mode, t('rules.wheelPick'))} again={!!rulesFrom}
       onok={() => { if (!rulesSeen.includes(game.pack)) rulesSeen = [...rulesSeen, game.pack]; screen = rulesFrom || 'categories'; rulesFrom = null; }} />
   {:else if screen === 'summary'}
     <Summary {game} {players} {names} onnew={newGameAsk} onhistory={openHistory} />
@@ -300,7 +294,7 @@
     <TopBar players={orderPlayers} {game} onmenu={() => (sheet = 'menu')} onscores={() => (sheet = 'scores')}
       big={screen !== 'grid'} back={screen === 'grid' ? () => { catId = null; pending = null; screen = 'categories'; } : null} />
     {#if screen === 'grid' && category}
-      <Grid {category} index={data.categories.indexOf(category)} {game} players={orderPlayers} {byId} roleNames={data.meta.pack.roleNames} {favorites} onlike={like}
+      <Grid {category} index={data.categories.indexOf(category)} {game} players={orderPlayers} {byId} roleNames={data.meta.pack.roleNames}
         scoringCategories={data.meta.scoringCategories} {sound} bind:selected bind:pending onfinish={finish} />
     {:else}
       <Categories categories={data.categories} {game} mode={settings.mode} sounds={settings.sounds} onmode={(m) => (settings.mode = m)}

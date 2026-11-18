@@ -78,7 +78,7 @@ test('18+: без підтвердження «усім є 18» набір не 
   expect(asked).toHaveLength(3);
   answers.push(true);
   await page.getByRole('button', { name: /Почати гру/ }).click();
-  await expect(page.getByText('Будь-яку картку можна пропустити без пояснень. Вгадав — +20, відповів — +10, на сміливе — +20.')).toBeVisible();
+  await expect(page.getByText('Будь-яку картку можна пропустити без пояснень. Вгадав — +20, відповів — +10, на сміливе — від +30 до +50; з третьої відповіді поспіль — ще +10.')).toBeVisible();
   await page.getByRole('button', { name: /Граємо!/ }).click();
   await expect(page.locator('.cat .title')).toHaveText(['Зізнання', 'Побачення', 'Флірт', 'Хто з нас?', 'Вгадай', 'Бажання', 'Сміливо']);
   expect((await saved(page)).game.pack).toBe('adults');

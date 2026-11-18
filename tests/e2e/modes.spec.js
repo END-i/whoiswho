@@ -37,9 +37,12 @@ test('«🎲 Випадкове»: одним дотиком відкриває�
   await expect(page.getByRole('heading', { name: 'Гра завершена!' })).toBeVisible();
 });
 
-test('колесо: перемикач на екрані категорій, вибір памʼятається й видно в налаштуваннях', async ({ page }) => {
+test('«🎡 Навмання»: підписаний перемикач на екрані категорій, вибір памʼятається й видно в налаштуваннях; правило — про колесо', async ({ page }) => {
   await startGame(page, ['Оля', 'Тарас']);
-  await page.getByRole('radio', { name: '🎡 Колесо' }).click();
+  const auto = page.getByRole('switch', { name: 'Навмання' });
+  await expect(auto).not.toBeChecked();
+  await expect(page.locator('.auto')).toContainText('🎡 Навмання');
+  await auto.check();
   await expect(page.getByRole('heading', { name: 'Крути колесо!' })).toBeVisible();
   await expect(page.locator('.cat')).toHaveCount(0);
   expect((await saved(page)).settings.mode).toBe('wheel');
@@ -47,8 +50,9 @@ test('колесо: перемикач на екрані категорій, в�
   await expect(page.getByRole('heading', { name: 'Крути колесо!' })).toBeVisible();
   await page.getByRole('button', { name: 'Меню' }).click();
   await page.getByRole('button', { name: /Гравці й налаштування/ }).click();
-  await expect(page.getByRole('radio', { name: '🎡 Колесо' })).toHaveAttribute('aria-checked', 'true');
-  await page.getByRole('radio', { name: '🧩 Плитки' }).click();
+  await expect(page.getByRole('switch', { name: 'Навмання' })).toBeChecked();
+  await expect(page.getByText('Категорію й карту вибирає гра — крутиш колесо.')).toBeVisible();
+  await page.getByRole('switch', { name: 'Навмання' }).uncheck();
   await page.getByRole('button', { name: /Повернутися до гри/ }).click();
   await expect(page.getByRole('heading', { name: 'Вибери категорію' })).toBeVisible();
 });
@@ -88,4 +92,20 @@ test('колесо: відкривається карта саме тієї ка
     await page.getByRole('button', { name: 'Пропустити' }).click();
     await expect(page.getByRole('heading', { name: 'Крути колесо!' })).toBeVisible();
   }
+});
+
+test('правила під режим: вручну — «вибери категорію», «Навмання» — «крутни колесо»', async ({ page }) => {
+  await startGame(page, ['Оля', 'Тарас']);
+  const rules = async () => {
+    await page.getByRole('button', { name: 'Меню' }).click();
+    await page.getByRole('button', { name: /Правила/ }).click();
+    const text = await page.locator('.flow').innerText();
+    await page.getByRole('button', { name: /До гри|Назад|Повернутися/ }).first().click();
+    return text;
+  };
+  expect(await rules()).toContain('Твоя черга — вибери категорію й будь-яку карту.');
+  await page.getByRole('switch', { name: 'Навмання' }).check();
+  const wheel = await rules();
+  expect(wheel).toContain('Твоя черга — крутни колесо: категорію й карту вибере гра.');
+  expect(wheel).not.toContain('вибери категорію');
 });

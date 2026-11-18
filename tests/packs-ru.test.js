@@ -2,7 +2,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { validate, loadPacks } from '../src/lib/questions.js';
+import { readFileSync } from 'node:fs';
 import { packFiles, ruFiles, allRuQuestions } from './packs.js';
+
+// переписані українською, ще не перекладені (етап 17): російською — старий текст і будова
+const PENDING = new Set(JSON.parse(readFileSync(new URL('../src/data/translation-pending.json', import.meta.url))).ru);
 
 const TEXT = new Set(['text', 'answer', 'tip']);
 const shape = (q) => Object.fromEntries(Object.entries(q).filter(([k]) => !TEXT.has(k)));
@@ -19,8 +23,15 @@ test('кожен російський набір має українську п�
 test('переклад: ті самі id у тому самому порядку, та сама структура; змінюються лише тексти', () => {
   for (const [name, ru] of Object.entries(ruFiles)) {
     const uk = packFiles[name];
-    assert.deepEqual(ru.questions.map(shape), uk.questions.map(shape), `${name}: питання`);
-    assert.deepEqual(ru.questions.map((q) => Object.keys(q).sort()), uk.questions.map((q) => Object.keys(q).sort()), `${name}: поля`);
+    assert.deepEqual(ru.questions.map((q) => q.id), uk.questions.map((q) => q.id), `${name}: id`);
+    const done = (list) => list.filter((q) => !PENDING.has(q.id));
+    assert.deepEqual(done(ru.questions).map(shape), done(uk.questions).map(shape), `${name}: питання`);
+    assert.deepEqual(done(ru.questions).map((q) => Object.keys(q).sort()), done(uk.questions).map((q) => Object.keys(q).sort()), `${name}: поля`);
+    // і в тих, що чекають перекладу, — та сама категорія й тип (картка лишається в тій самій колоді)
+    for (const q of ru.questions.filter((x) => PENDING.has(x.id))) {
+      const u = uk.questions.find((x) => x.id === q.id);
+      assert.deepEqual([q.category, q.type], [u.category, u.type], q.id);
+    }
     assert.deepEqual(ru.categories.map((c) => [c.id, c.emoji]), uk.categories.map((c) => [c.id, c.emoji]), `${name}: категорії`);
     const { title, description, roleNames, ...pack } = ru.meta.pack;
     const { title: t2, description: d2, roleNames: r2, ...packUk } = uk.meta.pack;
@@ -60,4 +71,11 @@ test('російська сімейна гра: ролі словами, пит�
     const target = !q.about || q.about === 'answerer' ? (q.answerer || 'self') : q.about;
     assert.match(q.text, words[target], `${q.id}: «${q.text}» не каже, про кого (${target})`);
   }
+});
+
+test('чекають перекладу: лише справжні id — і в українських, і в російських наборах', () => {
+  const uk = new Set(Object.values(packFiles).flatMap((p) => p.questions).map((q) => q.id));
+  const ru = new Set(allRuQuestions.map((q) => q.id));
+  for (const id of PENDING) assert.ok(uk.has(id) && ru.has(id), id);
+  assert.ok(PENDING.size > 0);
 });

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   shuffle, derange, buildDeck, newGame, undoCard, POINTS, POINT_SCALE, isRated, pointsFor, finishCard, remaining, isUsed, questionAt, total, allDone,
-  updatePlayers, seat, roles, restoreGame, endGame, VERSION, openNumbers, randomNumber, randomCard,
+  updatePlayers, seat, roles, restoreGame, endGame, VERSION, openNumbers, randomNumber, randomCard, bravePoints,
 } from '../src/lib/state.js';
 
 // Відтворюваний генератор випадкових чисел (mulberry32)
@@ -125,17 +125,69 @@ test('finishCard: бал за «Правильно» отримує той, хт
   assert.deepEqual(g.stats, { answered: 3, skipped: 0 });
 });
 
-test('finishCard і pointsFor: бали за сміливість — 10, у сміливій категорії 20; isRated — лише відкриті питання й виклики', () => {
-  let g = newGame({ players: P('A', 'B'), questions: Q('c', 3), scoring: true, rand: rng(1) });
-  g = finishCard(g, 'c', 1, 'correct', 0, POINTS.answer);
-  g = finishCard(g, 'c', 2, 'correct', 0, POINTS.brave);
-  assert.equal(g.scores.p0, 30);
-  assert.deepEqual(POINTS, { right: 20, answer: 10, brave: 20 });
-  assert.equal(pointsFor({ type: 'open' }, { id: 'ifwhat' }), 10, 'відповів — 10');
-  assert.equal(pointsFor({ type: 'activity' }, { id: 'show', brave: true }), 20, 'смілива категорія — 20');
+test('pointsFor: вгадав — 20, відповів — 10, у сміливій категорії — 30, 40 чи 50; isRated — лише відкриті питання й виклики', () => {
+  assert.deepEqual(POINTS, { right: 20, answer: 10, brave: [30, 40, 50], streak: 10 });
+  assert.equal(pointsFor({ id: 'q', type: 'open' }, { id: 'ifwhat' }), 10, 'відповів — 10');
+  assert.ok([30, 40, 50].includes(pointsFor({ id: 'q', type: 'activity' }, { id: 'show', brave: true }, 7)), 'смілива — 30…50');
   assert.equal(pointsFor({ type: 'guess' }, { brave: true }), 20, 'вгадав — 20');
   assert.equal(pointsFor({ type: 'open' }), 10, 'без категорії — 10');
   assert.deepEqual(['open', 'activity', 'guess', 'quiz', 'who'].map(isRated), [true, true, false, false, false]);
+});
+
+test('bravePoints: лише 30/40/50, усі трапляються майже порівну; стало для тієї самої гри й питання', () => {
+  const counts = { 30: 0, 40: 0, 50: 0 };
+  for (let k = 0; k < 3000; k++) counts[bravePoints(12345, `op-${k}`)]++;
+  assert.deepEqual(Object.keys(counts), ['30', '40', '50']);
+  for (const n of Object.values(counts)) assert.ok(n > 800 && n < 1200, JSON.stringify(counts));
+  assert.equal(bravePoints(1, 'op-01'), bravePoints(1, 'op-01'));
+  // інша гра — інший жереб (хоч для якогось питання)
+  assert.ok(Array.from({ length: 30 }, (_, k) => `q${k}`).some((id) => bravePoints(1, id) !== bravePoints(2, id)));
+  assert.ok([30, 40, 50].includes(bravePoints(0, 'x')), 'стара гра без зерна');
+  const g = newGame({ players: P('A', 'B'), questions: Q('c', 3), rand: rng(4) });
+  assert.ok(Number.isInteger(g.seed) && g.seed >= 0);
+});
+
+test('серія: з третьої відповіді з балами поспіль — ще +10; «Ні» чи пропуск — з нуля; «Скасувати» повертає серію', () => {
+  let g = newGame({ players: P('A', 'B'), questions: Q('c', 12), scoring: true, rand: rng(1) });
+  const step = (outcome, who, pts = 10) => (g = finishCard(g, 'c', g.used.c?.length ? Math.max(...g.used.c) + 1 : 1, outcome, who, pts));
+  step('correct', 0); step('correct', 1); step('correct', 0); step('correct', 1);
+  assert.deepEqual([g.scores.p0, g.scores.p1], [20, 20]);
+  step('correct', 0); // третя поспіль у A
+  assert.equal(g.scores.p0, 40);
+  assert.equal(g.last.bonus, 10);
+  assert.equal(g.streak.p0, 3);
+  step('correct', 1); // третя в B
+  step('correct', 0); // четверта в A — теж з бонусом
+  assert.deepEqual([g.scores.p0, g.scores.p1], [60, 40]);
+  // «Скасувати» прибирає й бонус, і крок серії
+  g = undoCard(g);
+  assert.deepEqual([g.scores.p0, g.streak.p0], [40, 3]);
+  // «Ні» обнуляє серію того, хто відповідав; пропуск — того, чия черга
+  step('wrong', 0);
+  assert.equal(g.streak.p0, 0);
+  assert.equal(g.last.bonus, 0);
+  assert.equal(g.turn, 1);
+  step('skipped', null);
+  assert.equal(g.streak.p1, 0);
+  // без балів («Далі») серія не змінюється
+  const before = g.streak;
+  step('answered', 0);
+  assert.deepEqual(g.streak, before);
+});
+
+test('restoreGame: зерно й серія переживають перезавантаження; сміття в серії відкидається', () => {
+  const { players, g } = fresh();
+  const [a, b] = players.map((p) => p.id);
+  const saved = { ...JSON.parse(JSON.stringify(g)), seed: 77, streak: { [a]: 2, [b]: 'x', ghost: 5, z: -1 } };
+  const r = restoreGame(saved, Object.values(g.deck).flat(), players);
+  assert.equal(r.seed, 77);
+  assert.deepEqual(r.streak, { [a]: 2 });
+  const old = JSON.parse(JSON.stringify(g));
+  delete old.seed; delete old.streak;
+  const r2 = restoreGame(old, Object.values(g.deck).flat(), players);
+  assert.equal(r2.seed, 0);
+  assert.deepEqual(r2.streak, {});
+  assert.deepEqual(restoreGame({ ...old, streak: 'bad' }, Object.values(g.deck).flat(), players).streak, {});
 });
 
 test('restoreGame: гра, почата до 1.7.0 (по 1 балу), — бали ×20 один раз', () => {
@@ -355,4 +407,14 @@ test('randomCard: категорія лише з тих, де ще є карти
   assert.equal(randomCard(g, ['a']), null);
   assert.equal(randomCard(g, []), null);
   assert.ok(randomCard(g, ['c']).cat === 'c');
+});
+
+test('гра без поля серії (збережена до 1.9.0): відповідь і «Скасувати» працюють', () => {
+  const g = newGame({ players: P('A', 'B'), questions: Q('c', 3), scoring: true, rand: rng(2) });
+  delete g.streak;
+  const after = finishCard(g, 'c', 1, 'correct', 0, 10);
+  assert.deepEqual(after.streak, { p0: 1 });
+  assert.equal(after.scores.p0, 10);
+  const back = undoCard({ ...after, last: { ...after.last, streak: undefined } });
+  assert.deepEqual(back.streak, {});
 });

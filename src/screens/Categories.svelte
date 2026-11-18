@@ -14,13 +14,11 @@
 
 <div class="head">
   <h1 class="lead">{mode === 'wheel' ? t('wheel.title') : t('cats.title')}</h1>
-  <div class="seg" role="radiogroup" aria-label={t('cats.mode')}>
-    {#each ['tiles', 'wheel'] as m}
-      <button role="radio" aria-checked={mode === m} class:on={mode === m} onclick={() => onmode(m)} aria-label={t(`cats.${m}`)} title={t(`cats.${m}`)}>
-        {t(`cats.${m}`).split(' ')[0]}
-      </button>
-    {/each}
-  </div>
+  <!-- увімкнено — категорію й карту вибирає гра (колесо), вимкнено — сам вибираєш плиткою -->
+  <label class="auto">
+    <span>{t('cats.auto')}</span>
+    <input type="checkbox" role="switch" checked={mode === 'wheel'} onchange={(e) => onmode(e.currentTarget.checked ? 'wheel' : 'tiles')} aria-label={t('cats.autoLabel')} />
+  </label>
 </div>
 
 {#if mode === 'wheel'}
@@ -44,10 +42,12 @@
 
 <style>
   .head { display: flex; align-items: center; gap: 10px; margin: 0 0 12px 4px; }
-  .lead { flex: 1; margin: 0; font-size: 24px; font-weight: 900; line-height: 1.1; }
-  .seg { flex: none; display: flex; background: var(--soft); border-radius: 14px; padding: 4px; gap: 4px; }
-  .seg button { border: none; background: none; min-width: 48px; min-height: 40px; border-radius: 11px; font-size: 22px; line-height: 1; opacity: .55; }
-  .seg button.on { background: var(--card); box-shadow: 0 3px 0 var(--line); opacity: 1; }
+  .lead { flex: 1; min-width: 0; margin: 0; font-size: 22px; font-weight: 900; line-height: 1.1; }
+  .auto { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; border-radius: 16px; background: var(--soft); font-weight: 900; font-size: 15px; white-space: nowrap; cursor: pointer; }
+  .auto input { appearance: none; width: 46px; height: 28px; border-radius: 16px; background: var(--line); position: relative; flex: none; transition: background .2s; cursor: pointer; margin: 0; }
+  .auto input::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0, 0, 0, .2); transition: transform .2s; }
+  .auto input:checked { background: var(--ok); }
+  .auto input:checked::after { transform: translateX(18px); }
   .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .cat {
     position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left; min-width: 0;

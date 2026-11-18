@@ -7,7 +7,7 @@
   import { untrack } from 'svelte';
 
   // selected піднято в App: відкрита картка переживає перезавантаження сторінки
-  let { category, index = 0, game, players, byId, scoringCategories, sound, roleNames = {}, favorites = [], onlike = () => {}, selected = $bindable(), pending = $bindable(null), onfinish } = $props();
+  let { category, index = 0, game, players, byId, scoringCategories, sound, roleNames = {}, selected = $bindable(), pending = $bindable(null), onfinish } = $props();
 
   const all = $derived(total(game, category.id));
   const numbers = $derived(Array.from({ length: all }, (_, k) => k + 1));
@@ -64,7 +64,6 @@
 {#if question}
   {#key selected}
     <QuestionCard {question} {category} colors={[c1, c2, ink]} number={selected} {game} {players} {sound} {roleNames}
-      liked={favorites.includes(question.id)} onlike={() => onlike(question.id)}
       scoring={game.scoring && scoringCategories.includes(category.id)}
       onfinish={(outcome, answerer, points) => onfinish(selected, outcome, answerer, points)} />
   {/key}

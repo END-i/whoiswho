@@ -36,6 +36,19 @@ test('плитки категорій: колір тексту такий, як 
 });
 
 for (const scheme of ['light', 'dark']) {
+  test(`плашка балів: зірочка ⭐ (жовта) видна, текст читається (${scheme})`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await startGame(page, ['Оля', 'Тарас'], { scoring: true });
+    await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
+    const bg = await toHex(page, '.badge.pts', 'backgroundColor');
+    const fg = await toHex(page, '.badge.pts', 'color');
+    const STAR = '#ffcc4d'; // колір емодзі ⭐ на iPhone й Android
+    expect(contrast(STAR, bg), `⭐ на ${bg}`).toBeGreaterThanOrEqual(3);
+    expect(contrast(fg, bg), `${fg} на ${bg}`).toBeGreaterThanOrEqual(4.5);
+  });
+}
+
+for (const scheme of ['light', 'dark']) {
   test(`картка питання: підписи ролей читаються (≥ 4.5), кнопки — великий жирний текст (${scheme})`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: scheme });
     await startGame(page, ['Оля', 'Тарас'], { scoring: true });
@@ -47,6 +60,7 @@ for (const scheme of ['light', 'dark']) {
         const fg = await toHex(page, sel, 'color');
         expect(contrast(fg, bg), `${cat} ${sel}: ${fg} на ${bg}`).toBeGreaterThanOrEqual(4.5);
       }
+      if (cat === 'who') await page.getByRole('dialog').locator('.chip', { hasText: 'Тарас' }).click(); // спершу прогноз
       const btn = page.locator('.chunky').first();
       const { size, weight } = await btn.evaluate((el) => ({ size: parseFloat(getComputedStyle(el).fontSize), weight: +getComputedStyle(el).fontWeight }));
       expect(size).toBeGreaterThanOrEqual(18.67); expect(weight).toBeGreaterThanOrEqual(700);

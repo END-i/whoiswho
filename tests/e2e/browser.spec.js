@@ -159,6 +159,7 @@ test('«Цікаві факти»: після «Показати відпові�
   await page.getByRole('button', { name: /Граємо!/ }).click();
   await openQuestion(page, 'Цікаві факти', 'facts', 'fc-03');
   await expect.poll(() => page.evaluate(() => window.__spoken.map((x) => x.text))).toEqual(['Скільки ніг у павука?']);
+  await page.getByRole('button', { name: '🗣 Відповідь сказано' }).click(); // режим з балами: спершу відповідь гравця
   await page.getByRole('button', { name: /Показати відповідь/ }).click();
   const answer = 'Вісім. Тому павук — не комаха: у комах шість ніг.';
   await expect.poll(() => page.evaluate(() => window.__spoken.map((x) => x.text))).toEqual(['Скільки ніг у павука?', answer]);

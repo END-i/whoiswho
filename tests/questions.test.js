@@ -70,12 +70,14 @@ test("у текстах усіх наборів немає «навпроти» 
 
 test("guess-питання про іншого називають його роль словами", () => {
   const { questions } = load(raw);
-  // до того, чия черга, — на «ти» (form: you)
-  const words = { left: /ліворуч/, right: /праворуч/, pick: /вибери будь-кого|на твій вибір/i, self: /(^|[^а-яіїєґʼ'])(ти|тебе|тобі|твій|твоя|твоє|твої|твою)([^а-яіїєґʼ']|$)/i };
+  // про того, чия черга, коли відповідає інший: «ця людина» (з 18.11) або на «ти» з form: you
+  const you = /(^|[^а-яіїєґʼ'])(ти|тебе|тобі|твій|твоя|твоє|твої|твою)([^а-яіїєґʼ']|$)/i;
+  const words = { left: /ліворуч/, right: /праворуч/, pick: /вибери будь-кого|на твій вибір/i, self: /ц(я|ієї|ю|ій) людин/i };
   for (const q of questions.filter((x) => x.type === 'guess')) {
     const target = q.about === 'answerer' ? q.answerer : q.about;
-    if (target === 'self') assert.equal(q.form, 'you', `${q.id}: питання про того, чия черга, — лише на «ти»`);
-    assert.match(q.text, words[target], `${q.id}: «${q.text}» не каже, про кого (${target})`);
+    if (q.form === 'you') assert.match(q.text, you, `${q.id}: form you — на «ти»`);
+    else assert.match(q.text, words[target], `${q.id}: «${q.text}» не каже, про кого (${target})`);
+    if (target === 'self' && !q.form) assert.doesNotMatch(q.text, you, `${q.id}: відповідає інший — не «ти», а «ця людина»`);
   }
 });
 
@@ -84,8 +86,9 @@ test('валідатор: «той, чия черга» заборонено; fo
   assert.deepEqual(errs(() => {}), []);
   assert.ok(errs((q) => { q.text = 'Що любить той, чия черга?'; }).some((e) => /чия черга/.test(e)));
   assert.ok(errs((q) => { q.form = 'they'; }).some((e) => /невідомий form/.test(e)));
-  assert.ok(errs((q) => { q.about = 'left'; }).some((e) => /form "you"/.test(e)));
-  assert.ok(errs((q) => { q.answerer = 'self'; q.about = 'left'; }).some((e) => /form "you"/.test(e)));
+  assert.deepEqual(errs((q) => { q.form = 'you'; q.text = 'Що ти любиш?'; }), [], 'на «ти» з form you — теж можна');
+  assert.ok(errs((q) => { q.form = 'you'; q.about = 'left'; }).some((e) => /form "you"/.test(e)));
+  assert.ok(errs((q) => { q.form = 'you'; q.answerer = 'self'; q.about = 'left'; }).some((e) => /form "you"/.test(e)));
   assert.deepEqual(errs((q) => { delete q.form; }), [], 'без form — звичайне питання');
 });
 
@@ -181,4 +184,17 @@ test('у текстах усіх наборів немає подвійних п
     assert.ok(!texts.has(key), `${q.id}: такий самий текст, як у ${texts.get(key)}`);
     texts.set(key, q.id);
   }
+});
+
+test('валідатор: спільне минуле — лише в наборах для родини й пари (друзі й 18+ можуть бути незнайомі)', () => {
+  const run = (packId, text) => { const d = clone(); d.meta.pack.id = packId; d.questions.push({ id: 'zz-02', category: 'guess', text }); return validate(d).filter((e) => /спільне минуле/.test(e)); };
+  for (const text of ['Згадай, як ми познайомилися.', 'Яка наша спільна поїздка запам\'яталася найбільше?', 'У яку гру ми всі разом грали найвеселіше?']) {
+    assert.equal(run('friends', text).length, 1, text);
+    assert.equal(run('adults', text).length, 1, text);
+    assert.deepEqual(run('family', text), [], text);
+    assert.deepEqual(run('couples', text), [], text);
+  }
+  // уява й власний досвід — можна
+  assert.deepEqual(run('friends', 'Якби ми всі разом відкрили бізнес, що це було б?'), []);
+  assert.deepEqual(run('friends', 'Яка поїздка з друзями запам\'яталася тобі найбільше?'), []);
 });

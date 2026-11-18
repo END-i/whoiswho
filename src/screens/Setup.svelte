@@ -9,7 +9,7 @@
 
   // players — масив { id, name, photo, template } ($state у App, змінюється на місці)
   // packs — описи наборів (meta.pack) у порядку показу; gamePack — набір поточної гри
-  let { players = $bindable(), settings = $bindable(), packs = [], gamePack = null, inGame, onstart, historyCount = 0, onhistory = () => {}, showInstall = false, oninstall = () => {}, onabout = () => {}, voiceAvailable = false, audioCount = 0, favCount = 0, audioFull = false, wakeLock = true, audio = null } = $props();
+  let { players = $bindable(), settings = $bindable(), packs = [], gamePack = null, inGame, onstart, historyCount = 0, onhistory = () => {}, showInstall = false, oninstall = () => {}, onabout = () => {}, voiceAvailable = false, audioCount = 0, audioFull = false, wakeLock = true, audio = null } = $props();
   let photoFor = $state(null);
 
   const MIN = 2;
@@ -76,7 +76,8 @@
     <svg viewBox="0 0 100 100" class="ring">
       <defs><marker id="arrowhead" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="tip" /></marker></defs>
       <circle cx="50" cy="50" r="38" />
-      <path class="arc" d="M 63.0 14.29 A 38 38 0 0 1 82.91 31" marker-end="url(#arrowhead)" />
+      <!-- стрілка на внутрішньому колі: гравці (r = 38) її не закривають, скільки б їх не було -->
+      <path class="arc" d="M 41.79 27.45 A 24 24 0 0 1 72.55 41.79" marker-end="url(#arrowhead)" />
     </svg>
     <span class="hint">{t('setup.arrow1')}<br />{t('setup.arrow2')}</span>
     {#each seats as s, i (s.p.id)}
@@ -118,12 +119,6 @@
       </button>
     {/each}
   </div>
-  {#if favCount && !inGame}
-    <label class="opt sw fav">
-      <span><span class="lbl">{t('setup.onlyFav', { n: favCount })}</span><small>{t('setup.onlyFavHint')}</small></span>
-      <input type="checkbox" role="switch" bind:checked={settings.onlyFav} aria-label={t('setup.onlyFavLabel')} />
-    </label>
-  {/if}
   {#if inGame}<p class="note">{t('setup.packLocked')}</p>{/if}
 </section>
 
@@ -136,14 +131,10 @@
       {/each}
     </div>
   </div>
-  <div class="opt choice">
-    <span class="lbl">{t('cats.mode')}</span>
-    <div class="seg" role="radiogroup" aria-label={t('cats.mode')}>
-      {#each ['tiles', 'wheel'] as m}
-        <button role="radio" aria-checked={settings.mode === m} class:on={settings.mode === m} onclick={() => (settings.mode = m)}>{t(`cats.${m}`)}</button>
-      {/each}
-    </div>
-  </div>
+  <label class="opt sw">
+    <span><span class="lbl">{t('cats.auto')}</span><small>{t('cats.autoHint')}</small></span>
+    <input type="checkbox" role="switch" checked={settings.mode === 'wheel'} onchange={(e) => (settings.mode = e.currentTarget.checked ? 'wheel' : 'tiles')} aria-label={t('cats.autoLabel')} />
+  </label>
   {#if pack.kids}
   <div class="opt choice">
     <span class="lbl">{t('setup.whoPlays')}</span>

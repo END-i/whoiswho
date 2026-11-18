@@ -22,17 +22,31 @@ export const VERSION = 2;
 
 // ---------- бали ----------
 /**
- * Бали (з 1.7.0): «Правильно» — 20. Питання без правильної відповіді — бали за сміливість:
- * відповів — 10, а в сміливій категорії («Відкрийся», «Покажи!», виклики…) — 20. Пропуск — 0. Ніхто нікого не оцінює.
+ * Бали: «Правильно» — 20. Питання без правильної відповіді — бали за сміливість: відповів — 10,
+ * а в сміливій категорії («Відкрийся», «Покажи!», виклики…) — навмання 30, 40 чи 50 (з 1.9.0). Пропуск — 0.
+ * Серія: з третьої відповіді з балами поспіль гравець щоразу отримує ще streak.
  */
-export const POINTS = { right: 20, answer: 10, brave: 20 };
+export const POINTS = { right: 20, answer: 10, brave: [30, 40, 50], streak: 10 };
+/** З якої відповіді поспіль діє бонус за серію. */
+export const STREAK_FROM = 3;
 /** Шкала балів у збереженій грі й історії: до 1.7.0 за відповідь був 1 бал (тепер це 20). */
 export const POINT_SCALE = 2;
 export const OLD_POINT = POINTS.right;
 /** Питання без правильної відповіді — бали за те, що відповів. */
 export const isRated = (type) => type === 'open' || type === 'activity';
-/** Скільки балів дає картка: вгадав — right; відповів на відкрите — answer, у сміливій категорії — brave. */
-export const pointsFor = (question, category) => (!isRated(question.type) ? POINTS.right : category?.brave ? POINTS.brave : POINTS.answer);
+/**
+ * Бали сміливого питання в цій грі: 30, 40 чи 50 — навмання, але сталі для гри й питання
+ * (перезавантаження чи «Скасувати» не перекидають жереб).
+ */
+export function bravePoints(seed, qid) {
+  let h = (seed >>> 0) || 1;
+  for (const ch of String(qid)) h = Math.imul(h ^ ch.codePointAt(0), 2654435761) >>> 0;
+  h = (h ^ (h >>> 15)) >>> 0;
+  return POINTS.brave[h % POINTS.brave.length];
+}
+/** Скільки балів дає картка: вгадав — right; відповів на відкрите — answer, у сміливій категорії — bravePoints. */
+export const pointsFor = (question, category, seed = 0) =>
+  (!isRated(question.type) ? POINTS.right : category?.brave ? bravePoints(seed, question.id) : POINTS.answer);
 
 // ---------- перемішування ----------
 
@@ -92,11 +106,13 @@ export function buildDeck(questions, prevDeck = null, rand = Math.random) {
 export function newGame({ players, pack = 'family', audience = 'family', scoring = false, questions, prevDeck = null, rand = Math.random }) {
   return {
     version: VERSION, points: POINT_SCALE,
+    seed: Math.floor(rand() * 2 ** 31), // для балів сміливих питань
     order: players.map((p) => p.id),
     pack, audience, scoring, turn: 0,
     deck: buildDeck(questions, prevDeck, rand),
     used: {},
     scores: Object.fromEntries(players.map((p) => [p.id, 0])),
+    streak: {}, // id → скільки відповідей з балами поспіль
     gone: {},
     stats: { answered: 0, skipped: 0 },
   };
@@ -131,15 +147,25 @@ export const endGame = (game) => ({ ...game, over: true });
 /**
  * Закриває картку й передає хід далі.
  * outcome: 'answered' | 'skipped' | 'correct' | 'wrong'. За 'correct' бал отримує гравець з індексом answerer.
+ * Серія: 'correct' — +1 тому, хто отримав бали (з STREAK_FROM-ї — ще POINTS.streak); 'wrong' — серія того,
+ * хто відповідав, з нуля; пропуск — серія того, чия черга, з нуля. last.bonus — бонус за серію цієї картки.
  */
 export function finishCard(game, cat, num, outcome, answerer = null, points = POINTS.right) {
   if (game.over || isUsed(game, cat, num)) return game;
   const pid = answerer !== null ? game.order[answerer] : null;
-  const scores = outcome === 'correct' && pid ? { ...game.scores, [pid]: (game.scores[pid] || 0) + points } : game.scores;
+  const before = game.streak || {};
+  const streak = { ...before };
+  let bonus = 0;
+  if (outcome === 'correct' && pid) {
+    streak[pid] = (before[pid] || 0) + 1;
+    if (streak[pid] >= STREAK_FROM) bonus = POINTS.streak;
+  } else if (outcome === 'wrong' && pid) streak[pid] = 0;
+  else if (outcome === 'skipped') streak[game.order[game.turn]] = 0;
+  const scores = outcome === 'correct' && pid ? { ...game.scores, [pid]: (game.scores[pid] || 0) + points + bonus } : game.scores;
   return {
-    ...game, scores,
+    ...game, scores, streak,
     // для «Скасувати»: як було до цієї картки (лише один крок назад)
-    last: { cat, num, turn: game.turn, scores: game.scores, stats: game.stats },
+    last: { cat, num, turn: game.turn, scores: game.scores, stats: game.stats, streak: before, bonus },
     used: { ...game.used, [cat]: [...(game.used[cat] || []), num] },
     turn: (game.turn + 1) % game.order.length,
     stats: {
@@ -178,7 +204,7 @@ export function undoCard(game) {
   const l = game.last;
   if (!l || game.over) return game;
   return {
-    ...game, turn: l.turn, scores: l.scores, stats: l.stats, last: null,
+    ...game, turn: l.turn, scores: l.scores, stats: l.stats, streak: l.streak || {}, last: null,
     used: { ...game.used, [l.cat]: (game.used[l.cat] || []).filter((n) => n !== l.num) },
   };
 }
@@ -236,6 +262,8 @@ export function restoreGame(saved, questionIds, players) {
     // гра, почата до 1.7.0: 1 бал тоді — 20 тепер
     turn, deck, used, scores: g.points === POINT_SCALE ? { ...g.scores } : Object.fromEntries(Object.entries(g.scores).map(([k, v]) => [k, (+v || 0) * OLD_POINT])),
     gone: { ...(g.gone || {}) }, points: POINT_SCALE,
+    seed: Number.isInteger(g.seed) ? g.seed : 0,
+    streak: Object.fromEntries(Object.entries(g.streak && typeof g.streak === 'object' ? g.streak : {}).filter(([id, n]) => g.order.includes(id) && Number.isInteger(n) && n > 0)),
     stats: { answered: +g.stats.answered || 0, skipped: +g.stats.skipped || 0 },
     over: !!g.over,
   };

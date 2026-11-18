@@ -6,7 +6,7 @@
   import { onDestroy, untrack } from 'svelte';
   import { t } from '../lib/lang.svelte.js';
 
-  let { question, category, colors, number, game, players, scoring, sound = {}, roleNames = {}, liked = false, onlike = () => {}, onfinish } = $props();
+  let { question, category, colors, number, game, players, scoring, sound = {}, roleNames = {}, onfinish } = $props();
   let revealed = $state(false);
   // після «Показати відповідь» у «Цікавих фактах» кнопка й автоозвучка читають відповідь
   const answerItem = $derived(question.answer ? { id: answerId(question.id), text: question.answer } : null);
@@ -46,14 +46,17 @@
   const isWho = $derived(question.type === 'who');
   // «Цікаві факти»: спершу відповідь гравця, потім — правильна відповідь
   const isQuiz = $derived(question.type === 'quiz');
-  // «Хто з нас?»: після того як показали пальцем, вибираємо, на кого показала більшість
+  // «Хто з нас?»: той, чия черга, потай вгадує, на кого покажуть; усі показують; вгадав — бали йому
+  let predict = $state(null);
   let voting = $state(false);
+  // «Цікаві факти» з балами: спершу відповідь уголос («Відповідь сказано»), лише потім — правильна
+  let said = $state(false);
   const showAbout = $derived(question.type !== 'who' && about !== null && about !== answerer);
   // Відповідає не той, чия черга, а інший гравець — про себе: «Питає Оля → Відповідає Тарас»
   const asks = $derived(!isWho && !showAbout && answerer !== null && answerer !== i);
-  // Без правильної відповіді — бали за сміливість: відповів — +10, у сміливій категорії — +20
+  // Без правильної відповіді — бали за сміливість: відповів — +10, у сміливій категорії — 30, 40 чи 50
   const rated = $derived(isRated(question.type));
-  const pts = $derived(pointsFor(question, category));
+  const pts = $derived(pointsFor(question, category, game.seed));
   let tipOpen = $state(false);
 
   function roleText(role) {
@@ -82,7 +85,6 @@
       <div class="badges">
         <span class="badge">{t(`type.${question.type}`)}</span>
         {#if scoring}<span class="badge pts">{t('card.points', { n: pts })}</span>{/if}
-        <button class="like" class:on={liked} onclick={onlike} aria-pressed={liked} aria-label={t('card.like')}>{liked ? '❤️' : '🤍'}</button>
         {#if mode}
           <button class="listen" class:playing onclick={toggle} aria-label={playing ? t('card.stop') : t('card.listen')}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path class="spk" d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z" />
@@ -142,7 +144,10 @@
 
         {#if question.type === 'activity'}<Timer sounds={sound.sfx !== false} />{/if}
 
-        {#if isQuiz && !revealed}
+        {#if isQuiz && !revealed && scoring && !said}
+          <p class="check">{t('card.sayFirst')}</p>
+          <button class="chunky wide" onclick={() => (said = true)}>{t('card.said')}</button>
+        {:else if isQuiz && !revealed}
           <button class="chunky light wide" onclick={reveal}>{t('card.reveal')}</button>
         {:else}
         {#if isQuiz}
@@ -151,19 +156,25 @@
         {#if !scoring}
           <button class="chunky ok wide" onclick={() => onfinish('answered', answerer)}>{t('card.next')}</button>
         {:else if isWho}
-          {#if !voting}
-            <button class="chunky ok wide" onclick={() => (voting = true)}>{t('card.shown')}</button>
-          {:else}
-            <p class="check">{t('card.majority')} <b>{t('card.points', { n: POINTS.right })}</b></p>
+          {#if predict === null}
+            <p class="check">{t('card.predict', { name: players[i].name })}</p>
             <div class="chips">
               {#each players as p, k}
-                <button class="chip" onclick={() => onfinish('correct', k)}><Avatar player={p} size={40} /><span>{p.name}</span></button>
+                <button class="chip" onclick={() => (predict = k)}><Avatar player={p} size={40} /><span>{p.name}</span></button>
               {/each}
             </div>
-            <button class="chunky light wide" onclick={() => onfinish('wrong', null)}>{t('card.tie')}</button>
+          {:else if !voting}
+            <p class="check">{t('card.predicted')}</p>
+            <button class="chunky ok wide" onclick={() => (voting = true)}>{t('card.shown')}</button>
+          {:else}
+            <p class="check">{t('card.predictQ', { name: players[i].name, who: players[predict].name })} <b>{t('card.points', { n: POINTS.right })}</b></p>
+            <div class="row">
+              <button class="chunky ok" onclick={() => onfinish('correct', i, POINTS.right)}><span class="ico" aria-hidden="true">✅&nbsp;</span>{t('card.guessed')}</button>
+              <button class="chunky no" onclick={() => onfinish('wrong', i)}><span class="ico" aria-hidden="true">❌&nbsp;</span>{t('card.missed')}</button>
+            </div>
           {/if}
         {:else if rated}
-          <p class="check"><b>{players[answerer].name}</b>{t(category.brave ? 'card.braveQ' : 'card.answerQ')}</p>
+          <p class="check"><b>{players[answerer].name}</b>{t(category.brave ? 'card.braveQ' : 'card.answerQ', { n: pts })}</p>
           <button class="chunky ok wide" onclick={() => onfinish('correct', answerer, pts)}>{t('card.answered', { n: pts })}</button>
         {:else}
           <p class="check">
@@ -173,8 +184,8 @@
             {/if}
           </p>
           <div class="row">
-            <button class="chunky ok" onclick={() => onfinish('correct', answerer, POINTS.right)}><span class="ico" aria-hidden="true">✅&nbsp;</span>{t('card.right')}</button>
-            <button class="chunky no" onclick={() => onfinish('wrong', answerer)}><span class="ico" aria-hidden="true">❌&nbsp;</span>{t('card.wrong')}</button>
+            <button class="chunky ok" onclick={() => onfinish('correct', answerer, POINTS.right)}><span class="ico" aria-hidden="true">✅&nbsp;</span>{t(isQuiz ? 'card.guessed' : 'card.right')}</button>
+            <button class="chunky no" onclick={() => onfinish('wrong', answerer)}><span class="ico" aria-hidden="true">❌&nbsp;</span>{t(isQuiz ? 'card.missed' : 'card.wrong')}</button>
           </div>
         {/if}
         {/if}
@@ -207,11 +218,10 @@
   .body { padding: 16px 18px 18px; }
   .badges { display: flex; gap: 6px; align-items: center; margin-bottom: 14px; }
   .badge { white-space: nowrap; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .05em; background: color-mix(in srgb, var(--c1) 18%, var(--card)); color: color-mix(in srgb, var(--c2) 45%, var(--ink)); padding: 5px 10px; border-radius: 10px; }
-  .badge.pts { background: #FFC23D; color: #5a3a00; }
-  .like { margin-left: auto; width: 44px; height: 44px; flex: none; border-radius: 22px; border: 2px solid var(--line); background: var(--card); font-size: 20px; }
-  .like.on { border-color: #E8467A; animation: pop .35s cubic-bezier(.2, 1.8, .4, 1); }
+  /* темна плашка: жовта зірочка ⭐ на жовтому зливалась */
+  .badge.pts { background: #2D1B3D; color: #FFFFFF; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .22); }
   @keyframes pop { from { transform: scale(.6); } }
-  .listen { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px 0 10px;
+  .listen { margin-left: auto; display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px 0 10px;
     border-radius: 22px; border: 2px solid var(--line); background: var(--card); font-weight: 900; font-size: 14px; color: var(--ink);
   }
   .listen svg { width: 22px; height: 22px; }

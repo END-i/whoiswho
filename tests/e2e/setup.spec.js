@@ -194,13 +194,13 @@ test('інструкція — схема з кроків; кнопку «Гра
   expect(await page.evaluate(() => scrollY)).toBe(0);
 });
 
-test('стрілка на схемі кола лежить на колі й закінчується наконечником', async ({ page }) => {
+test('стрілка на схемі кола — на внутрішньому колі (всередині кільця гравців) і закінчується наконечником', async ({ page }) => {
   const geo = await page.locator('.ring .arc').evaluate((el) => {
     const len = el.getTotalLength(), a = el.getPointAtLength(0), b = el.getPointAtLength(len), mid = el.getPointAtLength(len / 2);
     const r = (p) => Math.hypot(p.x - 50, p.y - 50);
     return { r: [r(a), r(mid), r(b)], marker: el.getAttribute('marker-end'), clockwise: Math.atan2(b.y - 50, b.x - 50) > Math.atan2(a.y - 50, a.x - 50) };
   });
-  for (const r of geo.r) expect(Math.abs(r - 38)).toBeLessThan(0.5);
+  for (const r of geo.r) expect(Math.abs(r - 24)).toBeLessThan(0.5); // гравці — на r = 38
   expect(geo.marker).toContain('arrowhead');
   expect(geo.clockwise).toBe(true);
 });
@@ -212,4 +212,25 @@ test('налаштування: окремий блок «🔊 Звук»; «Г�
   await expect(sound.getByRole('switch', { name: 'Читати питання вголос' })).toBeVisible();
   // у тестовій збірці записано лише 2 питання — голос браузера потрібен
   await expect(sound.getByText('🔈 Голос браузера')).toBeVisible();
+});
+
+test('коло гравців: стрілку «телефон іде сюди» не закривають аватари — від 2 до 8 гравців', async ({ page }) => {
+  const names = ['Оля', 'Тарас', 'Мама', 'Тато', 'Іра', 'Марко', 'Бабуся', 'Дідусь'];
+  for (let n = 2; n <= 8; n++) {
+    await setPlayers(page, names.slice(0, n));
+    await expect(page.locator('.circle .seat')).toHaveCount(n);
+    await page.locator('.circle .seat').last().evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+    await page.waitForTimeout(350); // місця на колі переїжджають (transition .3s)
+    // початок, середина й кінець стрілки: згори має бути сама стрілка, а не аватар чи ім'я
+    await page.locator('.circle').scrollIntoViewIfNeeded();
+    const hidden = await page.locator('.circle .arc').evaluate((arc) => {
+      const svg = arc.ownerSVGElement, len = arc.getTotalLength(), m = svg.getScreenCTM();
+      return [0.02, 0.5, 0.98].map((f) => {
+        const p = arc.getPointAtLength(len * f).matrixTransform(m);
+        const top = document.elementFromPoint(p.x, p.y);
+        return !top ? `${f}: поза екраном` : top.closest('.seat') ? `${f}: під аватаром` : null;
+      }).filter(Boolean);
+    });
+    expect(hidden, `${n} гравців`).toEqual([]);
+  }
 });
