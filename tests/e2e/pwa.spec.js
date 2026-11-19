@@ -6,7 +6,7 @@ import { fresh, confirmAll, startGame, openQuestion, setPlayers } from './helper
 // це особливість інструмента, не гри: без трасування WebKit кешує нормально. Тому тут трасування вимкнене.
 test.use({ trace: 'off' });
 
-// У тестовій збірці (E2E_AUDIO_IDS=gs-01,am-02) гра вважає, що для цих питань є озвучка;
+// У тестовій збірці (E2E_AUDIO_IDS=gs-01,am-02,cg-01) гра вважає, що для цих питань є озвучка;
 // самі mp3 віддає Playwright, бо справжніх файлів у репозиторії може не бути.
 const MP3 = Buffer.from('ID3\u0003\u0000\u0000\u0000\u0000\u0000\u0000', 'binary');
 async function serveAudio(page) {
@@ -149,4 +149,30 @@ test('озвучка для офлайну — лише вибраного на�
   await expect(page.getByText(/Озвучка для офлайну/)).toHaveCount(0);
   await page.waitForTimeout(300);
   expect(hits).toEqual([]);
+});
+
+test('озвучка: змінив набір посеред завантаження — качається вже новий, старе зупиняється (відгук 19.11)', async ({ page }) => {
+  // сімейний gs-01 «висить» (повільна мережа), доки тест не відпустить; cg-01 («Для пар») — одразу
+  let release;
+  const slow = new Promise((r) => { release = r; });
+  const hits = [];
+  await page.route('**/audio/*.mp3', async (r) => {
+    const url = new URL(r.request().url()).pathname;
+    hits.push(url);
+    if (url.endsWith('/gs-01.mp3')) await slow;
+    await r.fulfill({ status: 200, contentType: 'audio/mpeg', body: MP3 }).catch(() => {});
+  });
+  confirmAll(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Завантажити' }).click();
+  await expect(page.getByText(/Завантажую… 0 з 2/)).toBeVisible();
+  await page.getByRole('radiogroup', { name: 'Набір питань' }).getByRole('radio', { name: /Для пар/ }).click();
+  // раніше тут стояло «0 з 1», а кнопка була неактивна, доки не докачається весь сімейний набір
+  await expect(page.getByText('Готово: 1 з 1')).toBeVisible();
+  expect(hits).toContain('/audio/cg-01.mp3');
+  expect(hits).not.toContain('/audio/am-02.mp3');
+  release();
+  // повернулись до сімейного — докачується те, що зупинили
+  await page.getByRole('radiogroup', { name: 'Набір питань' }).getByRole('radio', { name: /Сімейний/ }).click();
+  await expect(page.getByText('Готово: 2 з 2')).toBeVisible();
 });

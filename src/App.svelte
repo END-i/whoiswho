@@ -23,6 +23,7 @@
   import { createWakeLock, supported as wakeSupported } from './lib/wakelock.js';
   import { onDestroy, untrack } from 'svelte';
   import { downloadAll, cachedCount, clearAudio, megabytes } from './lib/audiocache.js';
+  import { createAudioLoader } from './lib/audioloader.js';
   import { playSfx } from './lib/sfx.js';
   import { t, setLang } from './lib/lang.svelte.js';
   import { cleanLang } from './lib/i18n.js';
@@ -144,21 +145,26 @@
   let audioDone = $state(0);
   let audioBusy = $state(false);
   const cacheDeps = { caches: globalThis.caches, fetch: globalThis.fetch?.bind(globalThis), base: import.meta.env.BASE_URL };
+  const loader = createAudioLoader();
   async function fetchAudio() {
     const lang = settings.lang, key = offlineKey(), ids = offlineIds();
-    if (audioBusy || !ids.length || !cacheDeps.caches) return;
+    if (loader.key === key || !ids.length || !cacheDeps.caches) return;
     settings.offline = true; // згода дана — далі докачується саме (нові набори, мова)
     audioBusy = true;
-    const r = await downloadAll(ids, { ...cacheDeps, lang, onProgress: (d) => { if (offlineKey() === key) audioDone = d; } });
+    // інший набір чи мова, що ще качались, зупиняються: потрібне те, що вибрано зараз
+    const { result, aborted } = await loader.start(key, (signal) => downloadAll(ids, { ...cacheDeps, lang, signal, onProgress: (d) => { if (!signal.aborted) audioDone = d; } }));
+    if (aborted) return; // набір чи мову змінили або озвучку видалили — лічильник уже не цього завантаження
     audioBusy = false;
-    if (offlineKey() === key) audioDone = r.done; else syncAudio(); // мову чи набір змінили під час завантаження
+    audioDone = result.done;
   }
   async function removeAudio() {
     if (!confirm(t('app.removeAudio'))) return;
+    loader.stop(); audioBusy = false;
     await clearAudio(cacheDeps); audioDone = 0; settings.offline = false;
   }
   function syncAudio() {
     const lang = settings.lang, key = offlineKey(), ids = offlineIds();
+    if (loader.key !== key) { loader.stop(); audioBusy = false; }
     audioDone = 0; audioTotal = ids.length;
     if (!ids.length || !cacheDeps.caches) return;
     cachedCount(ids, { ...cacheDeps, lang }).then((n) => {
