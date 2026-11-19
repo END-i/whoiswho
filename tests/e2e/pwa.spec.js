@@ -58,7 +58,7 @@ test('озвучка є лише там, де є файл: картка сама
   await page.getByRole('button', { name: 'Пропустити' }).click();
   hits.length = 0;
   // справжній запис (кілька секунд), щоб побачити «Стоп», поки він грає
-  await page.route('**/audio/gs-01.mp3', (r) => { hits.push('/audio/gs-01.mp3'); r.fulfill({ status: 200, contentType: 'audio/mpeg', body: readFileSync('public/audio/gs-01.mp3') }); });
+  await page.route('**/audio/gs-01.mp3', (r) => { hits.push('/audio/gs-01.mp3'); r.fulfill({ status: 200, contentType: 'audio/mpeg', body: readFileSync('public/audio/am-02.mp3') }); });
   await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
   await expect.poll(() => hits).toContain('/audio/gs-01.mp3');
   const stop = page.getByRole('button', { name: 'Зупинити озвучку' });
@@ -82,21 +82,26 @@ test('без затримки: файл питання просять уже п�
   });
   const starts = JSON.parse(readFileSync('public/audio/starts.json', 'utf8'));
   let requestAt = null;
-  await startGame(page, ['Оля', 'Тарас']);
+  // cg-01 («Для пар»): запис із незміненого тексту, тиша на початку відома (gs-01 переписано 19.11, запис видалено)
+  await fresh(page);
+  await setPlayers(page, ['Оля', 'Тарас']);
+  await page.getByRole('radiogroup', { name: 'Набір питань' }).getByRole('radio', { name: /Для пар/ }).click();
+  await page.getByRole('button', { name: /Почати гру/ }).click();
+  await page.getByRole('button', { name: /Граємо!/ }).click();
   // лише запит плеєра (у WebKit він не «media», тож відсіюємо фонове завантаження для офлайну — fetch)
-  await page.route('**/audio/gs-01.mp3', async (r) => {
+  await page.route('**/audio/cg-01.mp3', async (r) => {
     if (r.request().resourceType() !== 'fetch') requestAt ??= await page.evaluate(() => performance.now());
-    r.fulfill({ status: 200, contentType: 'audio/mpeg', body: readFileSync('public/audio/gs-01.mp3') });
+    r.fulfill({ status: 200, contentType: 'audio/mpeg', body: readFileSync('public/audio/cg-01.mp3') });
   });
-  await page.locator('.cat', { hasText: 'Вгадай' }).click();
+  await page.locator('.cat', { hasText: 'Вгадай мене' }).click();
   const s = await page.evaluate(() => JSON.parse(localStorage.getItem('whoiswho.v2')));
-  await page.getByRole('button', { name: `Карта ${s.game.deck.guess.indexOf('gs-01') + 1}`, exact: true }).click();
+  await page.getByRole('button', { name: `Карта ${s.game.deck.cguess.indexOf('cg-01') + 1}`, exact: true }).click();
   await expect(page.getByRole('button', { name: 'Зупинити озвучку' })).toBeVisible(); // грає одразу, без очікування
   const cardAt = await page.evaluate(() => window.__cardAt);
   expect(requestAt, `файл просять ще до появи картки: запит ${requestAt}, картка ${cardAt}`).toBeLessThan(cardAt);
-  expect(starts['gs-01']).toBeGreaterThan(0);
+  expect(starts['cg-01']).toBeGreaterThan(0);
   const srcs = await page.evaluate(() => window.__audios.map((el) => el.src).filter((x) => x.includes('/audio/')));
-  expect(srcs).toEqual([expect.stringMatching(new RegExp(`/audio/gs-01\\.mp3#t=${starts['gs-01']}$`))]);
+  expect(srcs).toEqual([expect.stringMatching(new RegExp(`/audio/cg-01\\.mp3#t=${starts['cg-01']}$`))]);
 });
 
 test('озвучка для офлайну: лише за згодою («Завантажити»), далі сама; видаляється й качається знову', async ({ page }) => {
