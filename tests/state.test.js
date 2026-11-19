@@ -255,31 +255,44 @@ test('updatePlayers: менше двох гравців — помилка', () 
 
 // ---------- ролі ----------
 
-test('seat: ліворуч — наступний, праворуч — попередній, по колу, для 2–8 гравців', () => {
-  for (let n = 2; n <= 8; n++) for (let i = 0; i < n; i++) {
-    assert.equal(seat('self', i, n), i);
-    assert.equal(seat('left', i, n), (i + 1) % n);
-    assert.equal(seat('right', i, n), (i - 1 + n) % n);
-    assert.notEqual(seat('left', i, n), i); assert.notEqual(seat('right', i, n), i);
+test('seat: self — той, чия черга; any — будь-хто з інших, ніколи не він сам, для 2–8 гравців', () => {
+  for (let n = 2; n <= 8; n++) for (let i = 0; i < n; i++) for (const id of ['gs-01', 'am-02', 'kd-17']) {
+    assert.equal(seat('self', i, n, 7, id), i);
+    const k = seat('any', i, n, 7, id);
+    assert.ok(Number.isInteger(k) && k >= 0 && k < n && k !== i, `n=${n} i=${i} ${id} → ${k}`);
   }
 });
 
-test('seat: pick — вибір гравця (null), удвох — одразу другий', () => {
-  for (let n = 3; n <= 8; n++) assert.equal(seat('pick', 0, n), null);
-  assert.equal(seat('pick', 0, 2), 1); assert.equal(seat('pick', 1, 2), 0);
-  assert.equal(seat('left', 0, 2), seat('right', 0, 2), 'удвох ліворуч і праворуч — та сама людина');
+test('seat any: удвох — завжди другий гравець', () => {
+  for (let seed = 0; seed < 50; seed++) {
+    assert.equal(seat('any', 0, 2, seed, 'gs-01'), 1);
+    assert.equal(seat('any', 1, 2, seed, 'gs-01'), 0);
+  }
 });
 
-test('seat: «навпроти» більше немає', () => {
-  assert.throws(() => seat('opposite', 0, 4), /Невідома роль/);
+test('seat any: та сама гра й питання — та сама людина (перезавантаження, «Скасувати»)', () => {
+  assert.equal(seat('any', 2, 6, 12345, 'gs-04'), seat('any', 2, 6, 12345, 'gs-04'));
 });
 
-test('roles: about=answerer — людина відповідає про себе', () => {
-  assert.deepEqual(roles({ answerer: 'right', about: 'self' }, 0, 4), { answerer: 3, about: 0 });
-  assert.deepEqual(roles({ answerer: 'self', about: 'left' }, 1, 4), { answerer: 1, about: 2 });
+test('seat any: навмання — у різних іграх і питаннях випадає кожен з інших гравців, приблизно порівну', () => {
+  const n = 6, i = 0, hits = new Array(n).fill(0);
+  for (let seed = 1; seed <= 600; seed++) hits[seat('any', i, n, seed, 'gs-01')]++;
+  assert.equal(hits[i], 0);
+  for (let k = 1; k < n; k++) assert.ok(hits[k] > 80 && hits[k] < 160, `гравець ${k}: ${hits[k]} з 600`);
+  const byQuestion = new Set(Array.from({ length: 40 }, (_, q) => seat('any', i, n, 99, `q-${q}`)));
+  assert.equal(byQuestion.size, n - 1, 'у одній грі різні питання — про різних людей');
+});
+
+test('seat: місць за столом і ручного вибору більше немає (з 19.11)', () => {
+  for (const r of ['left', 'right', 'pick', 'opposite']) assert.throws(() => seat(r, 0, 4), /Невідома роль/);
+});
+
+test('roles: хто відповідає і про кого; about=answerer — людина відповідає про себе', () => {
+  const other = seat('any', 0, 4, 5, 'x-1');
+  assert.deepEqual(roles({ id: 'x-1', answerer: 'any', about: 'self' }, 0, 4, 5), { answerer: other, about: 0 });
+  assert.deepEqual(roles({ id: 'x-1', answerer: 'self', about: 'any' }, 0, 4, 5), { answerer: 0, about: other });
+  assert.deepEqual(roles({ id: 'x-1', answerer: 'any', about: 'answerer' }, 0, 4, 5), { answerer: other, about: other });
   assert.deepEqual(roles({ answerer: 'self', about: 'answerer' }, 2, 4), { answerer: 2, about: 2 });
-  assert.deepEqual(roles({ answerer: 'pick', about: 'answerer' }, 0, 4), { answerer: null, about: null });
-  assert.deepEqual(roles({ answerer: 'self', about: 'pick' }, 0, 2), { answerer: 0, about: 1 });
 });
 
 // ---------- відновлення ----------

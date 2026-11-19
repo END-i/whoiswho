@@ -44,33 +44,40 @@ test('пропуск теж робить номер використаним і 
   expect(await turnName(page)).toBe('Тарас');
 });
 
-test('картку з вибором гравця можна пропустити ще до вибору', async ({ page }) => {
+test('«Відкрийся» з іншим, хто відповідає: людину вибирає гра — без вибору гравця, питання видно одразу', async ({ page }) => {
   await startGame(page);
-  const n = await openQuestion(page, 'Відкрийся', 'open', 'op-12'); // answerer: pick
-  await expect(page.getByText('Хто відповідатиме?')).toBeVisible();
-  await page.getByRole('button', { name: 'Пропустити' }).click();
-  await category(page, 'Відкрийся').click();
-  await expect(page.getByRole('button', { name: `Карта ${n}, вже була` })).toBeDisabled();
-  expect((await saved(page)).game.stats).toEqual({ answered: 0, skipped: 1 });
+  await openQuestion(page, 'Відкрийся', 'open', 'op-12'); // answerer: any
+  const card = page.getByRole('dialog');
+  await expect(card.locator('.q')).toBeVisible();
+  await expect(page.locator('.chip')).toHaveCount(0);
+  await expect(card.locator('.who').nth(1)).toContainText('Відповідає');
+  await expect(card.locator('.who').nth(1)).toContainText(/Тарас|Мама|Тато/);
 });
 
-test('«Вгадай»: підпис називає, хто відповідає і про кого (гравець ліворуч)', async ({ page }) => {
+test('«Вгадай»: про кого — будь-хто з інших, вибирає гра; після перезавантаження — та сама людина (19.11)', async ({ page }) => {
   await startGame(page);
   await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
   const card = page.getByRole('dialog');
   await expect(card.locator('.who').nth(0)).toContainText('Оля');
   await expect(card.locator('.who').nth(0)).toContainText('твоя черга');
-  await expect(card.locator('.who').nth(1)).toContainText('Тарас');
-  await expect(card.locator('.who').nth(1)).toContainText('гравець ліворуч');
+  const about = card.locator('.who').nth(1);
+  await expect(about).toContainText('вибрала гра');
+  const name = (await about.locator('b').textContent()).trim();
+  expect(['Тарас', 'Мама', 'Тато']).toContain(name);
+  await expect(card.locator('.q')).toHaveText('Що ця людина любить їсти найбільше?');
+  await page.reload(); // відкрита картка відновлюється сама
+  await expect(page.getByRole('dialog').locator('.q')).toHaveText('Що ця людина любить їсти найбільше?');
+  await expect(page.getByRole('dialog').locator('.who').nth(1).locator('b')).toHaveText(name);
 });
 
 test('«Що про тебе знають»: питання про «цю людину» — того, чия черга; відповідає сусід, а та людина каже, чи влучно', async ({ page }) => {
   await startGame(page);
-  await openQuestion(page, 'Що про тебе знають', 'aboutme', 'am-17'); // answerer: left
+  await openQuestion(page, 'Що про тебе знають', 'aboutme', 'am-17'); // answerer: any
   const card = page.getByRole('dialog');
   await expect(card.getByText('Чим ця людина займається, коли нудно?')).toBeVisible();
   await expect(card.locator('.who').nth(0)).toContainText('Відповідає');
-  await expect(card.locator('.who').nth(0)).toContainText('Тарас');
+  await expect(card.locator('.who').nth(0)).toContainText(/Тарас|Мама|Тато/);
+  await expect(card.locator('.who').nth(0)).toContainText('вибрала гра');
   await expect(card.locator('.who').nth(1)).toContainText('Про кого');
   await expect(card.locator('.who').nth(1)).toContainText('Оля');
   await expect(card.locator('.who').nth(1)).toContainText('твоя черга');
@@ -83,17 +90,6 @@ test('звичайне «Вгадай» — підпис «Про кого», б
   const card = page.getByRole('dialog');
   await expect(card.locator('.who').nth(1)).toContainText('Про кого');
   await expect(card.locator('.instead')).toHaveCount(0);
-});
-
-test('«на твій вибір»: спершу вибір гравця (без себе), потім питання', async ({ page }) => {
-  await startGame(page);
-  await openQuestion(page, 'Вгадай', 'guess', 'gs-05'); // about: pick
-  await expect(page.getByText('Про кого буде питання?')).toBeVisible();
-  const chips = page.locator('.chip');
-  await expect(page.locator('.chip > span:last-child')).toHaveText(['Тарас', 'Мама', 'Тато']);
-  await chips.filter({ hasText: 'Мама' }).click();
-  await expect(page.locator('.q')).toBeVisible();
-  await expect(page.getByRole('dialog').locator('.who').nth(1)).toContainText('Мама');
 });
 
 test('удвох вибору немає — другий гравець підставляється сам', async ({ page }) => {

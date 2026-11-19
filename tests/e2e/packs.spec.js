@@ -28,7 +28,7 @@ test('«Для пар»: рівно двоє; з трьома — пояснен
   await expect(category(page, 'Цікаві факти')).toHaveCount(0);
   const s = await saved(page);
   expect(s.game.pack).toBe('couples');
-  // підпис ролі — «твоя половинка», а не «гравець ліворуч»
+  // підпис ролі — «твоя половинка», а не «вибрала гра»
   await category(page, 'Вгадай мене').click();
   await openCard(page, s.game.deck.cguess.indexOf('cg-01') + 1);
   await expect(page.getByRole('dialog').locator('.who').nth(1)).toContainText('твоя половинка');

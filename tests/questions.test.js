@@ -39,7 +39,7 @@ test('валідатор ловить типові помилки', () => {
     [(d) => { d.questions[0].category = 'nope'; }, /немає категорії/],
     [(d) => { d.questions[0].type = 'riddle'; }, /невідомий type/],
     [(d) => { d.questions[0].audience = 'adults'; }, /adults.*сімейна/],
-    [(d) => { const q = d.questions.find((x) => x.type === 'who'); q.about = 'left'; }, /Хто з нас/],
+    [(d) => { const q = d.questions.find((x) => x.type === 'who'); q.about = 'any'; }, /Хто з нас/],
     [(d) => { const q = d.questions.find((x) => x.category === 'guess'); q.about = 'answerer'; q.text = 'Що ти любиш?'; }, /мають бути різними/],
     [(d) => { const q = d.questions.find((x) => x.category === 'guess'); q.text += ' {about}'; }, /імена не підставляються/],
     [(d) => { d.meta.scoringCategories.push('ghost'); }, /scoringCategories/],
@@ -72,7 +72,9 @@ test("guess-питання про іншого називають його ро�
   const { questions } = load(raw);
   // про того, чия черга, коли відповідає інший: «ця людина» (з 18.11) або на «ти» з form: you
   const you = /(^|[^а-яіїєґʼ'])(ти|тебе|тобі|твій|твоя|твоє|твої|твою)([^а-яіїєґʼ']|$)/i;
-  const words = { left: /ліворуч/, right: /праворуч/, pick: /вибери будь-кого|на твій вибір/i, self: /ц(я|ієї|ю|ій) людин/i };
+  // з 19.11 місць немає: і про того, чия черга, і про того, кого вибрала гра, — «ця людина» (ім'я й фото — на картці)
+  const person = /ц(я|ієї|ю|ій|ією) людин/i;
+  const words = { any: person, self: person };
   for (const q of questions.filter((x) => x.type === 'guess')) {
     const target = q.about === 'answerer' ? q.answerer : q.about;
     if (q.form === 'you') assert.match(q.text, you, `${q.id}: form you — на «ти»`);
@@ -87,8 +89,8 @@ test('валідатор: «той, чия черга» заборонено; fo
   assert.ok(errs((q) => { q.text = 'Що любить той, чия черга?'; }).some((e) => /чия черга/.test(e)));
   assert.ok(errs((q) => { q.form = 'they'; }).some((e) => /невідомий form/.test(e)));
   assert.deepEqual(errs((q) => { q.form = 'you'; q.text = 'Що ти любиш?'; }), [], 'на «ти» з form you — теж можна');
-  assert.ok(errs((q) => { q.form = 'you'; q.about = 'left'; }).some((e) => /form "you"/.test(e)));
-  assert.ok(errs((q) => { q.form = 'you'; q.answerer = 'self'; q.about = 'left'; }).some((e) => /form "you"/.test(e)));
+  assert.ok(errs((q) => { q.form = 'you'; q.about = 'any'; }).some((e) => /form "you"/.test(e)));
+  assert.ok(errs((q) => { q.form = 'you'; q.answerer = 'self'; q.about = 'any'; }).some((e) => /form "you"/.test(e)));
   assert.deepEqual(errs((q) => { delete q.form; }), [], 'без form — звичайне питання');
 });
 
@@ -97,8 +99,8 @@ test('валідатор: quiz — потрібна відповідь, відп
   assert.deepEqual(run({ type: 'quiz', answer: 'Вісім.' }), []);
   assert.ok(run({ type: 'quiz' }).some((e) => /потрібна відповідь/.test(e)));
   assert.ok(run({ type: 'quiz', answer: 7 }).some((e) => /потрібна відповідь/.test(e)));
-  assert.ok(run({ type: 'quiz', answer: 'Вісім.', about: 'left' }).some((e) => /без answerer і about/.test(e)));
-  assert.ok(run({ type: 'quiz', answer: 'Вісім.', answerer: 'left' }).some((e) => /без answerer і about/.test(e)));
+  assert.ok(run({ type: 'quiz', answer: 'Вісім.', about: 'any' }).some((e) => /без answerer і about/.test(e)));
+  assert.ok(run({ type: 'quiz', answer: 'Вісім.', answerer: 'any' }).some((e) => /без answerer і about/.test(e)));
   assert.ok(run({ answer: 'Вісім.' }).some((e) => /answer буває лише в quiz/.test(e)));
 });
 
@@ -149,8 +151,8 @@ test('meta.pack: id, назва, кількість гравців, kids і adul
   assert.ok(run((p) => { p.maxPlayers = 9; }).some((e) => /maxPlayers/.test(e)));
   assert.ok(run((p) => { p.maxPlayers = 1.5; }).some((e) => /maxPlayers/.test(e)));
   assert.ok(run((p) => { p.adults = true; }).some((e) => /водночас/.test(e)));
-  assert.deepEqual(run((p) => { p.roleNames = { left: 'твоя половинка' }; }), []);
-  for (const bad of [null, 'x', { left: '' }, { left: 3 }, { aside: 'хтось' }]) assert.ok(run((p) => { p.roleNames = bad; }).some((e) => /roleNames/.test(e)), JSON.stringify(bad));
+  assert.deepEqual(run((p) => { p.roleNames = { any: 'твоя половинка' }; }), []);
+  for (const bad of [null, 'x', { any: '' }, { any: 3 }, { left: 'твоя половинка' }, { aside: 'хтось' }]) assert.ok(run((p) => { p.roleNames = bad; }).some((e) => /roleNames/.test(e)), JSON.stringify(bad));
   assert.ok(run((p) => { delete p.kids; }).some((e) => /audience «kids» — лише/.test(e)), 'дитячі питання — лише в наборі з фільтром');
 });
 
@@ -197,4 +199,22 @@ test('валідатор: спільне минуле — лише в набор
   // уява й власний досвід — можна
   assert.deepEqual(run('friends', 'Якби ми всі разом відкрили бізнес, що це було б?'), []);
   assert.deepEqual(run('friends', 'Яка поїздка з друзями запам\'яталася тобі найбільше?'), []);
+});
+
+test('валідатор (19.11): місць за столом і ручного вибору немає — лише self і any, у тексті без «ліворуч» і «вибери будь-кого»', () => {
+  const run = (q) => { const d = clone(); d.questions.push({ id: 'zz-02', category: 'guess', type: 'guess', about: 'any', text: 'Що ця людина любить?', ...q }); return validate(d); };
+  assert.deepEqual(run({}), []);
+  assert.deepEqual(run({ tip: 'Підказка без місць.' }), []);
+  for (const role of ['left', 'right', 'pick']) {
+    assert.ok(run({ about: role }).some((e) => /невідомий about/.test(e)), role);
+    assert.ok(run({ about: 'self', answerer: role }).some((e) => /невідомий answerer/.test(e)), role);
+  }
+  assert.ok(run({ answerer: 'any' }).some((e) => /одна людина на картку/.test(e)));
+  for (const text of ['Що любить гравець ліворуч?', 'Що любить гравець праворуч?', 'Вибери будь-кого: що він любить?', 'Гравець на твій вибір любить що?', 'Що любить цей гравець?',
+    'Что любит игрок слева?', 'Что любит игрок справа?', 'Выбери любого: что он любит?', 'Что любит этот игрок?']) {
+    assert.ok(run({ text }).some((e) => /місць і вибору гравця немає/.test(e)), text);
+  }
+  assert.ok(run({ tip: 'Спитай гравця ліворуч.' }).some((e) => /«ліворуч»/.test(e)));
+  // «справа» українською — «діло»: не плутати з «справа» (праворуч) російською
+  assert.deepEqual(run({ text: 'Яка справа для цієї людини найважливіша?' }), []);
 });

@@ -40,7 +40,7 @@ test('гра російською: категорії й питання росі
   await lang(page, 'Русский').click();
   await setPlayers(page, ['Оля', 'Тарас']);
   await page.getByRole('button', { name: /Начать игру/ }).click();
-  await expect(page.getByText('Сядьте в круг. Телефон передаём налево — по часовой стрелке.')).toBeVisible();
+  await expect(page.getByText('Телефон передаём по очереди — наверху видно, чей ход.')).toBeVisible();
   await page.getByRole('button', { name: /Играем!/ }).click();
   await expect(page.locator('.cat .title').first()).toHaveText('Угадай');
   const s = await page.evaluate(() => JSON.parse(localStorage.getItem('whoiswho.v2')));
@@ -48,8 +48,8 @@ test('гра російською: категорії й питання росі
   hits.length = 0; // до цього у фоні качалась озвучка для офлайну
   await page.getByRole('button', { name: `Карта ${s.game.deck.guess.indexOf('gs-01') + 1}`, exact: true }).click();
   const card = page.getByRole('dialog');
-  await expect(card.getByText('Что игрок слева любит есть больше всего?')).toBeVisible();
-  await expect(card.locator('.who').nth(1)).toContainText('игрок слева');
+  await expect(card.getByText('Что этот человек любит есть больше всего?')).toBeVisible();
+  await expect(card.locator('.who').nth(1)).toContainText('выбрала игра');
   // картка читає сама — файл з audio/ru
   await expect.poll(() => hits).toContain('/audio/ru/gs-01.mp3');
   await expect(card.getByRole('button', { name: /Прослушать вопрос|Остановить озвучку/ })).toBeVisible();

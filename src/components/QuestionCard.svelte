@@ -35,13 +35,10 @@
 
   const n = $derived(players.length);
   const i = $derived(game.turn);
-  const base = $derived(roles(question, i, n));
-  let picked = $state({ answerer: null, about: null });
-  const answerer = $derived(base.answerer ?? picked.answerer);
-  const about = $derived(question.about === 'answerer' ? answerer : (base.about ?? picked.about));
-  // Що ще треба вибрати, перш ніж показати питання
-  const need = $derived(question.type === 'who' ? null
-    : answerer === null ? 'answerer' : about === null ? 'about' : null);
+  // хто відповідає і про кого — вирішує гра (роль any — будь-хто з інших), вибирати не треба
+  const people = $derived(roles(question, i, n, game.seed));
+  const answerer = $derived(people.answerer);
+  const about = $derived(people.about);
   const isGuess = $derived(question.type === 'guess' && answerer !== about);
   const isWho = $derived(question.type === 'who');
   // «Цікаві факти»: спершу відповідь гравця, потім — правильна відповідь
@@ -51,9 +48,9 @@
   let voting = $state(false);
   // «Цікаві факти» з балами: спершу відповідь уголос («Відповідь сказано»), лише потім — правильна
   let said = $state(false);
-  const showAbout = $derived(question.type !== 'who' && about !== null && about !== answerer);
+  const showAbout = $derived(question.type !== 'who' && about !== answerer);
   // Відповідає не той, чия черга, а інший гравець — про себе: «Питає Оля → Відповідає Тарас»
-  const asks = $derived(!isWho && !showAbout && answerer !== null && answerer !== i);
+  const asks = $derived(!isWho && !showAbout && answerer !== i);
   // Без правильної відповіді — бали за сміливість: відповів — +10, у сміливій категорії — 30, 40 чи 50
   const rated = $derived(isRated(question.type));
   const pts = $derived(pointsFor(question, category, game.seed));
@@ -66,9 +63,9 @@
   const instead = $derived(question.form === 'you');
   const aboutRole = $derived(question.about === 'answerer' ? question.answerer : question.about);
 
-  // Автоозвучка: питання з'явилось на картці (гравців уже вибрано) — одразу читаємо його, один раз.
+  // Автоозвучка: питання з'явилось на картці — одразу читаємо його, один раз.
   // Без затримки: файл почав завантажуватися ще при дотику до карти, а тиша на початку запису пропускається.
-  const auto = $derived(!!sound.auto && !!mode && !need);
+  const auto = $derived(!!sound.auto && !!mode);
   $effect(() => { if (auto && !autoDone) untrack(listen); });
 
 </script>
@@ -98,7 +95,7 @@
 
       {#if question.type === 'who'}
         <div class="all"><span>👆</span> {t('card.whoAll')}</div>
-      {:else if !need && asks}
+      {:else if asks}
         <div class="people pair">
           <div class="who"><Avatar player={players[i]} size={56} />
             <span><small>{t('card.asks')}</small><b>{players[i].name}</b><em>{roleText('self')}</em></span></div>
@@ -107,7 +104,7 @@
             <span><small>{t('card.answers')}</small><b>{players[answerer].name}</b><em>{roleText(question.answerer)}</em></span></div>
         </div>
         <p class="instead">{t('card.asksHint', { name: players[answerer].name })}</p>
-      {:else if !need}
+      {:else}
         <div class="people" class:pair={showAbout}>
           <div class="who"><Avatar player={players[answerer]} size={56} ring />
             <span><small>{t('card.answers')}</small><b>{players[answerer].name}</b><em>{roleText(question.answerer)}</em></span></div>
@@ -122,17 +119,6 @@
         {/if}
       {/if}
 
-      {#if need}
-        <p class="ask">{need === 'answerer' ? t('card.pickAnswerer') : t('card.pickAbout')}</p>
-        <div class="chips">
-          {#each players as p, k}
-            {#if k !== i && !(need === 'about' && k === answerer)}
-              <button class="chip" onclick={() => (picked = { ...picked, [need]: k })}><Avatar player={p} size={40} /><span>{p.name}</span></button>
-            {/if}
-          {/each}
-        </div>
-        <button class="skip" onclick={() => onfinish('skipped', null)}>{t('card.skip')}</button>
-      {:else}
         <p class="q">{question.text}</p>
 
         {#if question.tip}
@@ -190,7 +176,6 @@
         {/if}
         {/if}
         <button class="skip" onclick={() => onfinish('skipped', null)}>{t('card.skipLong')}</button>
-      {/if}
     </div>
   </article>
 </div>
@@ -254,7 +239,6 @@
   .arrow { font-size: 24px; font-weight: 900; color: var(--c1); margin: 0 4px; }
   .all { display: flex; gap: 10px; align-items: center; font-weight: 800; background: color-mix(in srgb, var(--c1) 14%, var(--card)); padding: 12px 14px; border-radius: 16px; }
   .all span { font-size: 28px; }
-  .ask { font-weight: 900; font-size: 22px; margin: 6px 0 12px; }
   .chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
   .chip {
     display: flex; align-items: center; gap: 10px; min-height: 60px; padding: 0 12px 0 8px; border-radius: 18px;

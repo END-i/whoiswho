@@ -39,10 +39,13 @@ export const isRated = (type) => type === 'open' || type === 'activity';
  * (перезавантаження чи «Скасувати» не перекидають жереб).
  */
 export function bravePoints(seed, qid) {
+  return POINTS.brave[gameHash(seed, qid) % POINTS.brave.length];
+}
+/** Невід'ємне ціле з seed гри й рядка: «навмання», але однаково після перезавантаження. */
+function gameHash(seed, text) {
   let h = (seed >>> 0) || 1;
-  for (const ch of String(qid)) h = Math.imul(h ^ ch.codePointAt(0), 2654435761) >>> 0;
-  h = (h ^ (h >>> 15)) >>> 0;
-  return POINTS.brave[h % POINTS.brave.length];
+  for (const ch of String(text)) h = Math.imul(h ^ ch.codePointAt(0), 2654435761) >>> 0;
+  return (h ^ (h >>> 15)) >>> 0;
 }
 /** Скільки балів дає картка: вгадав — right; відповів на відкрите — answer, у сміливій категорії — bravePoints. */
 export const pointsFor = (question, category, seed = 0) =>
@@ -106,7 +109,7 @@ export function buildDeck(questions, prevDeck = null, rand = Math.random) {
 export function newGame({ players, pack = 'family', audience = 'family', scoring = false, questions, prevDeck = null, rand = Math.random }) {
   return {
     version: VERSION, points: POINT_SCALE,
-    seed: Math.floor(rand() * 2 ** 31), // для балів сміливих питань
+    seed: Math.floor(rand() * 2 ** 31), // для балів сміливих питань і того, кого вибирає гра (роль any)
     order: players.map((p) => p.id),
     pack, audience, scoring, turn: 0,
     deck: buildDeck(questions, prevDeck, rand),
@@ -213,22 +216,24 @@ export function undoCard(game) {
 
 /**
  * Індекс гравця для ролі, відлік від того, чия черга (i), при n гравцях.
- * left = i+1, right = i−1, pick = null (вибирає той, чия черга; удвох — другий гравець одразу).
+ * self — той, чия черга; any — гра вибирає будь-кого з інших (місця за столом не важливі, рішення 19.11):
+ * навмання, але стало для гри й питання (seed + id), тож перезавантаження й «Скасувати» не міняють людину.
  */
-export function seat(role, i, n) {
+export function seat(role, i, n, seed = 0, qid = '') {
   switch (role) {
     case 'self': return i;
-    case 'left': return (i + 1) % n;
-    case 'right': return (i - 1 + n) % n;
-    case 'pick': return n === 2 ? (i + 1) % n : null;
+    case 'any': {
+      const k = gameHash(seed, `any:${qid}`) % (n - 1);
+      return k >= i ? k + 1 : k;
+    }
     default: throw new Error(`Невідома роль: ${role}`);
   }
 }
 
-/** Хто відповідає і про кого питання (індекси в order; null — треба вибрати). */
-export function roles(q, i, n) {
-  const answerer = seat(q.answerer, i, n);
-  const about = q.about === 'answerer' ? answerer : seat(q.about, i, n);
+/** Хто відповідає і про кого питання (індекси в order). */
+export function roles(q, i, n, seed = 0) {
+  const answerer = seat(q.answerer, i, n, seed, q.id);
+  const about = q.about === 'answerer' ? answerer : seat(q.about, i, n, seed, q.id);
   return { answerer, about };
 }
 

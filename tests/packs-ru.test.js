@@ -67,7 +67,8 @@ test('російська сімейна гра: ролі словами; про 
   const ru = ruFiles['family.json'];
   if (!ru) return;
   const you = /(^|[^а-яё])(ты|тебя|тебе|тобой|твой|твоя|твоё|твои|твою)([^а-яё]|$)/i;
-  const words = { left: /слева/, right: /справа/, pick: /выбери любого|на твой выбор/i, self: /(этот|этого|этому|этим|этом) человек/i };
+  const person = /(этот|этого|этому|этим|этом) человек/i;
+  const words = { any: person, self: person };
   for (const q of ru.questions.filter((x) => x.type === 'guess')) {
     const target = !q.about || q.about === 'answerer' ? (q.answerer || 'self') : q.about;
     if (q.form === 'you') assert.match(q.text, you, `${q.id}: form you — на «ты»`);

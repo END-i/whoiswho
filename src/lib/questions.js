@@ -3,7 +3,10 @@
 
 export const TYPES = ['open', 'choice', 'activity', 'guess', 'who', 'quiz'];
 export const AUDIENCES = ['all', 'kids'];
-export const ROLES = ['self', 'left', 'right', 'pick'];
+// self — той, чия черга; any — будь-хто з інших, вибирає гра (місць за столом немає з 19.11)
+export const ROLES = ['self', 'any'];
+/** Місця за столом і ручний вибір — більше ні в даних, ні в тексті: людину називає картка. */
+export const SEAT_WORDS = /ліворуч|праворуч|на твій вибір|вибери будь-кого|(цей|цього|цьому|цим) грав(ець|ц)|игрок\p{L}* (слева|справа)|(слева|справа) от|на твой выбор|выбери любого|(этот|этого|этому|этим) игрок/iu;
 export const ABOUT = [...ROLES, 'answerer'];
 
 const defaultsOf = (meta) => ({
@@ -34,9 +37,9 @@ function packErrors(pack) {
   if (!Number.isInteger(lo) || lo < 2) e.push('meta.pack.minPlayers — ціле число від 2');
   else if (!Number.isInteger(hi) || hi < lo || hi > MAX_PLAYERS) e.push(`meta.pack.maxPlayers — від minPlayers до ${MAX_PLAYERS}`);
   if (pack.kids && pack.adults) e.push('Набір не може бути водночас для дітей і 18+');
-  // свої підписи ролей на картці (напр. для пар: «твоя половинка» замість «гравець ліворуч»)
+  // свої підписи ролей на картці (напр. для пар: «твоя половинка» замість «вибрала гра»)
   if (pack.roleNames !== undefined && (typeof pack.roleNames !== 'object' || !pack.roleNames
-    || Object.entries(pack.roleNames).some(([k, v]) => !ROLES.includes(k) || typeof v !== 'string' || !v))) e.push('meta.pack.roleNames — { роль: підпис } для self, left, right, pick');
+    || Object.entries(pack.roleNames).some(([k, v]) => !ROLES.includes(k) || typeof v !== 'string' || !v))) e.push('meta.pack.roleNames — { роль: підпис } для self, any');
   return e;
 }
 
@@ -87,9 +90,12 @@ export function validate(raw) {
     else if (q.audience === 'kids' && !meta.pack?.kids) errors.push(`${where}: audience «kids» — лише в наборі з фільтром «Лише діти»`);
     if (!ROLES.includes(q.answerer)) errors.push(`${where}: невідомий answerer «${q.answerer}»`);
     if (!ABOUT.includes(q.about)) errors.push(`${where}: невідомий about «${q.about}»`);
+    if (q.answerer === 'any' && q.about === 'any') errors.push(`${where}: any — одна людина на картку: або answerer, або about`);
+    // ліворуч/праворуч і «вибери будь-кого» — з 19.11 немає: гра сама називає людину на картці (у тексті — «ця людина»)
+    for (const f of ['text', 'tip']) if (SEAT_WORDS.test(q[f] || '')) errors.push(`${where}: «${q[f].match(SEAT_WORDS)[0]}» — місць і вибору гравця немає; пиши «ця людина»`);
     if (q.type === 'who' && (raw0.answerer || raw0.about)) errors.push(`${where}: у «Хто з нас» не задають answerer чи about`);
     if (q.type === 'guess' && !isAboutOther(q)) errors.push(`${where}: у guess той, хто відповідає, і той, про кого питання, мають бути різними`);
-    // Імен у тексті немає: роль пишемо словами («гравець ліворуч»), тож фігурних дужок бути не може.
+    // Імен у тексті немає: людину пишемо словами («ця людина»), тож фігурних дужок бути не може.
     if (/[{}]/.test(q.text)) errors.push(`${where}: у тексті є «{…}» — імена не підставляються, пиши роль словами`);
     // «Цікаві факти»: відповідь ховається за кнопкою; відповідає сам той, чия черга
     if (q.type === 'quiz') {

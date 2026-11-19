@@ -49,7 +49,7 @@ test('голос браузера: картка сама читає питанн
   await page.getByRole('button', { name: /Почати гру/ }).click();
   await page.getByRole('button', { name: /Граємо!/ }).click();
   await openQuestion(page, 'Вгадай', 'guess', 'gs-04'); // для gs-04 записаної озвучки немає
-  const one = { text: 'Яку суперсилу обрав би гравець ліворуч?', lang: 'uk-UA', voice: 'Lesya' };
+  const one = { text: 'Яку суперсилу обрала б ця людина?', lang: 'uk-UA', voice: 'Lesya' };
   await expect.poll(() => page.evaluate(() => window.__spoken)).toEqual([one]);
   await page.getByRole('button', { name: 'Прослухати питання' }).click(); // дочитав — кнопка знову «Слухати»
   await expect.poll(() => page.evaluate(() => window.__spoken)).toEqual([one, one]);
@@ -72,20 +72,18 @@ test('автоозвучка: вимкнена в налаштуваннях —
   await expect.poll(() => page.evaluate(() => window.__spoken.length)).toBe(1);
 });
 
-test('автоозвучка: де треба вибрати гравця — питання читається лише після вибору, одразу й один раз', async ({ page }) => {
+test('автоозвучка: картка з людиною, яку вибрала гра, — питання читається одразу й один раз (вибору гравця немає з 19.11)', async ({ page }) => {
   await page.addInitScript(fakeVoice);
   await fresh(page);
   await setPlayers(page, ['Оля', 'Тарас', 'Мама']);
   await page.getByRole('switch', { name: 'Голос браузера' }).check();
   await page.getByRole('button', { name: /Почати гру/ }).click();
   await page.getByRole('button', { name: /Граємо!/ }).click();
-  await openQuestion(page, 'Вгадай', 'guess', 'gs-05'); // «Вибери будь-кого…»
+  await openQuestion(page, 'Вгадай', 'guess', 'gs-05'); // about: any — раніше «Вибери будь-кого…» з вибором гравця
+  await expect(page.locator('.chip')).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => window.__spoken.length)).toBe(1);
   await page.waitForTimeout(500);
-  expect(await page.evaluate(() => window.__spoken)).toEqual([]);
-  await page.locator('.chip', { hasText: 'Тарас' }).click();
-  await expect.poll(() => page.evaluate(() => window.__spoken.length), { timeout: 300 }).toBe(1); // без затримки
-  await page.waitForTimeout(500);
-  expect((await page.evaluate(() => window.__spoken)).length).toBe(1);
+  expect(await page.evaluate(() => window.__spoken)).toEqual([{ text: 'Що ця людина робить, коли думає, що ніхто не бачить?', lang: 'uk-UA', voice: 'Lesya' }]);
 });
 
 test('без українського голосу перемикач вимкнений, а кнопки 🔊 немає', async ({ page }) => {

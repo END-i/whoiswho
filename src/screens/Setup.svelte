@@ -71,7 +71,7 @@
 </header>
 
 <section class="panel">
-  <h2>{t('setup.seats')}</h2>
+  <!-- без «Хто де сидить?» і «за годинниковою стрілкою»: місця за столом не важливі, людину на картці вибирає гра (19.11) -->
   <div class="circle" aria-hidden="true">
     <svg viewBox="0 0 100 100" class="ring">
       <defs><marker id="arrowhead" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="tip" /></marker></defs>
@@ -84,7 +84,6 @@
       <span class="seat" style="left:{s.x}%; top:{s.y}%"><Avatar player={s.p} size={players.length > 6 ? 36 : 42} /><b>{s.p.name.trim() || i + 1}</b></span>
     {/each}
   </div>
-  <p class="lead">{t('setup.lead1')} <b>{t('setup.lead2')}</b>{t('setup.lead3')} <b>{t('setup.lead4')}</b> {t('setup.lead5')}</p>
 
   <ol class="players">
     {#each players as p, i (p.id)}
@@ -224,9 +223,7 @@
   .hint { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; font-size: 13px; color: var(--dim); font-weight: 800; }
   .seat { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 2px; transition: left .3s, top .3s; }
   .seat b { font-size: 12px; font-weight: 900; max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--card); padding: 0 6px; border-radius: 8px; }
-  .lead { color: var(--dim); margin: 6px 0 12px; font-size: 14px; font-weight: 700; text-align: center; }
-  .lead b { color: var(--ink); }
-  .players { list-style: none; padding: 0; margin: 0 0 10px; display: flex; flex-direction: column; gap: 8px; }
+  .players { list-style: none; padding: 0; margin: 6px 0 10px; display: flex; flex-direction: column; gap: 8px; }
   li { display: flex; align-items: center; gap: 8px; background: var(--soft); border-radius: 18px; padding: 6px 6px 6px 8px; animation: rise .3s cubic-bezier(.2, 1.4, .4, 1); }
   @keyframes rise { from { transform: scale(.9); opacity: 0; } }
   .no { width: 22px; text-align: center; font-weight: 900; color: var(--dim); font-size: 14px; }
