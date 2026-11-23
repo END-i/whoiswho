@@ -2,11 +2,11 @@ import { test, expect } from './fixtures.js';
 import { startGame, openQuestion, saved } from './helpers.js';
 
 const menu = async (page, item) => { await page.getByRole('button', { name: 'Меню' }).click(); await page.getByRole('button', { name: item }).click(); };
-const correct = (page) => page.getByRole('button', { name: 'Правильно', exact: true }).click();
+const correct = (page) => page.getByRole('button', { name: 'Вгадано', exact: true }).click();
 
 test('нові екрани відкриваються згори, а не прокрученими донизу', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 600 });
-  await startGame(page, ['Оля', 'Тарас', 'Мама', 'Тато', 'Бабуся'], { scoring: true }); // кнопка «Почати» внизу довгої сторінки
+  await startGame(page, ['Оля', 'Тарас', 'Мама', 'Тато', 'Бабуся']); // кнопка «Почати» внизу довгої сторінки
   expect(await page.evaluate(() => scrollY)).toBe(0);
   await page.evaluate(() => scrollTo(0, document.body.scrollHeight));
   await page.locator('.cat').last().click();
@@ -16,9 +16,9 @@ test('нові екрани відкриваються згори, а не пр�
 });
 
 test('нулі в усіх — без п\'єдесталу й переможця', async ({ page }) => {
-  await startGame(page, ['Оля', 'Тарас'], { scoring: true });
+  await startGame(page, ['Оля', 'Тарас']);
   await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
-  await page.getByRole('button', { name: /Неправильно/ }).click();
+  await page.getByRole('button', { name: 'Не вгадано' }).click();
   await menu(page, /Завершити гру/);
   await expect(page.getByText('Ніхто не набрав балів')).toBeVisible();
   await expect(page.getByLabel("П'єдестал")).toHaveCount(0);
@@ -26,7 +26,7 @@ test('нулі в усіх — без п\'єдесталу й переможця
 });
 
 test('нічия на першому місці — обоє на першій сходинці', async ({ page }) => {
-  await startGame(page, ['Оля', 'Тарас', 'Мама'], { scoring: true });
+  await startGame(page, ['Оля', 'Тарас', 'Мама']);
   await openQuestion(page, 'Вгадай', 'guess', 'gs-01'); await correct(page);           // Оля +20
   await openQuestion(page, 'Вгадай', 'guess', 'gs-04'); await correct(page);           // Тарас +20
   await menu(page, /Завершити гру/);
@@ -38,7 +38,7 @@ test('нічия на першому місці — обоє на першій �
 
 test('історія: дві гри → загальний рахунок; незавершена гра теж зберігається; переживає перезавантаження', async ({ page }) => {
   // гра 1: Оля перемагає й гру завершено
-  await startGame(page, ['Оля', 'Тарас'], { scoring: true });
+  await startGame(page, ['Оля', 'Тарас']);
   await openQuestion(page, 'Вгадай', 'guess', 'gs-01'); await correct(page);
   await menu(page, /Завершити гру/);
   await page.getByRole('button', { name: /Нова гра/ }).click();
@@ -79,7 +79,7 @@ test('підсумок: «📤 Поділитися» — картинка PNG �
     navigator.canShare = () => true;
     navigator.share = async ({ files }) => { const f = files[0]; window.__shared.push({ name: f.name, type: f.type, size: f.size }); };
   });
-  await startGame(page, ['Оля', 'Тарас'], { scoring: true });
+  await startGame(page, ['Оля', 'Тарас']);
   await openQuestion(page, 'Вгадай', 'guess', 'gs-01'); await correct(page);
   await menu(page, /Завершити гру/);
   await page.getByRole('button', { name: '📤 Поділитися' }).click();

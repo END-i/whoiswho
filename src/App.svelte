@@ -27,7 +27,7 @@
   import { playSfx } from './lib/sfx.js';
   import { t, setLang } from './lib/lang.svelte.js';
   import { cleanLang } from './lib/i18n.js';
-  import { modeRules } from './lib/rules.js';
+  import { cleanDesign } from './lib/designs.js';
   import { loadRuFiles } from './ru-packs.js';
 
   // Набори питань читаються один раз під час старту: кожен файл у src/data/packs — окремий набір,
@@ -70,7 +70,7 @@
   })();
 
   let players = $state(init.players);
-  let settings = $state({ lang: cleanLang(saved.settings?.lang), pack: packOf(saved.settings?.pack), audience: saved.settings?.audience === 'kids' ? 'kids' : 'family', scoring: saved.settings?.scoring ?? true, voice: !!saved.settings?.voice, sounds: saved.settings?.sounds ?? true, autoRead: saved.settings?.autoRead !== false, offline: saved.settings?.offline === true, mode: saved.settings?.mode === 'wheel' ? 'wheel' : 'tiles' });
+  let settings = $state({ lang: cleanLang(saved.settings?.lang), pack: packOf(saved.settings?.pack), audience: saved.settings?.audience === 'kids' ? 'kids' : 'family', design: cleanDesign(saved.settings?.design), voice: !!saved.settings?.voice, sounds: saved.settings?.sounds ?? true, autoRead: saved.settings?.autoRead !== false, offline: saved.settings?.offline === true, mode: saved.settings?.mode === 'wheel' ? 'wheel' : 'tiles' });
   // набори, правила яких уже показували (раніше — просто true для сімейного)
   setLang(cleanLang(saved.settings?.lang));
   $effect(() => setLang(settings.lang));
@@ -205,13 +205,13 @@
     if (!game) {
       const pack = settings.pack, audience = packs[pack].meta.pack.kids ? settings.audience : 'family';
       game = newGame({
-        players: players.map((p) => ({ id: p.id, name: p.name.trim() })), pack, audience, scoring: settings.scoring,
+        players: players.map((p) => ({ id: p.id, name: p.name.trim() })), pack, audience,
         questions: gameQuestions(pack, audience), prevDeck: lastDeck,
       });
       lastDeck = game.deck;
       screen = rulesSeen.includes(pack) ? 'categories' : 'rules';
     } else {
-      game = { ...updatePlayers(game, players, names), scoring: settings.scoring };
+      game = updatePlayers(game, players, names);
       screen = catId ? 'grid' : 'categories';
     }
   }
@@ -286,7 +286,7 @@
     <Setup bind:players bind:settings packs={packOrder.map((id) => packs[id].meta.pack)} gamePack={game?.pack} inGame={!!game} onstart={start} historyCount={history.length} onhistory={openHistory} showInstall={installKind !== 'installed'} oninstall={openInstall} onabout={openAbout} voiceAvailable={!!voice} audioCount={audioIds.size} wakeLock={wakeSupported()}
       audioFull={audioFull} audio={{ total: audioTotal, done: audioDone, busy: audioBusy, mb: audioMb, fetch: fetchAudio, remove: removeAudio }} />
   {:else if screen === 'rules'}
-    <Rules rules={modeRules(data.meta.rules, settings.mode, t('rules.wheelPick'))} again={!!rulesFrom}
+    <Rules rules={data.meta.rules} again={!!rulesFrom}
       onok={() => { if (!rulesSeen.includes(game.pack)) rulesSeen = [...rulesSeen, game.pack]; screen = rulesFrom || 'categories'; rulesFrom = null; }} />
   {:else if screen === 'summary'}
     <Summary {game} {players} {names} onnew={newGameAsk} onhistory={openHistory} />
@@ -301,7 +301,7 @@
       big={screen !== 'grid'} back={screen === 'grid' ? () => { catId = null; pending = null; screen = 'categories'; } : null} />
     {#if screen === 'grid' && category}
       <Grid {category} index={data.categories.indexOf(category)} {game} players={orderPlayers} {byId} roleNames={data.meta.pack.roleNames}
-        scoringCategories={data.meta.scoringCategories} {sound} bind:selected bind:pending onfinish={finish} />
+        design={settings.design} {sound} bind:selected bind:pending onfinish={finish} />
     {:else}
       <Categories categories={data.categories} {game} mode={settings.mode} sounds={settings.sounds} onmode={(m) => (settings.mode = m)}
         onpick={(id) => { catId = id; screen = 'grid'; }} onrandom={openRandom} onwheel={openWheel} />

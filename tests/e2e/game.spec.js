@@ -15,7 +15,7 @@ test('фільтр «Лише діти» додає дитячі питання'
   await expect(category(page, 'Якби…')).toHaveAttribute('aria-label', `Якби…. Залишилось ${count('ifwhat', true)}`);
 });
 
-test('карта: відкривається, після «Далі» — хід наступному, він бачить категорії згори; карта затемнена, лічильник менший', async ({ page }) => {
+test('карта: відкривається, після «Є відповідь» — хід наступному, він бачить категорії згори; карта затемнена, лічильник менший', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 600 });
   await startGame(page);
   const all = count('open');
@@ -24,7 +24,7 @@ test('карта: відкривається, після «Далі» — хід
   const n = await openQuestion(page, 'Відкрийся', 'open', 'op-04');
   await expect(page.locator('.q')).toHaveText(byId.get('op-04').text);
   await page.evaluate(() => scrollTo(0, document.body.scrollHeight));
-  await page.getByRole('button', { name: /Далі/ }).click();
+  await page.getByRole('button', { name: /Є відповідь/ }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Вибери категорію' })).toBeVisible();
   expect(await page.evaluate(() => scrollY)).toBe(0);
@@ -54,14 +54,14 @@ test('«Відкрийся» з іншим, хто відповідає: люд�
   await expect(card.locator('.who').nth(1)).toContainText(/Тарас|Мама|Тато/);
 });
 
-test('«Вгадай»: про кого — будь-хто з інших, вибирає гра; після перезавантаження — та сама людина (19.11)', async ({ page }) => {
+test('«Вгадай»: про кого — будь-хто з інших, вибирає гра (без підпису «вибрала гра», 23.11); після перезавантаження — та сама людина', async ({ page }) => {
   await startGame(page);
   await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
   const card = page.getByRole('dialog');
   await expect(card.locator('.who').nth(0)).toContainText('Оля');
   await expect(card.locator('.who').nth(0)).toContainText('твоя черга');
   const about = card.locator('.who').nth(1);
-  await expect(about).toContainText('вибрала гра');
+  await expect(about).not.toContainText('вибрала гра');
   const name = (await about.locator('b').textContent()).trim();
   expect(['Тарас', 'Мама', 'Тато']).toContain(name);
   await expect(card.locator('.q')).toHaveText('Що ця людина любить їсти найбільше?');
@@ -77,7 +77,7 @@ test('«Що про тебе знають»: питання про «цю люд
   await expect(card.getByText('Чим ця людина займається, коли нудно?')).toBeVisible();
   await expect(card.locator('.who').nth(0)).toContainText('Відповідає');
   await expect(card.locator('.who').nth(0)).toContainText(/Тарас|Мама|Тато/);
-  await expect(card.locator('.who').nth(0)).toContainText('вибрала гра');
+  await expect(card.locator('.who').nth(0)).not.toContainText('вибрала гра');
   await expect(card.locator('.who').nth(1)).toContainText('Про кого');
   await expect(card.locator('.who').nth(1)).toContainText('Оля');
   await expect(card.locator('.who').nth(1)).toContainText('твоя черга');
@@ -99,15 +99,6 @@ test('удвох вибору немає — другий гравець під�
   await expect(page.getByRole('dialog').locator('.who').nth(1)).toContainText('Тарас');
 });
 
-test('«Хто з нас?» без балів: без ролей, кнопка «Далі»', async ({ page }) => {
-  await startGame(page);
-  await openQuestion(page, 'Хто з нас?', 'who', 'wh-02');
-  await expect(page.getByText(/Усі разом/)).toBeVisible();
-  await expect(page.getByRole('dialog').locator('.who')).toHaveCount(0);
-  await page.getByRole('button', { name: /Далі/ }).click();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
-});
-
 test('підказка для дорослих розгортається', async ({ page }) => {
   await startGame(page);
   await openQuestion(page, 'Вгадай', 'guess', 'gs-02');
@@ -117,16 +108,16 @@ test('підказка для дорослих розгортається', asyn
   await expect(page.getByText(byId.get('gs-02').tip)).toBeVisible();
 });
 
-test('бали: «Правильно» дає +20 тому, хто відповідав; «Неправильно» — нікому; підсумок з п\'єдесталом', async ({ page }) => {
-  await startGame(page, ['Оля', 'Тарас', 'Мама'], { scoring: true });
+test('бали: «Вгадано» дає +20 тому, хто відповідав; «Не вгадано» — нікому; підсумок з п\'єдесталом', async ({ page }) => {
+  await startGame(page, ['Оля', 'Тарас', 'Мама']);
   await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
   await expect(page.getByText('⭐ +20')).toBeVisible();
-  await page.getByRole('button', { name: /Правильно/ }).click();
+  await page.getByRole('button', { name: 'Вгадано', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('+20 — Оля');
   expect((await saved(page)).game.scores[(await saved(page)).game.order[0]]).toBe(20);
   // Тарас вгадує й помиляється
   await openQuestion(page, 'Вгадай', 'guess', 'gs-04');
-  await page.getByRole('button', { name: 'Неправильно' }).click();
+  await page.getByRole('button', { name: 'Не вгадано' }).click();
   await page.getByRole('button', { name: 'Бали', exact: true }).click();
   await expect(page.locator('.scores li').first()).toContainText('Оля');
   await expect(page.locator('.scores li').first()).toContainText('20');
@@ -136,21 +127,6 @@ test('бали: «Правильно» дає +20 тому, хто відпов�
   await expect(page.getByRole('heading', { name: 'Гра завершена!' })).toBeVisible();
   await expect(page.getByLabel("П'єдестал")).toContainText('Оля');
   await expect(page.locator('.stats')).toContainText('2');
-});
-
-test('без режиму балів кнопок «Правильно» немає і підсумок без переможців', async ({ page }) => {
-  await startGame(page);
-  await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
-  await expect(page.getByRole('button', { name: /Правильно/ })).toHaveCount(0);
-  await expect(page.locator('.board')).toHaveCount(0);
-  await page.getByRole('button', { name: /Далі/ }).click();
-  await page.getByRole('button', { name: 'Меню' }).click();
-  await page.getByRole('button', { name: /Завершити гру/ }).click();
-  await expect(page.getByText('Тут немає переможців')).toBeVisible();
-  // завершену гру продовжити не можна — лише історія або нова гра
-  await expect(page.getByRole('button', { name: /Продовжити/ })).toHaveCount(0);
-  await page.reload();
-  await expect(page.getByRole('heading', { name: 'Гра завершена!' })).toBeVisible();
 });
 
 test('вичерпана категорія стає «пройдено» і не відкривається', async ({ page }) => {
@@ -172,16 +148,11 @@ test('вичерпана категорія стає «пройдено» і н�
   await expect(category(page, 'Покажи!').locator('.left')).toHaveText('✓');
 });
 
-test('режим з балами увімкнений за замовчуванням', async ({ page }) => {
-  await fresh(page);
-  await expect(page.getByRole('switch', { name: /Режим з балами/ })).toBeChecked();
-});
-
 const board = (page) => page.locator('.board');
 const pts = (page, k) => board(page).locator('.pl').nth(k).locator('.pts');
 
 test('таблиця балів видна під час гри й оновлюється одразу; тап відкриває повну', async ({ page }) => {
-  await startGame(page, ['Оля', 'Тарас', 'Мама'], { scoring: true });
+  await startGame(page, ['Оля', 'Тарас', 'Мама']);
   await expect(board(page).locator('.pl')).toHaveCount(3);
   await expect(board(page).locator('.pl.now')).toHaveCount(1);
   await openQuestion(page, 'Відкрийся', 'open', 'op-02');
@@ -195,12 +166,12 @@ test('таблиця балів видна під час гри й оновлю�
 });
 
 test('бали за сміливість: відповів на відкрите — +10, у сміливій категорії — 30, 40 чи 50 (видно до відповіді); ніхто не оцінює; пропуск — 0', async ({ page }) => {
-  await startGame(page, ['Оля', 'Тарас'], { scoring: true });
+  await startGame(page, ['Оля', 'Тарас']);
   await openQuestion(page, 'Якби…', 'ifwhat', 'if-13'); // «Вигадай нове свято…»
   const card = page.getByRole('dialog');
   await expect(card.getByText('⭐ +10')).toBeVisible();
   await expect(card.locator('.check')).toHaveText('Оля — є відповідь? За відповідь — бали.');
-  await expect(card.getByRole('button', { name: /Правильно/ })).toHaveCount(0);
+  await expect(card.getByRole('button', { name: /Вгадано|Правильно/ })).toHaveCount(0);
   await card.getByRole('button', { name: '✅ Є відповідь · +10' }).click();
   await expect(page.getByRole('status')).toContainText('+10 — Оля');
   await expect(pts(page, 0)).toHaveText('10');
@@ -209,7 +180,7 @@ test('бали за сміливість: відповів на відкрите
   await openQuestion(page, 'Покажи!', 'show', 'sh-01');
   const brave = await braveOf(page, 'sh-01');
   expect([30, 40, 50]).toContain(brave);
-  await expect(page.getByRole('dialog').locator('.badge.pts')).toHaveText(`⭐ +${brave}`);
+  await expect(page.getByRole('dialog').locator('.pts')).toHaveText(`⭐ +${brave}`);
   await expect(page.locator('.check')).toHaveText(`Тарас — є відповідь? 💪 Смілива категорія: +${brave}.`);
   await page.getByRole('button', { name: `✅ Є відповідь · +${brave}` }).click();
   await expect(page.getByRole('status')).toContainText(`+${brave} — Тарас`);
@@ -220,14 +191,14 @@ test('бали за сміливість: відповів на відкрите
 });
 
 test('удвох у відкритому питанні з вибором гравця: «Питає Оля → Відповідає Тарас», бали Тарасу', async ({ page }) => {
-  await startGame(page, ['Оля', 'Тарас'], { scoring: true });
+  await startGame(page, ['Оля', 'Тарас']);
   await openQuestion(page, 'Відкрийся', 'open', 'op-25'); // «Чим ти найбільше пишаєшся цього року?», answerer: pick
   const card = page.getByRole('dialog');
   await expect(card.locator('.who').nth(0)).toContainText('Питає');
   await expect(card.locator('.who').nth(0)).toContainText('Оля');
   await expect(card.locator('.who').nth(1)).toContainText('Відповідає');
   await expect(card.locator('.who').nth(1)).toContainText('Тарас');
-  await expect(card.locator('.instead')).toHaveText('Тарас відповідає про себе — бали теж йому.');
+  await expect(card.locator('.instead')).toHaveText('Відповідь — про себе. Бали отримує Тарас.');
   const brave = await braveOf(page, 'op-25');
   await card.getByRole('button', { name: `✅ Є відповідь · +${brave}` }).click();
   await expect(pts(page, 1)).toHaveText(String(brave));
@@ -235,7 +206,7 @@ test('удвох у відкритому питанні з вибором гра
 });
 
 test('«Хто з нас?» з балами: той, чия черга, потай вгадує, на кого покажуть; вгадав — +20 йому, ні — нікому', async ({ page }) => {
-  await startGame(page, ['Оля', 'Тарас', 'Мама'], { scoring: true });
+  await startGame(page, ['Оля', 'Тарас', 'Мама']);
   await openQuestion(page, 'Хто з нас?', 'who', 'wh-01');
   const card = page.getByRole('dialog');
   await expect(card.locator('.check')).toHaveText('Оля, на кого покажуть? Вибери потай:');
@@ -243,7 +214,7 @@ test('«Хто з нас?» з балами: той, чия черга, пота
   await card.locator('.chip', { hasText: 'Мама' }).click();
   await expect(card.getByText('🤫 Прогноз є')).toBeVisible();
   await card.getByRole('button', { name: /Показали/ }).click();
-  await expect(card.locator('.check')).toContainText('Прогноз Оля: Мама. Більшість показала саме так?');
+  await expect(card.locator('.check')).toContainText('Прогноз — Мама. Більшість показала саме так?');
   await card.getByRole('button', { name: 'Вгадано', exact: true }).click();
   await expect(pts(page, 0)).toHaveText('20'); // бали тому, чия черга, а не Мамі
   await expect(pts(page, 2)).toHaveText('0');
@@ -257,18 +228,8 @@ test('«Хто з нас?» з балами: той, чия черга, пота
   expect(s.game.stats.answered).toBe(2);
 });
 
-test('режим з балами можна ввімкнути посеред гри', async ({ page }) => {
-  await startGame(page, ['Оля', 'Тарас'], { scoring: false });
-  await expect(board(page)).toHaveCount(0);
-  await page.getByRole('button', { name: 'Меню' }).click();
-  await page.getByRole('button', { name: /Гравці й налаштування/ }).click();
-  await page.getByRole('switch', { name: /Режим з балами/ }).check();
-  await page.getByRole('button', { name: /Повернутися до гри/ }).click();
-  await expect(board(page)).toBeVisible();
-});
-
 test('«Цікаві факти» з балами: спершу «Відповідь сказано», лише потім видно правильну, тоді «Вгадано» — бал тому, чия черга', async ({ page }) => {
-  await startGame(page, ['Оля', 'Тарас'], { scoring: true });
+  await startGame(page, ['Оля', 'Тарас']);
   await openQuestion(page, 'Цікаві факти', 'facts', 'fc-01');
   const card = page.getByRole('dialog');
   await expect(card.getByText('Чи справді страус ховає голову в пісок, коли боїться?')).toBeVisible();
@@ -287,28 +248,17 @@ test('«Цікаві факти» з балами: спершу «Відпові
   expect((await saved(page)).game.scores[(await saved(page)).game.order[0]]).toBe(20);
 });
 
-test('«Цікаві факти» без балів: після відповіді — «Далі»; пропустити можна й до відповіді', async ({ page }) => {
-  await startGame(page, ['Оля', 'Тарас']);
-  await openQuestion(page, 'Цікаві факти', 'facts', 'fc-03');
-  await page.getByRole('button', { name: /Показати відповідь/ }).click();
-  await expect(page.getByRole('dialog').getByRole('status')).toHaveText(/Вісім/);
-  await page.getByRole('button', { name: /Далі/ }).click();
-  await openQuestion(page, 'Цікаві факти', 'facts', 'fc-07');
-  await page.getByRole('button', { name: /Пропустити/ }).click();
-  expect((await saved(page)).game.stats).toEqual({ answered: 1, skipped: 1 });
-});
-
 test('«↩ Скасувати»: натиснули не ту кнопку — бал, хід і картка повертаються, картка знову відкрита', async ({ page }) => {
-  await startGame(page, ['Оля', 'Тарас'], { scoring: true });
+  await startGame(page, ['Оля', 'Тарас']);
   const n = await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
-  await page.getByRole('button', { name: 'Правильно', exact: true }).click();
+  await page.getByRole('button', { name: 'Вгадано', exact: true }).click();
   await expect(pts(page, 0)).toHaveText('20');
   expect(await turnName(page)).toBe('Тарас');
   await page.getByRole('button', { name: '↩ Скасувати' }).click();
   await expect(page.getByRole('dialog', { name: `Картка ${n}` })).toBeVisible();
   await expect(pts(page, 0)).toHaveText('0');
   expect(await turnName(page)).toBe('Оля');
-  await page.getByRole('button', { name: 'Неправильно' }).click();
+  await page.getByRole('button', { name: 'Не вгадано' }).click();
   await expect(page.getByRole('status')).toContainText('Без балів — Оля');
   await expect(pts(page, 0)).toHaveText('0');
   const s = await saved(page);
@@ -331,7 +281,7 @@ test('«↩ Скасувати» після пропуску теж є; післ
 
 
 test('серія: третя відповідь з балами поспіль — ще +10, видно в повідомленні', async ({ page }) => {
-  await startGame(page, ['Оля', 'Тарас'], { scoring: true });
+  await startGame(page, ['Оля', 'Тарас']);
   // Оля відповідає тричі (через хід Тараса з пропуском серія Олі не рветься)
   for (const [k, id] of [['if-01', 'Оля'], ['if-02', 'Тарас'], ['if-03', 'Оля'], ['if-04', 'Тарас'], ['if-05', 'Оля']].entries()) {
     const [qid, who] = id;
@@ -346,4 +296,23 @@ test('серія: третя відповідь з балами поспіль �
   await page.getByRole('button', { name: '↩ Скасувати' }).click();
   await page.getByRole('button', { name: /Пропустити/ }).click();
   await expect(pts(page, 0)).toHaveText('20');
+});
+
+test('бали — завжди (23.11): перемикача немає, таблиця балів видна з першого ходу, «Хто з нас?» — з прогнозом', async ({ page }) => {
+  await fresh(page);
+  await expect(page.getByRole('switch', { name: /Режим з балами/ })).toHaveCount(0);
+  await startGame(page, ['Оля', 'Тарас']);
+  await expect(page.locator('.board')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Бали', exact: true })).toBeVisible();
+  await openQuestion(page, 'Хто з нас?', 'who', 'wh-02');
+  await expect(page.getByText(/Усі разом/)).toBeVisible();
+  await expect(page.getByRole('dialog').locator('.chip')).toHaveCount(2);
+  await expect(page.getByRole('button', { name: /Далі/ })).toHaveCount(0);
+});
+
+test('«Цікаві факти»: пропустити можна й до відповіді', async ({ page }) => {
+  await startGame(page, ['Оля', 'Тарас']);
+  await openQuestion(page, 'Цікаві факти', 'facts', 'fc-07');
+  await page.getByRole('button', { name: /Пропустити/ }).click();
+  expect((await saved(page)).game.stats).toEqual({ answered: 0, skipped: 1 });
 });

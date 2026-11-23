@@ -2,11 +2,11 @@
 // Ділимось через меню телефона (Web Share API з файлом), а де його немає — завантажуємо PNG.
 
 /** Рядки картинки: заголовок, місця з медалями й балами, підпис. rows — [{ name, score, place }] з rank(). */
-export function shareLines(rows, { title, footer, scoring = true }) {
+export function shareLines(rows, { title, footer }) {
   const MEDAL = { 1: '🥇', 2: '🥈', 3: '🥉' };
   return [
     { kind: 'title', text: title },
-    ...rows.slice(0, 8).map((r) => ({ kind: 'row', text: `${MEDAL[r.place] || `${r.place}.`} ${r.name}`, score: scoring ? String(r.score) : '' })),
+    ...rows.slice(0, 8).map((r) => ({ kind: 'row', text: `${MEDAL[r.place] || `${r.place}.`} ${r.name}`, score: String(r.score) })),
     { kind: 'footer', text: footer },
   ];
 }

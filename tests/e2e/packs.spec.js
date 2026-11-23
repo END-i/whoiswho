@@ -21,7 +21,7 @@ test('«Для пар»: рівно двоє; з трьома — пояснен
   await page.getByRole('button', { name: 'Прибрати гравця 3' }).click();
   await expect(page.getByRole('button', { name: /Почати гру/ })).toBeEnabled();
   await page.getByRole('button', { name: /Почати гру/ }).click();
-  await expect(page.getByText('Грають двоє. Телефон передаєте одне одному по черзі.')).toBeVisible();
+  await expect(page.getByText('Грають двоє: передавайте телефон одне одному й відповідайте на картки.')).toBeVisible();
   await page.getByRole('button', { name: /Граємо!/ }).click();
   await expect(category(page, 'Вгадай мене')).toBeVisible();
   await expect(category(page, 'Хто з нас двох?')).toBeVisible();
@@ -78,7 +78,7 @@ test('18+: без підтвердження «усім є 18» набір не 
   expect(asked).toHaveLength(3);
   answers.push(true);
   await page.getByRole('button', { name: /Почати гру/ }).click();
-  await expect(page.getByText('Будь-яку картку можна пропустити без пояснень. Вгадав — +20, відповів — +10, на сміливе — від +30 до +50; з третьої відповіді поспіль — ще +10.')).toBeVisible();
+  await expect(page.getByText('Лише для дорослих. Передавайте телефон по черзі й відповідайте на картки.')).toBeVisible();
   await page.getByRole('button', { name: /Граємо!/ }).click();
   await expect(page.locator('.cat .title')).toHaveText(['Зізнання', 'Побачення', 'Флірт', 'Хто з нас?', 'Вгадай', 'Бажання', 'Сміливо']);
   expect((await saved(page)).game.pack).toBe('adults');

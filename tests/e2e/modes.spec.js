@@ -37,7 +37,7 @@ test('«🎲 Випадкове»: одним дотиком відкриває�
   await expect(page.getByRole('heading', { name: 'Гра завершена!' })).toBeVisible();
 });
 
-test('«🎡 Навмання»: підписаний перемикач на екрані категорій, вибір памʼятається й видно в налаштуваннях; правило — про колесо', async ({ page }) => {
+test('«🎡 Навмання»: підписаний перемикач на екрані категорій, вибір памʼятається й видно в налаштуваннях', async ({ page }) => {
   await startGame(page, ['Оля', 'Тарас']);
   const auto = page.getByRole('switch', { name: 'Навмання' });
   await expect(auto).not.toBeChecked();
@@ -94,18 +94,18 @@ test('колесо: відкривається карта саме тієї ка
   }
 });
 
-test('правила під режим: вручну — «вибери категорію», «Навмання» — «крутни колесо»', async ({ page }) => {
+test('правила — одне речення, однакове для плиток і колеса; пояснення — під ⓘ на картці (варіант C, 23.11)', async ({ page }) => {
   await startGame(page, ['Оля', 'Тарас']);
   const rules = async () => {
     await page.getByRole('button', { name: 'Меню' }).click();
     await page.getByRole('button', { name: /Правила/ }).click();
-    const text = await page.locator('.flow').innerText();
+    const text = await page.locator('.wrap').innerText();
     await page.getByRole('button', { name: /До гри|Назад|Повернутися/ }).first().click();
     return text;
   };
-  expect(await rules()).toContain('Твоя черга — вибери категорію й будь-яку карту.');
+  const tiles = await rules();
+  expect(tiles).toContain('Передавайте телефон по черзі й відповідайте на картки.');
+  expect(tiles).toContain('Пояснення — під ⓘ на картці.');
   await page.getByRole('switch', { name: 'Навмання' }).check();
-  const wheel = await rules();
-  expect(wheel).toContain('Твоя черга — крутни колесо: категорію й карту вибере гра.');
-  expect(wheel).not.toContain('вибери категорію');
+  expect(await rules()).toBe(tiles);
 });

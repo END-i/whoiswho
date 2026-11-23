@@ -2,7 +2,7 @@ import { test, expect } from './fixtures.js';
 import { startGame, category, openCard, openQuestion, numberOf, saved, turnName } from './helpers.js';
 
 test('перезавантаження посеред гри: той самий екран, хід, використані карти й відкрита картка', async ({ page }) => {
-  await startGame(page, ['Оля', 'Тарас', 'Мама'], { scoring: true });
+  await startGame(page, ['Оля', 'Тарас', 'Мама']);
   const a = await openQuestion(page, 'Відкрийся', 'open', 'op-02');
   await page.getByRole('button', { name: /✅ Є відповідь · \+[345]0/ }).click();
   const b = await openQuestion(page, 'Відкрийся', 'open', 'op-03');
@@ -31,10 +31,10 @@ test('нова гра: жодне питання не отримує свій н
 });
 
 test('гравця прибрали посеред гри: хід переходить далі, а його бали лишаються в підсумку', async ({ page }) => {
-  await startGame(page, ['Оля', 'Тарас', 'Мама'], { scoring: true });
+  await startGame(page, ['Оля', 'Тарас', 'Мама']);
   // Олі нараховуємо бал і передаємо хід Тарасові
   await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
-  await page.getByRole('button', { name: /Правильно/ }).click();
+  await page.getByRole('button', { name: 'Вгадано', exact: true }).click();
   expect(await turnName(page)).toBe('Тарас');
   await page.getByRole('button', { name: 'Меню' }).click();
   await page.getByRole('button', { name: /Гравці й налаштування/ }).click();

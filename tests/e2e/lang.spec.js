@@ -40,7 +40,7 @@ test('гра російською: категорії й питання росі
   await lang(page, 'Русский').click();
   await setPlayers(page, ['Оля', 'Тарас']);
   await page.getByRole('button', { name: /Начать игру/ }).click();
-  await expect(page.getByText('Телефон передаём по очереди — наверху видно, чей ход.')).toBeVisible();
+  await expect(page.getByText('Передавайте телефон по очереди и отвечайте на карточки.')).toBeVisible();
   await page.getByRole('button', { name: /Играем!/ }).click();
   await expect(page.locator('.cat .title').first()).toHaveText('Угадай');
   const s = await page.evaluate(() => JSON.parse(localStorage.getItem('whoiswho.v2')));
@@ -49,7 +49,7 @@ test('гра російською: категорії й питання росі
   await page.getByRole('button', { name: `Карта ${s.game.deck.guess.indexOf('gs-01') + 1}`, exact: true }).click();
   const card = page.getByRole('dialog');
   await expect(card.getByText('Что этот человек любит есть больше всего?')).toBeVisible();
-  await expect(card.locator('.who').nth(1)).toContainText('выбрала игра');
+  await expect(card.locator('.who').nth(1)).not.toContainText('выбрала игра'); // підпис прибрано 23.11
   // картка читає сама — файл з audio/ru
   await expect.poll(() => hits).toContain('/audio/ru/gs-01.mp3');
   await expect(card.getByRole('button', { name: /Прослушать вопрос|Остановить озвучку/ })).toBeVisible();
@@ -71,7 +71,7 @@ test('історія російською: дата гри — російськ�
   // порожню гру історія не записує — зіграємо одну карту (gs-01: відповідає той, чия черга)
   await page.locator('.cat').first().click();
   await page.getByRole('button', { name: `Карта ${await numberOf(page, 'guess', 'gs-01')}`, exact: true }).click();
-  await page.getByRole('button', { name: /Правильно/ }).click();
+  await page.getByRole('button', { name: 'Угадано', exact: true }).click();
   await page.getByRole('button', { name: 'Меню' }).click();
   await page.getByRole('button', { name: /Завершить игру/ }).click();
   await page.getByRole('button', { name: /История/ }).click();

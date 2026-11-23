@@ -106,12 +106,13 @@ export function buildDeck(questions, prevDeck = null, rand = Math.random) {
 
 // ---------- гра ----------
 
-export function newGame({ players, pack = 'family', audience = 'family', scoring = false, questions, prevDeck = null, rand = Math.random }) {
+// Бали — завжди (власник 23.11: «бали — дуже гарна річ, не треба давати прибирати»); scoring лишається в стані для історії.
+export function newGame({ players, pack = 'family', audience = 'family', questions, prevDeck = null, rand = Math.random }) {
   return {
     version: VERSION, points: POINT_SCALE,
     seed: Math.floor(rand() * 2 ** 31), // для балів сміливих питань і того, кого вибирає гра (роль any)
     order: players.map((p) => p.id),
-    pack, audience, scoring, turn: 0,
+    pack, audience, scoring: true, turn: 0,
     deck: buildDeck(questions, prevDeck, rand),
     used: {},
     scores: Object.fromEntries(players.map((p) => [p.id, 0])),
@@ -263,7 +264,8 @@ export function restoreGame(saved, questionIds, players) {
   }
   const turn = Number.isInteger(g.turn) && g.turn >= 0 && g.turn < g.order.length ? g.turn : 0;
   return {
-    version: VERSION, order: g.order, pack: typeof g.pack === 'string' ? g.pack : 'family', audience: g.audience === 'kids' ? 'kids' : 'family', scoring: !!g.scoring,
+    version: VERSION, order: g.order, pack: typeof g.pack === 'string' ? g.pack : 'family', audience: g.audience === 'kids' ? 'kids' : 'family',
+    scoring: true, // гра без балів, збережена до 1.11.0, продовжується з балами
     // гра, почата до 1.7.0: 1 бал тоді — 20 тепер
     turn, deck, used, scores: g.points === POINT_SCALE ? { ...g.scores } : Object.fromEntries(Object.entries(g.scores).map(([k, v]) => [k, (+v || 0) * OLD_POINT])),
     gone: { ...(g.gone || {}) }, points: POINT_SCALE,

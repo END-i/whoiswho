@@ -31,10 +31,10 @@ export async function setPlayers(page, names) {
 }
 
 /** Від чистого старту до екрана категорій. */
-export async function startGame(page, names = ['Оля', 'Тарас', 'Мама', 'Тато'], { scoring = false, kids = false } = {}) {
+// бали — завжди (1.11.0), перемикача немає
+export async function startGame(page, names = ['Оля', 'Тарас', 'Мама', 'Тато'], { kids = false } = {}) {
   await fresh(page);
   await setPlayers(page, names);
-  await page.getByRole('switch', { name: /Режим з балами/ }).setChecked(scoring); // режим з балами за замовчуванням увімкнений
   if (kids) await page.getByRole('radio', { name: /Лише діти/ }).click();
   await page.getByRole('button', { name: /Почати гру/ }).click();
   await page.getByRole('button', { name: /Граємо!/ }).click();
@@ -69,3 +69,25 @@ export const turnName = (page) => page.locator('.bar .txt b').innerText();
 
 /** Бали сміливого питання в поточній грі (30, 40 чи 50 — від зерна гри). */
 export const braveOf = async (page, qid) => bravePoints((await saved(page)).game.seed, qid);
+
+/** Перевести дизайн картки (lib/designs.js) через збереження й перезавантажити сторінку. */
+export async function setDesign(page, design) {
+  const s = await saved(page); s.settings.design = design;
+  await page.evaluate(([k, v]) => localStorage.setItem(k, JSON.stringify(v)), [KEY, s]);
+  await page.reload();
+}
+
+/** Колір тексту, фон під ним (перший непрозорий предок) — #rrggbb — і розмір/жирність шрифту. */
+export const look = (loc) => loc.evaluate((el) => {
+  const g = document.createElement('canvas').getContext('2d');
+  const hex = (v) => {
+    const m = v.match(/color\(srgb ([\d.]+) ([\d.]+) ([\d.]+)/); // так браузер повертає color-mix
+    if (m) return '#' + m.slice(1, 4).map((x) => Math.round(+x * 255).toString(16).padStart(2, '0')).join('');
+    g.fillStyle = '#000'; g.fillStyle = v; return g.fillStyle;
+  };
+  // напівпрозорий фон (плашка rgba(…, .25)) не рахуємо — дивимось далі вгору, на справжній
+  const opaque = (v) => /^rgb\(/.test(v) || (/^color\(srgb/.test(v) && !/ \/ /.test(v));
+  let b = el; while (b && !opaque(getComputedStyle(b).backgroundColor)) b = b.parentElement;
+  const cs = getComputedStyle(el);
+  return { fg: hex(cs.color), bg: hex(b ? getComputedStyle(b).backgroundColor : '#ffffff'), size: parseFloat(cs.fontSize), weight: +cs.fontWeight };
+});

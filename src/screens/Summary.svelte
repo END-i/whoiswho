@@ -43,7 +43,7 @@
     sharing = true;
     await document.fonts?.ready;
     const date = new Date().toLocaleDateString(LOCALES[i18n.lang], { day: 'numeric', month: 'long' });
-    const lines = shareLines(ranked.map((r) => ({ name: r.p.name, score: r.score, place: r.place })), { title: t('app.title'), footer: date, scoring: game.scoring });
+    const lines = shareLines(ranked.map((r) => ({ name: r.p.name, score: r.score, place: r.place })), { title: t('app.title'), footer: date });
     const canvas = drawShare(lines);
     const blob = await new Promise((ok) => canvas.toBlob(ok, 'image/png'));
     await shareImage(blob, 'whoiswho.png');
@@ -56,7 +56,7 @@
 <header>
   <span class="big" aria-hidden="true">{won.length ? '🎉' : '🤝'}</span>
   <h1>{t('summary.title')}</h1>
-  {#if game.scoring && won.length > 1}<p class="sub">{t('summary.tie', { names: won.map((w) => w.p.name).join(', ') })}</p>{/if}
+  {#if won.length > 1}<p class="sub">{t('summary.tie', { names: won.map((w) => w.p.name).join(', ') })}</p>{/if}
 </header>
 
 <div class="stats">
@@ -65,31 +65,27 @@
   <div style="--c:#E66E18"><b>{total}</b><span>{t('summary.cards', { n: total })}</span></div>
 </div>
 
-{#if game.scoring}
-  {#if steps.length}
-    <div class="podium" aria-label={t('summary.podium')}>
-      {#each order as g (g.place)}
-        <div class="step s{g.place}">
-          <div class="faces">{#each g.players as e (e.id)}<Avatar player={e.p} size={g.place === 1 ? 64 : 50} ring={g.place === 1} />{/each}</div>
-          <b>{g.players.map((e) => e.p.name).join(', ')}</b>
-          <div class="block"><span>{MEDAL[g.place]}</span><strong>{g.players[0].score}</strong></div>
-        </div>
-      {/each}
-    </div>
-  {:else}
-    <p class="msg">{t('summary.zero')}</p>
-  {/if}
-  <ol class="table">
-    {#each ranked as row (row.id)}
-      <li class:gone={row.gone}>
-        <span class="place">{row.place}</span><Avatar player={row.p} size={40} />
-        <span class="name">{row.p.name}{#if row.gone} <small>{t('summary.gone')}</small>{/if}</span><b>{row.score}</b>
-      </li>
+{#if steps.length}
+  <div class="podium" aria-label={t('summary.podium')}>
+    {#each order as g (g.place)}
+      <div class="step s{g.place}">
+        <div class="faces">{#each g.players as e (e.id)}<Avatar player={e.p} size={g.place === 1 ? 64 : 50} ring={g.place === 1} />{/each}</div>
+        <b>{g.players.map((e) => e.p.name).join(', ')}</b>
+        <div class="block"><span>{MEDAL[g.place]}</span><strong>{g.players[0].score}</strong></div>
+      </div>
     {/each}
-  </ol>
+  </div>
 {:else}
-  <p class="msg">{t('summary.noScoring')}</p>
+  <p class="msg">{t('summary.zero')}</p>
 {/if}
+<ol class="table">
+  {#each ranked as row (row.id)}
+    <li class:gone={row.gone}>
+      <span class="place">{row.place}</span><Avatar player={row.p} size={40} />
+      <span class="name">{row.p.name}{#if row.gone} <small>{t('summary.gone')}</small>{/if}</span><b>{row.score}</b>
+    </li>
+  {/each}
+</ol>
 
 <div class="btns">
   <button class="chunky light share" onclick={share} disabled={sharing}>{t('summary.share')}</button>

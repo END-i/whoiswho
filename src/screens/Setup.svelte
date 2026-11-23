@@ -7,6 +7,7 @@
   import { assignColors } from '../lib/theme.js';
   import { t } from '../lib/lang.svelte.js';
   import { LANGS, LANG_NAMES } from '../lib/i18n.js';
+  import { DESIGNS } from '../lib/designs.js';
 
   // players — масив { id, name, photo, template } ($state у App, змінюється на місці)
   // packs — описи наборів (meta.pack) у порядку показу; gamePack — набір поточної гри
@@ -46,7 +47,7 @@
   }
   function remove(i) {
     if (players.length <= MIN) return;
-    const who = players[i].name.trim() || t('setup.playerGen', { n: i + 1 });
+    const who = players[i].name.trim() || t('setup.playerNom', { n: i + 1 });
     if (inGame && !confirm(t('setup.removeConfirm', { who }))) return;
     players.splice(i, 1);
   }
@@ -91,7 +92,7 @@
     {#each players as p, i (p.id)}
       <li>
         <span class="no">{i + 1}</span>
-        <button class="ph" onclick={() => (photoFor = i)} aria-label={t('setup.photoFor', { name: p.name || t('setup.playerGen', { n: i + 1 }) })}>
+        <button class="ph" onclick={() => (photoFor = i)} aria-label={t('setup.photoFor', { name: p.name || t('setup.playerNom', { n: i + 1 }) })}>
           <Avatar player={p} size={50} /><span class="cam" aria-hidden="true">📷</span>
         </button>
         <input bind:value={p.name} placeholder={t('setup.namePh', { n: i + 1 })} maxlength="16" autocomplete="off" enterkeyhint="next" aria-label={t('setup.nameLabel', { n: i + 1 })} />
@@ -148,10 +149,14 @@
   </div>
   {#if inGame}<p class="note">{t('setup.audLocked')}</p>{/if}
   {/if}
-  <div class="opt sw tipped">
-    <label class="lbl" for="{uid}-scoring">{t('setup.scoring')}</label>
-    <Info id="{uid}-scoring-tip" text={t('setup.scoringHint')} what={t('setup.scoringLabel')} />
-    <input id="{uid}-scoring" type="checkbox" role="switch" bind:checked={settings.scoring} aria-label={t('setup.scoringLabel')} aria-describedby="{uid}-scoring-tip" />
+  <!-- бали — завжди, перемикача немає (власник 23.11) -->
+  <div class="opt choice stack">
+    <span class="lbl" id="{uid}-design">{t('setup.design')}</span>
+    <div class="seg designs" role="radiogroup" aria-labelledby="{uid}-design">
+      {#each DESIGNS as d}
+        <button role="radio" aria-checked={settings.design === d} class:on={settings.design === d} onclick={() => (settings.design = d)}>{t(`design.${d}`)}</button>
+      {/each}
+    </div>
   </div>
   {#if !wakeLock}<p class="note">{t('setup.noWake')}</p>{/if}
 </section>
@@ -268,6 +273,10 @@
   .mini.danger { color: var(--no); }
   .seg { display: flex; background: var(--soft); border-radius: 14px; padding: 4px; gap: 4px; }
   .seg button { border: none; background: none; padding: 10px 10px; border-radius: 11px; font-weight: 900; font-size: 14px; color: var(--dim); white-space: nowrap; }
+  /* шість дизайнів — сіткою 3 × 2 на всю ширину, під назвою */
+  .opt.stack { flex-direction: column; align-items: stretch; gap: 8px; }
+  .designs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .designs button { white-space: normal; line-height: 1.15; min-height: 44px; padding: 6px 4px; }
   .seg button.on { background: var(--card); color: var(--ink); box-shadow: 0 3px 0 var(--line); }
   .seg button:disabled:not(.on) { opacity: .4; }
   .note, .hint2 { font-size: 13px; color: var(--dim); margin: 0; font-weight: 700; }

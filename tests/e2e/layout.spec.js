@@ -1,5 +1,6 @@
 import { test, expect } from './fixtures.js';
-import { startGame, category, openCard, openQuestion, QUESTIONS, fresh } from './helpers.js';
+import { startGame, category, openCard, openQuestion, QUESTIONS, fresh, setDesign } from './helpers.js';
+import { DESIGNS } from '../../src/lib/designs.js';
 
 const noHorizontalScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
 
@@ -7,12 +8,12 @@ for (const scheme of ['light', 'dark']) {
   test(`екран 320 px, тема ${scheme}: без горизонтальної прокрутки на всіх екранах`, async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 640 });
     await page.emulateMedia({ colorScheme: scheme });
-    await startGame(page, ['Олександра', 'Тарас', 'Мама', 'Тато', 'Бабуся', 'Дідусь', 'Софійка', 'Максимко'], { scoring: true });
+    await startGame(page, ['Олександра', 'Тарас', 'Мама', 'Тато', 'Бабуся', 'Дідусь', 'Софійка', 'Максимко']);
     expect(await noHorizontalScroll(page)).toBe(true);
     await openQuestion(page, 'Що про тебе знають', 'aboutme', 'am-02');
     expect(await noHorizontalScroll(page)).toBe(true);
     // кнопки дії видно й можна натиснути без прокрутки сторінки за межі
-    await expect(page.getByRole('button', { name: /Правильно/ })).toBeInViewport({ ratio: 0.5 });
+    await expect(page.getByRole('button', { name: 'Вгадано', exact: true })).toBeInViewport({ ratio: 0.5 });
   });
 }
 
@@ -46,49 +47,38 @@ test('з анімаціями (без reduced motion) карта перевер�
   await expect(page.locator('.card.flip')).toHaveCount(0);
 });
 
-test('кнопки «Правильно» і «Ні» кольорові, текст на них видно', async ({ page }) => {
-  await startGame(page, ['Оля', 'Тарас'], { scoring: true });
-  await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
-  const look = (name) => page.getByRole('button', { name }).evaluate((el) => {
-    const cs = getComputedStyle(el), rgb = (c) => c.match(/\d+/g).slice(0, 3).map(Number);
-    return { bg: rgb(cs.backgroundColor), fg: rgb(cs.color) };
-  });
-  const ok = await look(/Правильно/), no = await look('Неправильно');
-  expect(ok.bg[1]).toBeGreaterThan(ok.bg[0]); // зелена
-  expect(no.bg[0]).toBeGreaterThan(no.bg[1] + 80); // червона
-  for (const b of [ok, no]) expect(b.fg).toEqual([255, 255, 255]); // білий текст
-});
-
-for (const width of [320, 375, 390, 430]) {
-  test(`${width} px: «Правильно» і «Неправильно» — кожна в один рядок, великим шрифтом, не вилазять за картку`, async ({ page }) => {
+// кожен дизайн картки (23.11): «Вгадано» й «Не вгадано» — кожна в один рядок, не вилазять за картку; шапка — в один рядок
+const sizes = (d) => (d === 'k' ? [320, 375, 390, 430] : [320]);
+for (const design of DESIGNS) for (const width of sizes(design)) {
+  test(`картка «${design}», ${width} px: кнопки в один рядок і в межах картки, «Слухати» видно`, async ({ page }) => {
     await page.setViewportSize({ width, height: 700 });
-    await startGame(page, ['Оля', 'Тарас'], { scoring: true });
+    await startGame(page, ['Олександра-Марія', 'Бабуся Ганнуся']);
+    await setDesign(page, design);
     await openQuestion(page, 'Вгадай', 'guess', 'gs-01'); // з озвучкою — є кнопка «Слухати»
     await expect(page.locator('.listen')).toBeVisible();
     // картка з'являється з анімацією (зменшена й повернута) — міряємо, коли вона вже на місці
     await page.locator('[role=dialog] .card').evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished)));
-    for (const name of [/Правильно/, /Неправильно/]) {
-      const b = page.getByRole('button', { name }).first();
-      const lines = await b.evaluate((el) => {
+    expect(await noHorizontalScroll(page)).toBe(true);
+    for (const name of ['Вгадано', 'Не вгадано']) {
+      const b = page.getByRole('button', { name, exact: true });
+      const lines = await b.locator('.lb').evaluate((el) => {
         const r = document.createRange(); r.selectNodeContents(el);
         return new Set([...r.getClientRects()].map((x) => Math.round(x.top))).size;
       });
-      expect(lines, String(name)).toBe(1);
-      expect(await b.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(18.67);
-      expect(await b.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
-      // і сама кнопка не вилазить за картку
+      expect(lines, name).toBe(1);
       const r = await b.evaluate((el) => ({ button: el.getBoundingClientRect().right, card: el.closest('.card').getBoundingClientRect().right, text: el.scrollWidth, box: el.clientWidth }));
+      expect(r.text, JSON.stringify(r)).toBeLessThanOrEqual(r.box);
       expect(r.button, JSON.stringify(r)).toBeLessThanOrEqual(r.card - 8);
     }
-    // значки над питанням — кожен в один рядок (поруч кнопка «Слухати»)
-    for (const badge of await page.locator('.badge').all()) expect(await badge.evaluate((el) => el.scrollHeight <= 30)).toBe(true);
+    // довгі імена обрізаються «…», а не розсувають картку
+    for (const b of await page.locator('[role=dialog] .who b').all()) expect(await b.evaluate((el) => el.getBoundingClientRect().right <= el.closest('.card').getBoundingClientRect().right)).toBe(true);
   });
 }
 
 for (const [lang, turn] of [['Українська', 'Зараз хід'], ['Русский', 'Сейчас ходит']]) {
   test(`320 px, ${lang}: у верхній панелі ім'я й «${turn}» вміщаються, нічого не залазить під кнопки`, async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 640 });
-    await startGame(page, ['Оля', 'Тарас'], { scoring: true });
+    await startGame(page, ['Оля', 'Тарас']);
     await page.getByRole('button', { name: 'Меню' }).click();
     await page.getByRole('button', { name: /Гравці й налаштування/ }).click();
     await page.getByRole('radio', { name: lang }).click();

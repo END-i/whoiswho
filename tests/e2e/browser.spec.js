@@ -118,11 +118,11 @@ const trackSfx = () => {
 };
 const played = (page) => page.evaluate(() => window.__sfx);
 
-test('звук: «Правильно» — мелодія, «Ні» — «ва-ва», пропуск — «шух»; усе через <audio> (грає й у беззвучному режимі iPhone); вимкнені звуки — тиша', async ({ page }) => {
+test('звук: «Вгадано» — мелодія, «Не вгадано» — «ва-ва», пропуск — «шух»; усе через <audio> (грає й у беззвучному режимі iPhone); вимкнені звуки — тиша', async ({ page }) => {
   await page.addInitScript(trackSfx);
-  await startGame(page, ['Оля', 'Тарас'], { scoring: true });
+  await startGame(page, ['Оля', 'Тарас']);
   await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
-  await page.getByRole('button', { name: /Правильно/ }).click();
+  await page.getByRole('button', { name: 'Вгадано', exact: true }).click();
   await expect.poll(() => played(page)).toEqual(['point']);
   // браузер справді декодує наш WAV: тривалість мелодії ≈ 0,5 с
   const dur = await page.evaluate(() => new Promise((ok) => {
@@ -131,7 +131,7 @@ test('звук: «Правильно» — мелодія, «Ні» — «ва-�
   }));
   expect(dur).toBeGreaterThan(0.45); expect(dur).toBeLessThan(0.55);
   await openQuestion(page, 'Вгадай', 'guess', 'gs-04');
-  await page.getByRole('button', { name: /Неправильно/ }).click();
+  await page.getByRole('button', { name: 'Не вгадано' }).click();
   await expect.poll(() => played(page)).toEqual(['point', 'miss']);
   await openQuestion(page, 'Вгадай', 'guess', 'gs-06');
   await page.getByRole('button', { name: 'Пропустити' }).click();
@@ -142,7 +142,7 @@ test('звук: «Правильно» — мелодія, «Ні» — «ва-�
   await page.getByRole('switch', { name: 'Звуки' }).uncheck();
   await page.getByRole('button', { name: /Повернутися до гри/ }).click();
   await openQuestion(page, 'Вгадай', 'guess', 'gs-08');
-  await page.getByRole('button', { name: /Правильно/ }).click();
+  await page.getByRole('button', { name: 'Вгадано', exact: true }).click();
   await page.waitForTimeout(200);
   expect(await played(page)).toHaveLength(3);
 });
@@ -185,7 +185,7 @@ test('таймер у «Покажи!»: 30 с, останні 5 с тикає, 
   await page.locator('.timer').click();
   await expect(page.locator('.timer')).toHaveText('⏱ Таймер 30 с');
   // у питаннях-розмовах таймера немає
-  await page.getByRole('button', { name: /Далі/ }).click();
+  await page.getByRole('button', { name: /Є відповідь/ }).click();
   await openQuestion(page, 'Відкрийся', 'open', 'op-02');
   await expect(page.locator('.timer')).toHaveCount(0);
 });

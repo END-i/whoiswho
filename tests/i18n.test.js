@@ -47,3 +47,22 @@ test('cleanLang: лише відомі мови, інакше українськ
   for (const bad of [undefined, 'en', '', null]) assert.equal(cleanLang(bad), 'uk');
   for (const l of LANGS) assert.ok(LANG_NAMES[l] && LOCALES[l]?.startsWith(`${l}-`), l);
 });
+
+// Власник 23.11: гра не знає роду гравця й не відмінює імена — тексти мають читатися з будь-яким ім'ям.
+test('словники й правила наборів: без роду й відмінків для імені гравця', async () => {
+  const { readFileSync } = await import('node:fs');
+  const packRules = (lang) => ['family', 'friends', 'couples', 'adults']
+    .flatMap((p) => JSON.parse(readFileSync(new URL(`../src/data/packs/${lang === 'ru' ? 'ru/' : ''}${p}.json`, import.meta.url))).meta.rules);
+  const RULES = {
+    uk: { prep: /(для|про|від|до|у|в|з|біля|Прогноз|Прибрати) \{(name|who)\}/, pron: /(^|[^а-яіїєґ'])(його|її|йому|їй|нього|неї)([^а-яіїєґ']|$)/i, past: /(^|[^а-яіїєґ'])(Вгадав|Вгадала|Відповів|Відповіла)([^а-яіїєґ']|$)/ }, // \b не бачить кирилиці
+    ru: { prep: /(для|о|от|до|у|с|Прогноз|Убрать) \{(name|who)\}/, pron: /(^|[^а-яё])(его|её|ее|ему|ей)([^а-яё]|$)/i, past: /(^|[^а-яё])(Угадал|Угадала|Ответил|Ответила)([^а-яё]|$)/ },
+  };
+  for (const [lang, d] of Object.entries(DICTS)) {
+    const texts = [...Object.entries(d).flatMap(([k, v]) => (Array.isArray(v) ? v : [v]).map((x) => [k, x])), ...packRules(lang).map((x) => ['rules', x])];
+    for (const [k, v] of texts) {
+      assert.doesNotMatch(v, RULES[lang].prep, `${lang} ${k}: ім'я після прийменника треба відмінювати`);
+      assert.doesNotMatch(v, RULES[lang].past, `${lang} ${k}: дієслово в минулому часі має рід`);
+      if (/\{(name|who)\}/.test(v)) assert.doesNotMatch(v, RULES[lang].pron, `${lang} ${k}: займенник має рід`);
+    }
+  }
+});

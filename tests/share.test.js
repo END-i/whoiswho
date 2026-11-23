@@ -2,12 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { shareLines, shareImage } from '../src/lib/share.js';
 
-test('shareLines: заголовок, місця з медалями й балами (до 8), підпис; без балів — без чисел', () => {
+test('shareLines: заголовок, місця з медалями й балами (до 8), підпис', () => {
   const rows = [{ name: 'Оля', score: 60, place: 1 }, { name: 'Тарас', score: 20, place: 2 }, { name: 'Мама', score: 10, place: 3 }, { name: 'Тато', score: 0, place: 4 }];
   const l = shareLines(rows, { title: 'Хто є хто', footer: '11 листопада' });
   assert.deepEqual(l.map((x) => x.text), ['Хто є хто', '🥇 Оля', '🥈 Тарас', '🥉 Мама', '4. Тато', '11 листопада']);
   assert.equal(l[1].score, '60');
-  assert.equal(shareLines(rows, { title: '', footer: '', scoring: false })[1].score, '');
   assert.equal(shareLines(Array.from({ length: 10 }, (_, k) => ({ name: `${k}`, score: 0, place: 1 })), { title: '', footer: '' }).length, 10);
 });
 

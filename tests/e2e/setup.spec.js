@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures.js';
-import { fresh, setPlayers } from './helpers.js';
+import { fresh, setPlayers, openQuestion, startGame, saved } from './helpers.js';
 
 test.beforeEach(async ({ page }) => { await fresh(page); });
 
@@ -59,7 +59,7 @@ test('фото з галереї стискається до квадрата 32
     const g = c.getContext('2d'); g.fillStyle = '#ff9900'; g.fillRect(0, 0, 600, 400); g.fillStyle = '#3300ff'; g.fillRect(250, 150, 100, 100);
     return c.toDataURL('image/png').split(',')[1];
   });
-  await page.getByRole('button', { name: 'Фото для Оля' }).click();
+  await page.getByRole('button', { name: 'Фото: Оля' }).click();
   await page.locator('.sheet label', { hasText: 'Галерея' }).locator('input').setInputFiles({ name: 'p.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
   const img = page.locator('.preview img');
   await expect(img).toBeVisible();
@@ -75,14 +75,14 @@ test('фото з галереї стискається до квадрата 32
   await page.reload();
   await expect(page.locator('.players li').first().locator('img')).toBeVisible();
   // прибрати фото
-  await page.getByRole('button', { name: 'Фото для Оля' }).click();
+  await page.getByRole('button', { name: 'Фото: Оля' }).click();
   await page.getByRole('button', { name: 'Прибрати фото' }).click();
   await expect(page.locator('.preview img')).toHaveCount(0);
 });
 
 test('пошкоджений файл фото — зрозуміла помилка, гра не падає', async ({ page }) => {
   await setPlayers(page, ['Оля', 'Тарас']);
-  await page.getByRole('button', { name: 'Фото для Оля' }).click();
+  await page.getByRole('button', { name: 'Фото: Оля' }).click();
   await page.locator('.sheet label', { hasText: 'Галерея' }).locator('input').setInputFiles({ name: 'x.png', mimeType: 'image/png', buffer: Buffer.from('not an image') });
   await expect(page.getByText('Не вдалося прочитати фото')).toBeVisible();
 });
@@ -102,7 +102,7 @@ const makePng = (page) => page.evaluate(() => {
 
 test('шаблон можна посунути пальцем; положення зберігається; повзунка розміру немає', async ({ page }) => {
   await setPlayers(page, ['Оля', 'Тарас']);
-  await page.getByRole('button', { name: 'Фото для Оля' }).click();
+  await page.getByRole('button', { name: 'Фото: Оля' }).click();
   await page.locator('.tpl', { hasText: 'Корона' }).click();
   await expect(page.getByLabel('Розмір шаблону')).toHaveCount(0);
   const stage = page.locator('.stage');
@@ -118,14 +118,14 @@ test('шаблон можна посунути пальцем; положенн�
   const before = await pos();
   await page.reload();
   expect(await pos()).toEqual(before);
-  await page.getByRole('button', { name: 'Фото для Оля' }).click();
+  await page.getByRole('button', { name: 'Фото: Оля' }).click();
   await page.getByRole('button', { name: /На місце/ }).click();
   await expect.poll(pos).toEqual({ x: 0, y: 0, s: 1 });
 });
 
 test('шаблон знімається: повторним натисканням і кнопкою «Прибрати шаблон», з будь-якої групи', async ({ page }) => {
   await setPlayers(page, ['Оля', 'Тарас']);
-  await page.getByRole('button', { name: 'Фото для Оля' }).click();
+  await page.getByRole('button', { name: 'Фото: Оля' }).click();
   const tpl = () => page.evaluate(() => JSON.parse(localStorage.getItem('whoiswho.v2')).players[0].template);
   await page.locator('.tpl', { hasText: 'Віночок' }).click();
   await expect.poll(tpl).toBe('wreath');
@@ -152,7 +152,7 @@ test('«Видалити всі фото» стирає фото й шаблон
   await setPlayers(page, ['Оля', 'Тарас']);
   const png = Buffer.from(await makePng(page), 'base64');
   for (const name of ['Оля', 'Тарас']) {
-    await page.getByRole('button', { name: `Фото для ${name}` }).click();
+    await page.getByRole('button', { name: `Фото: ${name}` }).click();
     await page.locator('.sheet label', { hasText: 'Галерея' }).locator('input').setInputFiles({ name: 'a.png', mimeType: 'image/png', buffer: png });
     await expect(page.locator('.preview img')).toBeVisible();
     await page.locator('.tpl', { hasText: 'Котик' }).click();
@@ -169,7 +169,7 @@ test('«Видалити всі фото» стирає фото й шаблон
 
 test('фото й шаблон видно на картці питання й у верхній панелі', async ({ page }) => {
   await setPlayers(page, ['Оля', 'Тарас']);
-  await page.getByRole('button', { name: 'Фото для Оля' }).click();
+  await page.getByRole('button', { name: 'Фото: Оля' }).click();
   await page.locator('.sheet label', { hasText: 'Галерея' }).locator('input').setInputFiles({ name: 'a.png', mimeType: 'image/png', buffer: Buffer.from(await makePng(page), 'base64') });
   await expect(page.locator('.preview img')).toBeVisible();
   await page.locator('.tpl', { hasText: 'Корона' }).click();
@@ -184,12 +184,13 @@ test('фото й шаблон видно на картці питання й у
   await expect(page.getByRole('dialog').locator('.who svg')).toBeVisible();
 });
 
-test('інструкція — схема з кроків; кнопку «Граємо!» видно без прокрутки на маленькому iPhone', async ({ page }) => {
+test('«Як грати» — одне речення й кнопка; «Граємо!» видно без прокрутки на маленькому iPhone', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await setPlayers(page, ['Оля', 'Тарас']);
   await page.getByRole('button', { name: /Почати гру/ }).click();
-  await expect(page.locator('.flow li')).toHaveCount(4);
-  await expect(page.locator('.flow li .ic i')).toHaveText(['1', '2', '3', '4']);
+  await expect(page.getByRole('heading', { name: 'Як грати' })).toBeVisible();
+  await expect(page.locator('.lead')).toHaveText(['Передавайте телефон по черзі й відповідайте на картки.']);
+  await expect(page.getByText('Пояснення — під ⓘ на картці.')).toBeVisible();
   await expect(page.getByRole('button', { name: /Граємо!/ })).toBeInViewport();
   expect(await page.evaluate(() => scrollY)).toBe(0);
 });
@@ -219,7 +220,6 @@ test('налаштування: підписи перемикачів — у ⓘ
   await fresh(page);
   const rows = [
     ['Автоматичний вибір питання', 'Категорію й карту вибирає гра — крутиш колесо.'],
-    ['Режим з балами', 'Вгадав — +20.'],
     ['Звуки', 'Мелодія за бал'],
     ['Читати питання вголос', 'Картка сама читає питання'],
   ];
@@ -276,4 +276,35 @@ test('«Уся родина / Лише діти» — без зайвого пі
   expect(seg.width).toBeGreaterThan(row.width * 0.85);
   await expect(page.getByRole('radio', { name: /Уся родина/ })).toBeVisible();
   await expect(page.getByRole('radio', { name: /Лише діти/ })).toBeVisible();
+});
+
+test('вигляд картки: шість дизайнів, за замовчуванням «Блокнот»; вибір памʼятається й змінює картку', async ({ page }) => {
+  await fresh(page);
+  const group = page.getByRole('radiogroup', { name: '🎨 Вигляд картки' });
+  await expect(group.getByRole('radio')).toHaveText(['Блокнот', 'Тихий', 'Телешоу', 'Профіль', 'Ігрова карта', 'Розмова']);
+  await expect(group.getByRole('radio', { name: 'Блокнот' })).toHaveAttribute('aria-checked', 'true');
+  await group.getByRole('radio', { name: 'Телешоу' }).click();
+  await expect(group.getByRole('radio', { name: 'Телешоу' })).toHaveAttribute('aria-checked', 'true');
+  await page.reload();
+  await expect(page.getByRole('radio', { name: 'Телешоу' })).toHaveAttribute('aria-checked', 'true');
+  await setPlayers(page, ['Оля', 'Тарас']);
+  await page.getByRole('button', { name: /Почати гру/ }).click();
+  await page.getByRole('button', { name: /Граємо!/ }).click();
+  await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
+  await expect(page.locator('.overlay')).toHaveClass(/\bd-h\b/);
+  await expect(page.getByText('Тобі питання!')).toBeVisible();
+});
+
+test('картка: ⓘ біля балів пояснює бали й пропуск (відкривається, закривається Esc), не відкриваючи нічого зайвого', async ({ page }) => {
+  await startGame(page, ['Оля', 'Тарас']);
+  await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
+  const info = page.getByRole('dialog').getByRole('button', { name: 'Що це: Бали' });
+  const hint = page.getByText(/Вгадано — \+20\..*Будь-яку картку можна пропустити — тоді без балів\./);
+  await expect(hint).toBeHidden();
+  await info.click();
+  await expect(hint).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(hint).toBeHidden();
+  await expect(page.getByRole('dialog')).toBeVisible(); // Esc закриває лише підказку
+  expect((await saved(page)).game.stats).toEqual({ answered: 0, skipped: 0 });
 });

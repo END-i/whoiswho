@@ -95,7 +95,7 @@ test('buildDeck: null-місця з минулої колоди ігноруют
 // ---------- гра ----------
 
 test('newGame: початковий стан', () => {
-  const g = newGame({ players: P('A', 'B'), questions: Q('c', 3), scoring: true, audience: 'kids', rand: rng(1) });
+  const g = newGame({ players: P('A', 'B'), questions: Q('c', 3), audience: 'kids', rand: rng(1) });
   assert.equal(g.version, VERSION);
   assert.deepEqual(g.order, ['p0', 'p1']);
   assert.deepEqual(g.scores, { p0: 0, p1: 0 });
@@ -116,7 +116,7 @@ test('finishCard: номер не повторюється, хід по колу
 });
 
 test('finishCard: бал за «Правильно» отримує той, хто відповідав', () => {
-  let g = newGame({ players: P('A', 'B', 'C'), questions: Q('c', 3), scoring: true, rand: rng(1) });
+  let g = newGame({ players: P('A', 'B', 'C'), questions: Q('c', 3), rand: rng(1) });
   g = finishCard(g, 'c', 1, 'correct', 2);
   assert.deepEqual(g.scores, { p0: 0, p1: 0, p2: 20 }, '«Правильно» — 20');
   g = finishCard(g, 'c', 2, 'wrong', 0);
@@ -148,7 +148,7 @@ test('bravePoints: лише 30/40/50, усі трапляються майже �
 });
 
 test('серія: з третьої відповіді з балами поспіль — ще +10; «Ні» чи пропуск — з нуля; «Скасувати» повертає серію', () => {
-  let g = newGame({ players: P('A', 'B'), questions: Q('c', 12), scoring: true, rand: rng(1) });
+  let g = newGame({ players: P('A', 'B'), questions: Q('c', 12), rand: rng(1) });
   const step = (outcome, who, pts = 10) => (g = finishCard(g, 'c', g.used.c?.length ? Math.max(...g.used.c) + 1 : 1, outcome, who, pts));
   step('correct', 0); step('correct', 1); step('correct', 0); step('correct', 1);
   assert.deepEqual([g.scores.p0, g.scores.p1], [20, 20]);
@@ -188,6 +188,12 @@ test('restoreGame: зерно й серія переживають переза�
   assert.equal(r2.seed, 0);
   assert.deepEqual(r2.streak, {});
   assert.deepEqual(restoreGame({ ...old, streak: 'bad' }, Object.values(g.deck).flat(), players).streak, {});
+});
+
+test('restoreGame: гра без балів, збережена до 1.11.0, продовжується з балами', () => {
+  const { players, g } = fresh();
+  const saved = { ...JSON.parse(JSON.stringify(g)), scoring: false };
+  assert.equal(restoreGame(saved, Object.values(g.deck).flat(), players).scoring, true);
 });
 
 test('restoreGame: гра, почата до 1.7.0 (по 1 балу), — бали ×20 один раз', () => {
@@ -299,7 +305,7 @@ test('roles: хто відповідає і про кого; about=answerer — 
 
 const fresh = () => {
   const players = P('A', 'B', 'C');
-  let g = newGame({ players, questions: [...Q('a', 3), ...Q('b', 2)], scoring: true, rand: rng(1) });
+  let g = newGame({ players, questions: [...Q('a', 3), ...Q('b', 2)], rand: rng(1) });
   g = finishCard(g, 'a', 2, 'correct', 0);
   return { players, g };
 };
@@ -347,7 +353,7 @@ test('крайні випадки: невідома категорія, знач
   const g = newGame({ players: P('A', 'B'), questions: Q('c', 2) });
   assert.equal(total(g, 'nope'), 0); assert.equal(remaining(g, 'nope'), 0);
   assert.equal(questionAt(g, 'nope', 1), null); assert.ok(isUsed(g, 'nope', 1));
-  assert.equal(g.audience, 'family'); assert.equal(g.scoring, false);
+  assert.equal(g.audience, 'family'); assert.equal(g.scoring, true); // бали — завжди
   assert.ok(isPerm(derange(['a', 'b', 'c'], new Map()), ['a', 'b', 'c']));
   assert.ok(isPerm(shuffle([1, 2, 3]), [1, 2, 3]));
   assert.deepEqual(Object.keys(buildDeck(Q('c', 2))), ['c']);
@@ -381,7 +387,7 @@ test('pack: нова гра знає свій набір; старе збере�
 });
 
 test('undoCard: картка знову закрита, бали, статистика й черга — як до неї; лише один крок', () => {
-  let g = newGame({ players: P('A', 'B'), questions: Q('c', 3), scoring: true, rand: rng(1) });
+  let g = newGame({ players: P('A', 'B'), questions: Q('c', 3), rand: rng(1) });
   g = finishCard(g, 'c', 1, 'correct', 0);
   const before = g;
   g = finishCard(g, 'c', 2, 'correct', 1, 50);
@@ -423,7 +429,7 @@ test('randomCard: категорія лише з тих, де ще є карти
 });
 
 test('гра без поля серії (збережена до 1.9.0): відповідь і «Скасувати» працюють', () => {
-  const g = newGame({ players: P('A', 'B'), questions: Q('c', 3), scoring: true, rand: rng(2) });
+  const g = newGame({ players: P('A', 'B'), questions: Q('c', 3), rand: rng(2) });
   delete g.streak;
   const after = finishCard(g, 'c', 1, 'correct', 0, 10);
   assert.deepEqual(after.streak, { p0: 1 });

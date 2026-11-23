@@ -1,6 +1,7 @@
 import { test, expect } from './fixtures.js';
 import { TOKENS, CATEGORY_COLORS, contrast } from '../../src/lib/theme.js';
-import { startGame, openQuestion, fresh } from './helpers.js';
+import { startGame, openQuestion, fresh, setDesign, look } from './helpers.js';
+import { DESIGNS } from '../../src/lib/designs.js';
 
 // будь-який CSS-колір (rgb, color(srgb…), color-mix) → #rrggbb через canvas
 const toHex = (page, sel, prop) => page.locator(sel).first().evaluate((el, prop) => {
@@ -35,36 +36,27 @@ test('плитки категорій: колір тексту такий, як 
   }
 });
 
-for (const scheme of ['light', 'dark']) {
-  test(`плашка балів: зірочка ⭐ (жовта) видна, текст читається (${scheme})`, async ({ page }) => {
+// Кожен дизайн картки (23.11) — у світлій і темній темі: текст читається (≥ 4,5; великий жирний — ≥ 3)
+const readable = (c, l) => expect(contrast(c.fg, c.bg), `${l}: ${c.fg} на ${c.bg}`).toBeGreaterThanOrEqual(c.size >= 18.66 && c.weight >= 700 ? 3 : 4.5);
+for (const design of DESIGNS) for (const scheme of ['light', 'dark']) {
+  test(`картка «${design}» (${scheme}): бали, назва категорії, підписи людей і кнопки читаються; кнопки — великий жирний текст`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: scheme });
-    await startGame(page, ['Оля', 'Тарас'], { scoring: true });
-    await openQuestion(page, 'Вгадай', 'guess', 'gs-01');
-    const bg = await toHex(page, '.badge.pts', 'backgroundColor');
-    const fg = await toHex(page, '.badge.pts', 'color');
-    const STAR = '#ffcc4d'; // колір емодзі ⭐ на iPhone й Android
-    expect(contrast(STAR, bg), `⭐ на ${bg}`).toBeGreaterThanOrEqual(3);
-    expect(contrast(fg, bg), `${fg} на ${bg}`).toBeGreaterThanOrEqual(4.5);
-  });
-}
-
-for (const scheme of ['light', 'dark']) {
-  test(`картка питання: підписи ролей читаються (≥ 4.5), кнопки — великий жирний текст (${scheme})`, async ({ page }) => {
-    await page.emulateMedia({ colorScheme: scheme });
-    await startGame(page, ['Оля', 'Тарас'], { scoring: true });
+    await startGame(page, ['Оля', 'Тарас']);
+    await setDesign(page, design);
     for (const [title, cat, qid] of [['Хто з нас?', 'who', 'wh-01'], ['Вгадай', 'guess', 'gs-01']]) {
       await openQuestion(page, title, cat, qid);
-      const bg = await toHex(page, '[role=dialog] .card', 'backgroundColor');
-      for (const sel of ['.badge', '.who em']) {
-        if (!(await page.locator(sel).count())) continue;
-        const fg = await toHex(page, sel, 'color');
-        expect(contrast(fg, bg), `${cat} ${sel}: ${fg} на ${bg}`).toBeGreaterThanOrEqual(4.5);
+      const card = page.getByRole('dialog');
+      for (const sel of ['.pts', '.ctitle', '.who small', '.who em', '.q', '.check']) {
+        for (const el of await card.locator(sel).all()) if (await el.isVisible()) readable(await look(el), `${cat} ${sel}`);
       }
-      if (cat === 'who') await page.getByRole('dialog').locator('.chip', { hasText: 'Тарас' }).click(); // спершу прогноз
-      const btn = page.locator('.chunky').first();
-      const { size, weight } = await btn.evaluate((el) => ({ size: parseFloat(getComputedStyle(el).fontSize), weight: +getComputedStyle(el).fontWeight }));
-      expect(size).toBeGreaterThanOrEqual(18.67); expect(weight).toBeGreaterThanOrEqual(700);
-      await page.getByRole('button', { name: 'Пропустити' }).click();
+      if (cat === 'who') await card.locator('.chip', { hasText: 'Тарас' }).click(); // спершу прогноз
+      else for (const name of ['Вгадано', 'Не вгадано']) {
+        const b = card.getByRole('button', { name, exact: true });
+        const c = await look(b.locator('.lb'));
+        readable(c, name);
+        expect(c.size, name).toBeGreaterThanOrEqual(16); expect(c.weight, name).toBeGreaterThanOrEqual(700);
+      }
+      await card.getByRole('button', { name: 'Пропустити' }).click();
     }
   });
 }

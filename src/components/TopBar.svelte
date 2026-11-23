@@ -15,20 +15,18 @@
     {/key}
     <span class="txt"><small>{t('top.turn')}</small><b>{p?.name}</b></span>
   </div>
-  {#if game.scoring}<button class="icon scores" onclick={onscores} aria-label={t('menu.scores')}>🏆</button>{/if}
+  <button class="icon scores" onclick={onscores} aria-label={t('menu.scores')}>🏆</button>
   <button class="icon" onclick={onmenu} aria-label={t('menu.title')}>☰</button>
 </div>
 
-{#if game.scoring}
-  <button class="board" onclick={onscores} aria-label={t('top.board', { list: players.map((x) => `${x.name} ${game.scores[x.id] || 0}`).join(', ') })}>
-    {#each players as x, k (x.id)}
-      <span class="pl" class:now={k === game.turn}>
-        <Avatar player={x} size={30} />
-        {#key game.scores[x.id]}<b class="pts">{game.scores[x.id] || 0}</b>{/key}
-      </span>
-    {/each}
-  </button>
-{/if}
+<button class="board" onclick={onscores} aria-label={t('top.board', { list: players.map((x) => `${x.name} ${game.scores[x.id] || 0}`).join(', ') })}>
+  {#each players as x, k (x.id)}
+    <span class="pl" class:now={k === game.turn}>
+      <Avatar player={x} size={30} />
+      {#key game.scores[x.id]}<b class="pts">{game.scores[x.id] || 0}</b>{/key}
+    </span>
+  {/each}
+</button>
 
 <style>
   .bar {
