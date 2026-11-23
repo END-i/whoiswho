@@ -2,6 +2,7 @@
   import Avatar from '../components/Avatar.svelte';
   import Sheet from '../components/Sheet.svelte';
   import PhotoEditor from '../components/PhotoEditor.svelte';
+  import Info from '../components/Info.svelte';
   import { newId } from '../lib/storage.js';
   import { assignColors } from '../lib/theme.js';
   import { t } from '../lib/lang.svelte.js';
@@ -11,6 +12,7 @@
   // packs — описи наборів (meta.pack) у порядку показу; gamePack — набір поточної гри
   let { players = $bindable(), settings = $bindable(), packs = [], gamePack = null, inGame, onstart, historyCount = 0, onhistory = () => {}, showInstall = false, oninstall = () => {}, onabout = () => {}, voiceAvailable = false, audioCount = 0, audioFull = false, wakeLock = true, audio = null } = $props();
   let photoFor = $state(null);
+  const uid = $props.id(); // id для підписів і підказок ⓘ
 
   const MIN = 2;
   const pack = $derived(packs.find((p) => p.id === (inGame ? gamePack : settings.pack)) ?? packs[0] ?? { minPlayers: 2, maxPlayers: 8 });
@@ -130,10 +132,12 @@
       {/each}
     </div>
   </div>
-  <label class="opt sw">
-    <span><span class="lbl">{t('cats.auto')}</span><small>{t('cats.autoHint')}</small></span>
-    <input type="checkbox" role="switch" checked={settings.mode === 'wheel'} onchange={(e) => (settings.mode = e.currentTarget.checked ? 'wheel' : 'tiles')} aria-label={t('cats.autoLabel')} />
-  </label>
+  <!-- підписи — у ⓘ, «Навмання» → «Автоматичний вибір питання» (відгук 19.11) -->
+  <div class="opt sw tipped">
+    <label class="lbl" for="{uid}-auto">{t('setup.auto')}</label>
+    <Info id="{uid}-auto-tip" text={t('cats.autoHint')} what={t('setup.autoLabel')} />
+    <input id="{uid}-auto" type="checkbox" role="switch" checked={settings.mode === 'wheel'} onchange={(e) => (settings.mode = e.currentTarget.checked ? 'wheel' : 'tiles')} aria-label={t('setup.autoLabel')} aria-describedby="{uid}-auto-tip" />
+  </div>
   {#if pack.kids}
   <!-- без підпису «Хто грає»: кнопки «Уся родина / Лише діти» кажуть самі за себе (відгук 18.11) -->
   <div class="opt choice aud">
@@ -144,23 +148,26 @@
   </div>
   {#if inGame}<p class="note">{t('setup.audLocked')}</p>{/if}
   {/if}
-  <label class="opt sw">
-    <span><span class="lbl">{t('setup.scoring')}</span><small>{t('setup.scoringHint')}</small></span>
-    <input type="checkbox" role="switch" bind:checked={settings.scoring} />
-  </label>
+  <div class="opt sw tipped">
+    <label class="lbl" for="{uid}-scoring">{t('setup.scoring')}</label>
+    <Info id="{uid}-scoring-tip" text={t('setup.scoringHint')} what={t('setup.scoringLabel')} />
+    <input id="{uid}-scoring" type="checkbox" role="switch" bind:checked={settings.scoring} aria-label={t('setup.scoringLabel')} aria-describedby="{uid}-scoring-tip" />
+  </div>
   {#if !wakeLock}<p class="note">{t('setup.noWake')}</p>{/if}
 </section>
 
 <section class="panel opts">
-  <h2>{t('setup.soundTitle')}</h2>
-  <label class="opt sw">
-    <span><span class="lbl">{t('setup.sounds')}</span><small>{t('setup.soundsHint')}</small></span>
-    <input type="checkbox" role="switch" bind:checked={settings.sounds} aria-label={t('setup.soundsLabel')} />
-  </label>
-  <label class="opt sw">
-    <span><span class="lbl">{t('setup.autoRead')}</span><small>{t('setup.autoReadHint')}</small></span>
-    <input type="checkbox" role="switch" bind:checked={settings.autoRead} aria-label={t('setup.autoReadLabel')} />
-  </label>
+  <!-- без заголовка «🔊 Звук» (відгук 19.11): рядки кажуть самі за себе -->
+  <div class="opt sw tipped">
+    <label class="lbl" for="{uid}-sounds">{t('setup.sounds')}</label>
+    <Info id="{uid}-sounds-tip" text={t('setup.soundsHint')} what={t('setup.soundsLabel')} />
+    <input id="{uid}-sounds" type="checkbox" role="switch" bind:checked={settings.sounds} aria-label={t('setup.soundsLabel')} aria-describedby="{uid}-sounds-tip" />
+  </div>
+  <div class="opt sw tipped">
+    <label class="lbl" for="{uid}-read">{t('setup.autoRead')}</label>
+    <Info id="{uid}-read-tip" text={t('setup.autoReadHint')} what={t('setup.autoReadLabel')} />
+    <input id="{uid}-read" type="checkbox" role="switch" bind:checked={settings.autoRead} aria-label={t('setup.autoReadLabel')} aria-describedby="{uid}-read-tip" />
+  </div>
   <!-- голос браузера потрібен лише там, де немає записаної озвучки -->
   {#if !audioFull}
   <label class="opt sw" class:off={!voiceAvailable}>
@@ -174,7 +181,7 @@
     <div class="opt audio">
       <span><span class="lbl">{t('setup.offline')}</span>
         <small>{audio.done >= audio.total ? t('setup.offlineDone', { n: audio.total }) : audio.busy ? t('setup.offlineBusy', { a: audio.done, b: audio.total })
-          : audio.done ? t('setup.offlinePart', { a: audio.done, b: audio.total }) : t('setup.offlineAsk')}{#if audio.done < audio.total && audio.mb} {t('setup.offlineSize', { mb: audio.mb })}{/if}</small>
+          : audio.done ? t('setup.offlinePart', { a: audio.done, b: audio.total }) : t('setup.offlineAsk')}{#if audio.done < audio.total && audio.mb}{' '}{t('setup.offlineSize', { mb: audio.mb })}{/if}</small>
         <span class="bar" aria-hidden="true"><i style="width:{(audio.done / audio.total) * 100}%"></i></span>
       </span>
       {#if audio.done < audio.total}<button class="mini" onclick={audio.fetch} disabled={audio.busy}>{t('setup.download')}</button>
@@ -244,6 +251,10 @@
   .opts { display: flex; flex-direction: column; gap: 10px; }
   .opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .lbl { font-weight: 900; display: block; }
+  /* рядок з ⓘ: назва (дотик — перемикає), ⓘ, перемикач; підказка ⓘ — під рядком */
+  .tipped { position: relative; justify-content: flex-start; }
+  .tipped .lbl { flex: 0 1 auto; min-width: 0; cursor: pointer; }
+  .tipped input { margin-left: auto; }
   small { display: block; color: var(--dim); font-size: 13px; font-weight: 700; }
   .sw input { appearance: none; width: 54px; height: 32px; border-radius: 20px; background: var(--line); position: relative; flex: none; transition: background .2s; cursor: pointer; }
   .sw input::after { content: ''; position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0, 0, 0, .2); transition: transform .2s; }

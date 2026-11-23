@@ -205,13 +205,47 @@ test('стрілка на схемі кола — на внутрішньому 
   expect(geo.clockwise).toBe(true);
 });
 
-test('налаштування: окремий блок «🔊 Звук»; «Голос браузера» є лише там, де бракує записаної озвучки', async ({ page }) => {
+test('налаштування: без заголовка «🔊 Звук» і без «посеред гри»; «Голос браузера» є лише там, де бракує записаної озвучки', async ({ page }) => {
   await fresh(page);
-  const sound = page.locator('section', { has: page.getByRole('heading', { name: '🔊 Звук' }) });
-  await expect(sound.getByRole('switch', { name: 'Звуки' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '🔊 Звук' })).toHaveCount(0);
+  await expect(page.getByText(/посеред гри/)).toHaveCount(0);
+  const sound = page.locator('section', { has: page.getByRole('switch', { name: 'Звуки' }) });
   await expect(sound.getByRole('switch', { name: 'Читати питання вголос' })).toBeVisible();
   // у тестовій збірці записано лише 2 питання — голос браузера потрібен
   await expect(sound.getByText('🔈 Голос браузера')).toBeVisible();
+});
+
+test('налаштування: підписи перемикачів — у ⓘ (відкривається, закривається дотиком поза нею й Esc), екранний читач чує їх і так', async ({ page }) => {
+  await fresh(page);
+  const rows = [
+    ['Автоматичний вибір питання', 'Категорію й карту вибирає гра — крутиш колесо.'],
+    ['Режим з балами', 'Вгадав — +20.'],
+    ['Звуки', 'Мелодія за бал'],
+    ['Читати питання вголос', 'Картка сама читає питання'],
+  ];
+  await expect(page.getByText('🎡 Автоматичний вибір питання')).toBeVisible();
+  await expect(page.getByRole('switch', { name: 'Навмання' })).toHaveCount(0);
+  for (const [name, hint] of rows) {
+    const sw = page.getByRole('switch', { name });
+    await expect(sw).toHaveAccessibleDescription(new RegExp(hint.replace(/[.+]/g, '\\$&')));
+    await expect(page.getByText(hint)).toBeHidden(); // підпису під перемикачем більше немає
+    const info = page.getByRole('button', { name: `Що це: ${name}` });
+    const was = await sw.isChecked();
+    await info.click();
+    await expect(info).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByText(hint)).toBeVisible();
+    expect(await sw.isChecked()).toBe(was); // ⓘ не перемикає перемикач
+    await page.locator('h1').first().click(); // дотик поза ⓘ
+    await expect(page.getByText(hint)).toBeHidden();
+    await info.click();
+    await page.keyboard.press('Escape');
+    await expect(page.getByText(hint)).toBeHidden();
+    await expect(info).toBeFocused();
+  }
+  // дотик по назві, як і раніше, перемикає
+  const auto = page.getByRole('switch', { name: 'Автоматичний вибір питання' });
+  await page.getByText('🎡 Автоматичний вибір питання').click();
+  await expect(auto).toBeChecked();
 });
 
 test('коло гравців: стрілку «телефон іде сюди» не закривають аватари — від 2 до 8 гравців', async ({ page }) => {

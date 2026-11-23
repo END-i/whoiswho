@@ -50,9 +50,9 @@ test('«🎡 Навмання»: підписаний перемикач на е
   await expect(page.getByRole('heading', { name: 'Крути колесо!' })).toBeVisible();
   await page.getByRole('button', { name: 'Меню' }).click();
   await page.getByRole('button', { name: /Гравці й налаштування/ }).click();
-  await expect(page.getByRole('switch', { name: 'Навмання' })).toBeChecked();
-  await expect(page.getByText('Категорію й карту вибирає гра — крутиш колесо.')).toBeVisible();
-  await page.getByRole('switch', { name: 'Навмання' }).uncheck();
+  // у налаштуваннях той самий перемикач зветься повністю (відгук 19.11)
+  await expect(page.getByRole('switch', { name: 'Автоматичний вибір питання' })).toBeChecked();
+  await page.getByRole('switch', { name: 'Автоматичний вибір питання' }).uncheck();
   await page.getByRole('button', { name: /Повернутися до гри/ }).click();
   await expect(page.getByRole('heading', { name: 'Вибери категорію' })).toBeVisible();
 });
