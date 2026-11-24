@@ -110,3 +110,17 @@ for (const lang of ['Українська', 'Русский']) {
     expect(outside).toEqual([]);
   });
 }
+
+// одна людина на картці («Цікаві факти»): не наїжджає на шапку з категорією й балами (J мав таку ваду 24.11)
+for (const design of DESIGNS) {
+  test(`картка «${design}» з однією людиною: людина під шапкою, не на ній`, async ({ page }) => {
+    await startGame(page, ['Оля', 'Тарас']);
+    await setDesign(page, design);
+    await openQuestion(page, 'Цікаві факти', 'facts', 'fc-01');
+    const card = page.locator('[role=dialog] .card');
+    await card.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished)));
+    const r = await card.evaluate((el) => ({ top: el.querySelector('.top').getBoundingClientRect().bottom, who: el.querySelector('.who').getBoundingClientRect().top }));
+    // обідок аватара — тінь (6 px) поза межами блоку: між шапкою й людиною має бути хоча б стільки
+    expect(r.who - r.top, JSON.stringify(r)).toBeGreaterThanOrEqual(6);
+  });
+}

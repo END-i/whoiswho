@@ -314,6 +314,7 @@
   .d-h .hello { display: block; text-align: center; font-size: 24px; font-weight: 1000; margin: 0 0 6px; }
   .d-h .pair .who.ans :global(.av) { filter: drop-shadow(0 0 10px rgba(255, 200, 107, .6)); }
   .d-h .arrow { color: #CFC2FF; }
+  .d-h .people:not(.pair) { justify-content: center; } /* одна людина — по центру, під «Тобі питання!» */
   .d-h .qbox { padding: 6px 16px; border-radius: 22px; background: #221636; border: 2px solid #7B5CFF; box-shadow: 0 0 0 6px rgba(123, 92, 255, .18), 0 0 40px rgba(123, 92, 255, .35); margin: 12px 0; }
   .d-h .q { text-align: center; font-size: clamp(24px, 7vw, 30px); }
   .d-h .all { background: #2C1E45; }
@@ -331,6 +332,7 @@
   .d-j .pair .who.main b { font-size: 26px; }
   .d-j .pair small, .d-j .pair em, .d-j .pair .arrow { color: var(--t); opacity: .85; }
   .d-j .qbox { position: relative; margin-top: -2px; }
+  .d-j .people:not(.pair) { margin-top: 14px; } /* одна людина — нижче кольорової шапки, а не на ній */
 
   /* ---------- E — ігрова карта: рамка кольору категорії, номінал у кутку, карта трохи нахилена ---------- */
   .d-e .card { border: 8px solid var(--c1); border-radius: 28px; box-shadow: 0 8px 0 var(--c2), 0 30px 60px rgba(0, 0, 0, .35); transform: rotate(-1deg); }
