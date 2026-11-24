@@ -124,3 +124,22 @@ for (const design of DESIGNS) {
     expect(r.who - r.top, JSON.stringify(r)).toBeGreaterThanOrEqual(6);
   });
 }
+
+// налаштування на 320 px: назви з ⓘ не вилазять за межі, а емодзі не лишається сам на рядку (24.11)
+for (const lang of ['Українська', 'Русский']) {
+  test(`320 px, ${lang}: назви налаштувань з ⓘ вміщаються, емодзі — на одному рядку з назвою`, async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 700 });
+    await fresh(page);
+    await page.getByRole('radio', { name: lang }).click();
+    expect(await noHorizontalScroll(page)).toBe(true);
+    for (const lbl of await page.locator('.tipped .lbl').all()) {
+      const r = await lbl.evaluate((el) => {
+        const t = el.firstChild; const range = document.createRange();
+        range.setStart(t, 0); range.setEnd(t, Math.min(4, t.length)); // емодзі, пробіл і перша літера
+        return { tops: new Set([...range.getClientRects()].map((x) => Math.round(x.top))).size, fits: el.scrollWidth <= el.clientWidth, text: el.textContent };
+      });
+      expect(r.fits, r.text).toBe(true);
+      expect(r.tops, r.text).toBe(1);
+    }
+  });
+}

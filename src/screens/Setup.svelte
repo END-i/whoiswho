@@ -260,6 +260,7 @@
   .tipped { position: relative; justify-content: flex-start; }
   .tipped .lbl { flex: 0 1 auto; min-width: 0; cursor: pointer; }
   .tipped input { margin-left: auto; }
+  @media (max-width: 360px) { .tipped .lbl { font-size: 15px; } }
   small { display: block; color: var(--dim); font-size: 13px; font-weight: 700; }
   .sw input { appearance: none; width: 54px; height: 32px; border-radius: 20px; background: var(--line); position: relative; flex: none; transition: background .2s; cursor: pointer; }
   .sw input::after { content: ''; position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0, 0, 0, .2); transition: transform .2s; }
